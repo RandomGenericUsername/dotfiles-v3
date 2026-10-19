@@ -33,6 +33,18 @@
 # config-links symlink to the live-notifications link) and restarts it after the
 # quit loop. The deploy-coverage gate asserts the absence of a stale per-file
 # notifications entry.
+#
+# capture-tool IS RETIRED AS A GUI-TOOLS APP (slice 5). The AGS GUI moved into
+# the same ags-apps monorepo unit and deploys WHOLE via the ags_apps role's
+# live-capture link (<install>/config/ags-capture -> <unit>/capture-tool), so
+# this role no longer enumerates it per file and carries no capture app_files
+# manifest. The on-demand `capture` AGS instance entry STAYS in
+# gui_tools_ags_instances below: it is the mechanism the provisioned `capture-ui`
+# launcher (cli_tools) and autostart.lua use to start the GUI from
+# ~/.config/ags-capture (the config-links symlink to the live-capture link). The
+# Python backend is NOT a GUI-tools concern at all: it stays in-repo and is
+# installed by cli_tools. The deploy-coverage gate asserts the absence of a stale
+# per-file capture entry.
 
 # gui_tools_repo_root: repo root derived from this playbook's location.
 #   Mirror of compositor_configs_repo_root / cli_tools_repo_root exactly.
@@ -72,14 +84,6 @@ gui_tools_spine_config_dir: "{{ install_dir | trim }}/config"
 #   dest parents for file sources) so a direct gui-tools.yaml run is
 #   self-contained.
 gui_tools_config_dirs:
-  - "{{ gui_tools_spine_config_dir }}/ags-capture"
-  - "{{ gui_tools_spine_config_dir }}/ags-capture/ui"
-  - "{{ gui_tools_spine_config_dir }}/ags-capture/lib"
-  - "{{ gui_tools_spine_config_dir }}/ags-capture/domain"
-  - "{{ gui_tools_spine_config_dir }}/ags-capture/ports"
-  - "{{ gui_tools_spine_config_dir }}/ags-capture/adapters"
-  - "{{ gui_tools_spine_config_dir }}/ags-capture/ui/shared"
-  - "{{ gui_tools_spine_config_dir }}/ags-capture/ui/classic"
   - "{{ gui_tools_spine_config_dir }}/ags-icme"
   - "{{ gui_tools_spine_config_dir }}/ags-icme/ui"
   - "{{ gui_tools_spine_config_dir }}/ags-icme/lib"
@@ -91,131 +95,20 @@ gui_tools_config_dirs:
   - "{{ gui_tools_spine_config_dir }}/ags-btop-studio/lib"
   - "{{ gui_tools_spine_config_dir }}/ags-btop-studio/live"
 
-# gui_tools_capture_obsolete: spine paths the capture app no longer ships, which
-# MUST be actively removed rather than left to rot.
-#
-# Why this exists: placement is PER-FILE (`gui_tools_app_files`), and per-file
-# placement only ever WRITES. It has no notion of "this source no longer
-# exists", so a file dropped from the manifest stays on disk forever. The
-# capture app's hexagonal refactor retired four spine paths:
-#
-#   ui/CaptureWindow.tsx   -> split into ui/classic/{ClassicWindow,ScreenshotPage,
-#                            RecordingPage,SettingsPage}.tsx
-#   ui/RecordingView.tsx   -> dead scaffold stub (deleted in the refactor)
-#   ui/ScreenshotView.tsx  -> dead scaffold stub (deleted in the refactor)
-#   controllers/           -> four dead scaffold stubs, superseded by
-#                             ports/ + adapters/
-#
-# Left behind they are inert -- app.tsx imports ./ui/classic/ClassicWindow and
-# nothing references them -- but they are the exact "parallel, never-exercised
-# architecture" the refactor set out to delete, now sitting in derived state
-# where no gate can see them (the gates read the repo, never the spine).
-# `state: absent` is idempotent, and the sibling legacy-capture removal task is
-# the established precedent for this shape.
-gui_tools_capture_obsolete:
-  - "{{ gui_tools_spine_config_dir }}/ags-capture/ui/CaptureWindow.tsx"
-  - "{{ gui_tools_spine_config_dir }}/ags-capture/ui/RecordingView.tsx"
-  - "{{ gui_tools_spine_config_dir }}/ags-capture/ui/ScreenshotView.tsx"
-  - "{{ gui_tools_spine_config_dir }}/ags-capture/controllers"
-
-# gui_tools_app_files: the app FILES, one entry per file with the explicit
-#   target path. Per-file entries (not directory sources) are REQUIRED (see
-#   note above). Rendered via `ansible.builtin.template` with `force: true`
-#   (repo-authoritative, mirror of the compositor_configs decision
-#   2026-08-26).
-gui_tools_app_files:
-  - { name: capture-app-tsx, source: src/gui-tools/capture-tool/app.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/app.tsx" }
-  - { name: capture-style-css, source: src/gui-tools/capture-tool/style.css, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/style.css" }
-  - { name: capture-types, source: src/gui-tools/capture-tool/types.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/types.ts" }
-  # The classic layout (refactor-capture-tool-hexagonal A8): the window shell
-  # and the three top-level views. One file used to be all four, so an
-  # undeployed member of this set is a capture panel that cannot bundle at
-  # runtime -- the whole app is reachable only through ClassicWindow's import
-  # of the three pages. Per-file placement, so each is listed; ui/classic is in
-  # gui_tools_config_dirs above because copy does not create dest parents.
-  - { name: capture-classic-window, source: src/gui-tools/capture-tool/ui/classic/ClassicWindow.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/ui/classic/ClassicWindow.tsx" }
-  - { name: capture-classic-screenshot-page, source: src/gui-tools/capture-tool/ui/classic/ScreenshotPage.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/ui/classic/ScreenshotPage.tsx" }
-  - { name: capture-classic-recording-page, source: src/gui-tools/capture-tool/ui/classic/RecordingPage.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/ui/classic/RecordingPage.tsx" }
-  - { name: capture-classic-settings-page, source: src/gui-tools/capture-tool/ui/classic/SettingsPage.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/ui/classic/SettingsPage.tsx" }
-  # The pure domain layer (refactor-capture-tool-hexagonal A3): settings
-  # vocabulary/merge/validation and the UI-state shape/merge. No GTK, no GLib,
-  # no I/O — which is what lets A4 unit-test them and A5/A6 reuse them from
-  # both layouts. Per-file placement like every other capture source.
-  - { name: capture-domain-settings, source: src/gui-tools/capture-tool/domain/settings.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/domain/settings.ts" }
-  - { name: capture-domain-ui-state, source: src/gui-tools/capture-tool/domain/ui-state.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/domain/ui-state.ts" }
-  # The request->argv translator (refactor-capture-tool-hexagonal A6). THE
-  # single module in the whole tool that writes an argv literal for
-  # `capture-tool screenshot|start`; both capture actions call it, and the next
-  # capture layout must call it too rather than re-deriving the flags. It
-  # carries the two vocabulary traps the backend's argparse rejects (--size 75
-  # not 75%, --audio mic not microphone), so a missing deployment is a capture
-  # that silently does not happen. Values + types only: no GTK, no GLib, no
-  # execAsync. Per-file placement like every other capture source; domain/ is
-  # already in gui_tools_config_dirs above (A3).
-  - { name: capture-domain-capture-request, source: src/gui-tools/capture-tool/domain/capture-request.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/domain/capture-request.ts" }
-  - { name: capture-domain-cli-args, source: src/gui-tools/capture-tool/domain/cli-args.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/domain/cli-args.ts" }
-  # The monitor registry (fix-capture-monitor-lifecycle). PURE: it decides
-  # which windows a monitor change means (planSync) and which window a name
-  # lookup should reach first (orderedForFocus). That decision is the whole of
-  # two deferred bugs, and it lives in domain/ precisely so `node --test` can
-  # execute it -- GTK-touching code is untestable here, and app.tsx's own
-  # contract forbids logic. Values + types only.
-  - { name: capture-domain-monitor-registry, source: src/gui-tools/capture-tool/domain/monitor-registry.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/domain/monitor-registry.ts" }
-  # The ports and adapters layers (refactor-capture-tool-hexagonal A5). ports/
-  # is interfaces only; adapters/ owns every GLib file read/write, the
-  # execAsync spawn and the hide-then-wait-150ms delay. The dialog imports
-  # ports/ and receives adapters/ injected by the composition root, so an
-  # undeployed member of either layer breaks the bundle at runtime. Per-file
-  # placement, so every file is listed; both dirs are in
-  # gui_tools_config_dirs above because copy does not create dest parents.
-  - { name: capture-ports-settings-store, source: src/gui-tools/capture-tool/ports/settings-store.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/ports/settings-store.ts" }
-  - { name: capture-ports-ui-state-store, source: src/gui-tools/capture-tool/ports/ui-state-store.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/ports/ui-state-store.ts" }
-  - { name: capture-ports-capture-launcher, source: src/gui-tools/capture-tool/ports/capture-launcher.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/ports/capture-launcher.ts" }
-  - { name: capture-ports-backend-probe, source: src/gui-tools/capture-tool/ports/backend-probe.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/ports/backend-probe.ts" }
-  - { name: capture-ports-capture-ports, source: src/gui-tools/capture-tool/ports/capture-ports.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/ports/capture-ports.ts" }
-  # The two monitor ports (fix-capture-monitor-lifecycle). Interfaces only.
-  # monitor-topology is "the monitors that exist, and be told when that
-  # changes"; monitor-focus is "which monitor is the user on", which GTK4
-  # cannot answer at all (the measured negative result is recorded in the file).
-  - { name: capture-ports-monitor-topology, source: src/gui-tools/capture-tool/ports/monitor-topology.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/ports/monitor-topology.ts" }
-  - { name: capture-ports-monitor-focus, source: src/gui-tools/capture-tool/ports/monitor-focus.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/ports/monitor-focus.ts" }
-  - { name: capture-adapters-glib-settings-store, source: src/gui-tools/capture-tool/adapters/glib-settings-store.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/adapters/glib-settings-store.ts" }
-  - { name: capture-adapters-glib-ui-state-store, source: src/gui-tools/capture-tool/adapters/glib-ui-state-store.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/adapters/glib-ui-state-store.ts" }
-  - { name: capture-adapters-exec-capture-launcher, source: src/gui-tools/capture-tool/adapters/exec-capture-launcher.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/adapters/exec-capture-launcher.ts" }
-  - { name: capture-adapters-exec-backend-probe, source: src/gui-tools/capture-tool/adapters/exec-backend-probe.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/adapters/exec-backend-probe.ts" }
-  # The monitor adapters and the window set (fix-capture-monitor-lifecycle).
-  # gdk-monitor-topology is the ONLY place that subscribes to monitor hotplug
-  # (Gdk.Display has no monitor-added/monitor-removed; the delivery is the
-  # Gio.ListModel's items-changed). hyprland-monitor-focus answers "which
-  # monitor is focused", which GTK 4.22 cannot do at all. monitor-window-set owns
-  # one window per monitor across hotplug AND replaces the name lookup the
-  # provisioned `ags toggle capture-window` launcher resolves through, so the
-  # panel opens on the focused monitor without a provision run.
-  - { name: capture-adapters-gdk-monitor-topology, source: src/gui-tools/capture-tool/adapters/gdk-monitor-topology.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/adapters/gdk-monitor-topology.ts" }
-  - { name: capture-adapters-hyprland-monitor-focus, source: src/gui-tools/capture-tool/adapters/hyprland-monitor-focus.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/adapters/hyprland-monitor-focus.ts" }
-  - { name: capture-adapters-monitor-window-set, source: src/gui-tools/capture-tool/adapters/monitor-window-set.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/adapters/monitor-window-set.ts" }
-  # The capture instance resolves palette-aware icons through its own
-  # registry (each GUI app owns its lib/ in src and the role deploys it
-  # per-file). The capture registry prefers the instance's
-  # own manifest (`../icons.json` → the ags-capture manifest the
-  # compositor_configs role generates into the same spine dir) and falls back
-  # to the shared bar manifest. Repo-authoritative, force: true.
-  - { name: capture-lib-icon-registry, source: src/gui-tools/capture-tool/lib/icon-registry.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/lib/icon-registry.ts" }
-  # The shared builder kit (refactor-capture-tool-hexagonal A7): the row
-  # builders, the group/selection helpers and the icon resolver that BOTH
-  # layouts share. Extracting them before a second layout exists is what stops
-  # that layout growing its own divergent row builders. ui/shared is listed in
-  # gui_tools_config_dirs above because placement is per-file and `copy` does
-  # not create dest parents.
-  - { name: capture-ui-shared-rows, source: src/gui-tools/capture-tool/ui/shared/rows.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/ui/shared/rows.ts" }
-  - { name: capture-ui-shared-groups, source: src/gui-tools/capture-tool/ui/shared/groups.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/ui/shared/groups.ts" }
-  - { name: capture-ui-shared-icons, source: src/gui-tools/capture-tool/ui/shared/icons.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-capture/ui/shared/icons.ts" }
+# gui_tools_capture_obsolete and gui_tools_app_files are RETIRED (slice 5).
+# The capture-tool AGS GUI moved into the ags-apps unit and deploys WHOLE via
+# the ags_apps role's live-capture link (<install>/config/ags-capture ->
+# <unit>/capture-tool), so this role carries NO per-file capture manifest and
+# no obsolete-path cleanup list. A stale per-file entry would template INTO the
+# unit tree through the live-capture link and diverge the live GUI from the
+# pinned tag (the deploy-coverage gate asserts its absence). The Python backend
+# is not a GUI-tools concern: it stays in-repo, installed by cli_tools.
 
 # gui_tools_icme_app_files: the icon color mapping editor's app files,
 #   deployed into their own ags-icme/ spine dir. RAW COPY (ansible.builtin.copy),
 #   NOT `template`: the editor sources contain literal `{{PLACEHOLDER}}`
 #   sequences (SVG placeholder regexes and docs) that Jinja2 would evaluate
-#   and destroy. Repo-authoritative (force: true) like the capture app — the
+#   and destroy. Repo-authoritative (force: true) like the icme editor — the
 #   editor's CODE converges; the DATA it edits (icon-mappings) is seed-once
 #   in the assets role.
 gui_tools_icme_app_files:
@@ -246,7 +139,8 @@ gui_tools_icme_app_files:
 #   deployed into their own ags-wallpaper-selector/ spine dir. Rendered via
 #   `template` with force: true (repo-authoritative); the sources contain no
 #   Jinja-sensitive `{{`/`{%` sequences (verified by the provisioning role
-#   test) — same placement discipline as the capture app.
+#   test) — the same repo-authoritative template placement as the icme copy
+#   discipline.
 gui_tools_wallpaper_selector_app_files:
   - { name: wallpaper-selector-app-tsx, source: src/gui-tools/wallpaper-selector/app.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/app.tsx" }
   - { name: wallpaper-selector-style-css, source: src/gui-tools/wallpaper-selector/style.css, dest: "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/style.css" }

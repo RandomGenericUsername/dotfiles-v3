@@ -29,7 +29,8 @@ entries:
   # live-bar SYMLINK (<install>/config/ags -> the pinned unit's bar/), not the
   # filesystem role as a dir. Keeping it out of the manifest keeps the parity
   # lock (test_parity_with_manifest) from re-adding it to filesystem_spine_dirs.
-  - name: config/ags-capture
+  # config/ags-capture is absent for the SAME reason (slice 5): the ags_apps role
+  # owns it as the live-capture SYMLINK -> the unit's capture-tool/.
   - name: config/nvim
   - name: config/starship
   - name: config/wlogout

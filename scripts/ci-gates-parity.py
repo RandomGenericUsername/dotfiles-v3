@@ -19,8 +19,8 @@ differently:
     to developers and drifts from the Makefile.
 
 It derives the authoritative set from the `Makefile` itself, never from a copy:
-`GATES` is parsed and the `gates-ci` rule's `filter-out` is applied to it, so the
-Makefile remains the one place the set is written.
+`GATES` is parsed and the `gates-ci` rule's `filter-out` (when present) is applied
+to it, so the Makefile remains the one place the set is written.
 
 DECLARED DIFFERENCES, NOT ASSUMED ONES. Two kinds of difference are legal, and
 both must be written down here rather than read past:
@@ -34,9 +34,10 @@ both must be written down here rather than read past:
 
 And one exclusion is declared rather than left as an absence: `CI_EXCLUDED_GATES`
 names each gate the `gates-ci` filter removes and why it cannot run on a stock
-runner. `capture-typecheck` is the one today. (The bar-dev gates that used to run
-on a `[self-hosted, linux]` runner were retired with the in-repo bar bridge, so
-`CI_SELF_HOSTED_GATES` is empty.)
+runner. It is EMPTY today — the one historical entry, `capture-typecheck`, was
+retired with the in-repo capture GUI (slice 5) and `gates-ci` now equals `GATES`.
+(The bar-dev gates that used to run on a `[self-hosted, linux]` runner were
+retired with the in-repo bar bridge, so `CI_SELF_HOSTED_GATES` is empty.)
 
 Usage: ``python3 scripts/ci-gates-parity.py [--root REPO_ROOT]``
 Exit 0 = the two sets are equal modulo the declared tables.
@@ -83,11 +84,6 @@ RENAMES: dict[str, tuple[str, str]] = {
         "to the same target, so the correspondence is recorded rather than "
         "renaming a job for cosmetics.",
     ),
-    "capture-hexagonal-gate": (
-        "capture-hexagonal",
-        "The job key drops the `-gate` suffix the `make` target carries; the job "
-        "runs `python3 scripts/capture-hexagonal-gate.py`, the same script.",
-    ),
 }
 
 # Workflow jobs that are deliberately not gates: a job with no `make` target,
@@ -101,15 +97,12 @@ CI_ONLY_EXEMPT: dict[str, str] = {}
 # not an absence: removing a gate from `gates-ci` without an entry here (or in
 # CI_SELF_HOSTED_GATES) fails, and an entry here for a gate that is not actually
 # filtered out fails as stale.
-CI_EXCLUDED_GATES: dict[str, str] = {
-    "capture-typecheck": (
-        "Needs `ags` on PATH plus the Astal/GIR libraries, and `ags types` writes "
-        "~49 MB of machine-specific .d.ts describing this host's GTK/Astal "
-        "install; its tolerated-third-party bucket is keyed to the literal "
-        "/usr/share/ags/js/ path. A stock runner has no AGS, no Astal and no "
-        "GTK4, so the target has nothing to typecheck against."
-    ),
-}
+#
+# EMPTY TODAY. The one historical entry was `capture-typecheck`, retired with the
+# in-repo capture GUI (ags-apps-bar-first slice 5): the GUI moved into the
+# `ags-apps` unit and its gates went with it, so `gates-ci` now equals `GATES`
+# with no `filter-out` at all.
+CI_EXCLUDED_GATES: dict[str, str] = {}
 
 # Gates the `gates-ci` filter removes that DO still run in CI, on a capable
 # SELF-HOSTED runner. This is the distinction between "cannot run on a stock
@@ -119,9 +112,9 @@ CI_EXCLUDED_GATES: dict[str, str] = {
 # must exist, and the gate must really be filtered out of `gates-ci`.
 #
 # EMPTY TODAY: the gates that needed a self-hosted desktop runner were retired
-# with the in-repo bar bridge and now live in the bar's own repo.
-# `capture-typecheck` is the only remaining filtered gate, and it has no CI job
-# at all (CI_EXCLUDED_GATES).
+# with the in-repo bar bridge and now live in the bar's own repo. The capture GUI
+# gates (`capture-typecheck` included) were retired the same way with the GUI
+# (slice 5) — they live in `ags-apps` now, and `gates-ci` has no exclusions.
 CI_SELF_HOSTED_GATES: dict[str, tuple[str, str, str]] = {}
 
 
@@ -163,11 +156,14 @@ def parse_makefile_gates(text: str) -> tuple[list[str], list[str], list[str]]:
             f"could not parse the `GATES` variable from the {MAKEFILE}; refusing "
             f"to guess the authoritative set"
         )
+    # An absent `filter-out` means NO exclusions (gates-ci == GATES), which is the
+    # current shape: every gate is stock-runner capable. A `filter-out` that IS
+    # present is parsed and its members verified against CI_EXCLUDED_GATES /
+    # CI_SELF_HOSTED_GATES. Refusing to accept the no-filter shape would force a
+    # dummy exclusion just to satisfy the parser — the opposite of the honest
+    # declaration this gate exists to enforce.
     if excluded_from_filter is None:
-        raise Drift(
-            f"could not parse a `filter-out` from the `gates-ci` rule in "
-            f"{MAKEFILE}; refusing to guess which gates are CI-capable"
-        )
+        excluded_from_filter = []
 
     gates_ci = [g for g in gates if g not in excluded_from_filter]
     excluded = [g for g in gates if g not in gates_ci]

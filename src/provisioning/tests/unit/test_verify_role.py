@@ -199,28 +199,11 @@ def _sibling_vars(role: str) -> Any:
     return data
 
 
-# The capture app's spine subtree, as a suffix marker. Both roles place capture
-# files under it, so the marker is what makes one list comparable to the other
-# across the seam-spelling difference (see the derived coverage tests).
-_CAPTURE_SUBTREE = "ags-capture/"
-
-
-def _capture_spine_tails(paths: list[str]) -> set[str]:
-    """Return the spine-relative tail of each path under `ags-capture/`,
-    discarding paths outside that subtree.
-
-    The two roles reach the same spine dir by different seam vocabulary —
-    gui_tools spells it `{{ gui_tools_spine_config_dir }}`, verify spells it
-    `{{ install_dir | trim }}/config` — so only the tail after the subtree marker
-    is comparable. A full-dest comparison never matches, which reads as "every
-    file unasserted"; a filename-only comparison collides across the app's
-    layers."""
-    tails = set()
-    for path in paths:
-        index = path.find(_CAPTURE_SUBTREE)
-        if index != -1:
-            tails.add(path[index + len(_CAPTURE_SUBTREE) :])
-    return tails
+# The capture-tool AGS GUI moved into the ags-apps unit (slice 5) and deploys
+# WHOLE via the live-capture link, so the per-file capture placement/assertion
+# parity helpers (`_CAPTURE_SUBTREE` / `_capture_spine_tails`) were retired with
+# the per-file coverage locks they served. The unit's sources are asserted by
+# `verify_ags_apps_capture_tool_files`; the GUI is no longer placed per file.
 
 
 def _manifest_entries() -> list[dict[str, str]]:
@@ -1383,28 +1366,38 @@ class TestVerifyVars:
             "filesystem_spine_dirs (the test locks exact set equality)"
         )
 
-    def test_install_spine_dirs_exclude_the_ags_live_bar_link(self) -> None:
-        """<install>/config/ags is owned by the ags_apps role as a SYMLINK
-        (verify_ags_apps_live_bar_link), NOT by the filesystem role as a dir.
-        The criterion-1 spine assert counts verify_install_spine_dirs entries
-        via stat.isdir, so a symlinked config/ags made it false on a real
-        bootstrap (the regression this locks). The path must be absent here and
-        asserted as a symlink by the ags_apps assertion instead."""
+    def test_install_spine_dirs_exclude_the_ags_live_links(self) -> None:
+        """<install>/config/ags and <install>/config/ags-capture are owned by the
+        ags_apps role as SYMLINKS (verify_ags_apps_live_bar_link /
+        verify_ags_apps_live_capture_link), NOT by the filesystem role as dirs.
+        The criterion-1 spine assert counts verify_install_spine_dirs entries via
+        stat.isdir, so a symlinked config/ags made it false on a real bootstrap
+        (the regression this locks); slice 5 retired config/ags-capture for the
+        same reason. Each path must be absent here and asserted as a symlink by
+        the matching ags_apps assertion instead."""
         data = _vars()
         spine = [str(item) for item in data["verify_install_spine_dirs"]]
         assert "config/ags" not in spine, (
             "config/ags must not be in verify_install_spine_dirs — it is a "
             "symlink, and the isdir spine assert would fail on it"
         )
-        assert "config/ags-capture" in spine, (
-            "the sibling config/ags-capture stays a spine dir"
+        assert "config/ags-capture" not in spine, (
+            "config/ags-capture must not be in verify_install_spine_dirs — it is "
+            "the live-capture symlink (slice 5), and the isdir spine assert would "
+            "fail on it"
         )
-        # Tie the exclusion to the SAME path the ags_apps live-bar assertion
-        # checks as a symlink, so the two cannot silently desync.
+        # Tie the exclusions to the SAME paths the ags_apps assertions check as
+        # symlinks, so the two cannot silently desync.
         live_bar = str(data["verify_ags_apps_live_bar_link"])
         assert live_bar == "{{ install_dir | trim }}/config/ags", (
             "verify_ags_apps_live_bar_link must remain <install>/config/ags — "
             f"the path excluded from verify_install_spine_dirs; got {live_bar!r}"
+        )
+        live_capture = str(data["verify_ags_apps_live_capture_link"])
+        assert live_capture == "{{ install_dir | trim }}/config/ags-capture", (
+            "verify_ags_apps_live_capture_link must remain "
+            "<install>/config/ags-capture — the path excluded from "
+            f"verify_install_spine_dirs; got {live_capture!r}"
         )
 
     def test_live_pano_link_mirrors_the_ags_apps_role_and_is_not_a_spine_dir(
@@ -1519,6 +1512,73 @@ class TestVerifyVars:
             assert entry.startswith("{{ verify_ags_apps_notifications_dir }}/"), (
                 f"a notifications unit file must derive from the unit dir; got {entry!r}"
             )
+
+    def test_live_capture_link_mirrors_the_ags_apps_role_and_is_not_a_spine_dir(
+        self,
+    ) -> None:
+        """Slice 5: <install>/config/ags-capture is the ags_apps role's
+        live-capture SYMLINK (-> the unit's capture-tool/), NOT a
+        filesystem/gui_tools dir. It must be absent from verify_install_spine_dirs
+        (the criterion-1 isdir assert counts dirs), absent from
+        verify_gui_tools_app_files (the GUI deploys WHOLE), and its vars must
+        mirror the ags_apps role."""
+        data = _vars()
+        apps = _sibling_vars("ags_apps")
+
+        live = str(data["verify_ags_apps_live_capture_link"])
+        assert live == "{{ install_dir | trim }}/config/ags-capture", (
+            f"verify_ags_apps_live_capture_link must be "
+            f"<install>/config/ags-capture; got {live!r}"
+        )
+        # Mirror of the role: the link DEST is the spine config path, the unit
+        # dir is the capture-tool/ subdir of the versioned unit.
+        role_live = str(apps["ags_apps_live_capture_link"])
+        assert (
+            role_live.endswith("/ags-capture") and "spine_config_dir" in role_live
+        ), (
+            "the ags_apps role must deploy the live-capture link at "
+            f"config/ags-capture; got {role_live!r}"
+        )
+        unit_capture = str(data["verify_ags_apps_capture_tool_dir"])
+        assert (
+            unit_capture.endswith("/capture-tool")
+            and "verify_ags_apps_unit_dir" in unit_capture
+        ), (
+            "verify_ags_apps_capture_tool_dir must be <unit>/capture-tool; "
+            f"got {unit_capture!r}"
+        )
+        assert str(apps["ags_apps_capture_tool_dir"]).endswith("/capture-tool"), (
+            "the ags_apps role must declare the unit's capture-tool/ subdir"
+        )
+
+        # Not a spine dir, and not a per-file gui_tools assertion.
+        assert "config/ags-capture" not in [
+            str(item) for item in data["verify_install_spine_dirs"]
+        ], "config/ags-capture is a symlink, not a verify_install_spine_dirs dir"
+        per_file_capture = [
+            str(f)
+            for f in data["verify_gui_tools_app_files"]
+            if "/config/ags-capture/" in str(f)
+        ]
+        assert per_file_capture == [], (
+            "verify_gui_tools_app_files must not mirror per-file capture GUI "
+            f"sources (the GUI deploys WHOLE): {per_file_capture}"
+        )
+        # The unit files are asserted under the unit, and there are some.
+        capture_files = [str(f) for f in data["verify_ags_apps_capture_tool_files"]]
+        assert capture_files, (
+            "verify_ags_apps_capture_tool_files must not be empty"
+        )
+        for entry in capture_files:
+            assert entry.startswith("{{ verify_ags_apps_capture_tool_dir }}/"), (
+                f"a capture-tool unit file must derive from the unit dir; got {entry!r}"
+            )
+        # The Python backend is NOT a unit file — it stays in-repo and is
+        # asserted via verify_bin_scripts.
+        assert not any("bin/capture-tool" in entry for entry in capture_files), (
+            "the capture-tool Python backend must not be asserted as a unit file; "
+            "it stays in-repo (cli_tools installs it)"
+        )
 
     def test_settings_files_parity_with_settings_role(self) -> None:
         """Parity lock: verify_settings_files dests mirror the settings role's
@@ -1711,74 +1771,43 @@ class TestVerifyVars:
             "gui_tools always_on subset"
         )
 
-    def test_every_placed_capture_file_is_asserted(self) -> None:
-        """Derived coverage lock (verify-capture-placement-coverage): EVERY
-        ags-capture/ dest in gui_tools_app_files must appear in
-        verify_gui_tools_app_files.
-
-        Placement is per-file and silent — the gui_tools role just loops the
-        list, so a source missing from it is never written to the spine, with no
-        error and no warning. verify_gui_tools_app_files is the only thing that
-        turns that omission into a failed run, and both lists are maintained by
-        hand and independently. That is how five placed files shipped unasserted
-        (domain/cli-args.ts — the single request->argv translator, so every
-        capture dies at bundle time — plus domain/capture-request.ts and the
-        three ui/shared/ builder-kit modules).
-
-        The expected set is DERIVED from the placement manifest, not hardcoded: a
-        test listing the five would pass the moment a sixth placement entry landed
-        without a matching verify entry, reproducing the same silent gap under a
-        new name.
-
-        Compared as the spine-relative tail after ags-capture/, because the two
-        roles spell the seam differently (`{{ gui_tools_spine_config_dir }}` vs
-        `{{ install_dir | trim }}/config`) — a full-dest string never matches."""
-        placed = _capture_spine_tails(
-            [
-                str(entry["dest"])
-                for entry in _sibling_vars("gui_tools")["gui_tools_app_files"]
-            ]
+    def test_capture_gui_is_not_mirrored_per_file(self) -> None:
+        """Slice 5 replaced the derived per-file capture coverage lock. The GUI
+        moved into the ags-apps unit and deploys WHOLE via the live-capture link,
+        so NO ags-capture/ dest may remain in gui_tools_app_files or in
+        verify_gui_tools_app_files — the per-file placement/assertion pair is
+        retired together. The unit's sources are asserted by
+        verify_ags_apps_capture_tool_files instead; the generated icons.json
+        (which lands through the link) stays a criterion-7 skeleton."""
+        gui_tools = _sibling_vars("gui_tools")
+        for key, value in gui_tools.items():
+            if key.endswith("_app_files") and isinstance(value, list):
+                for entry in value:
+                    dest = str(entry.get("dest", "")) if isinstance(entry, dict) else ""
+                    assert "/ags-capture/" not in dest, (
+                        f"{key} still places a per-file capture GUI source: {dest} "
+                        "— the GUI deploys WHOLE via the live-capture link"
+                    )
+        verified = [str(f) for f in _vars()["verify_gui_tools_app_files"]]
+        assert not any("/config/ags-capture/" in f for f in verified), (
+            "verify_gui_tools_app_files must not assert per-file capture GUI "
+            f"sources (the GUI deploys WHOLE): {verified}"
         )
-        verified = _capture_spine_tails(
-            [str(f) for f in _vars()["verify_gui_tools_app_files"]]
+        # The generated manifest that lands THROUGH the link stays asserted.
+        skeletons = [str(f) for f in _vars()["verify_compositor_skeleton_files"]]
+        assert "{{ install_dir | trim }}/config/ags-capture/icons.json" in skeletons, (
+            "the capture instance's generated icons.json must stay a criterion-7 "
+            "skeleton (it lands through the live-capture link)"
         )
 
-        unasserted = placed - verified
-        assert not unasserted, (
-            "capture files placed by gui_tools_app_files but NOT asserted by "
-            f"verify_gui_tools_app_files: {sorted(unasserted)} — an unasserted "
-            "placement is a source that silently never deploys, while verify "
-            "stays green"
-        )
-
-    def test_capture_assertions_all_have_a_placement(self) -> None:
-        """The reverse direction of the coverage lock, plus the duplicate check.
-
-        A verify entry with no matching placement is a path verify demands that no
-        task ever creates — a guaranteed false failure on a correctly provisioned
-        machine, because the gate asserts the stat count equals the list length.
-        Duplicates are asserted separately so a repeated dest cannot be collapsed
-        away by the set and read as covered."""
-        placed_raw = [
-            str(entry["dest"])
-            for entry in _sibling_vars("gui_tools")["gui_tools_app_files"]
-            if "ags-capture/" in str(entry["dest"])
-        ]
-        verified_raw = [
-            str(f) for f in _vars()["verify_gui_tools_app_files"] if "ags-capture/" in str(f)
-        ]
-        assert len(placed_raw) == len(set(placed_raw)), (
-            "gui_tools_app_files places an ags-capture/ dest twice"
-        )
-        assert len(verified_raw) == len(set(verified_raw)), (
-            "verify_gui_tools_app_files asserts an ags-capture/ dest twice"
-        )
-
-        phantom = _capture_spine_tails(verified_raw) - _capture_spine_tails(placed_raw)
-        assert not phantom, (
-            "verify_gui_tools_app_files asserts ags-capture/ paths that no "
-            f"placement task creates: {sorted(phantom)} — verify would fail "
-            "forever on a correctly provisioned machine"
+    def test_capture_ags_instance_still_launches_from_the_symlink(self) -> None:
+        """The GUI still launches: the on-demand `capture` AGS instance entry
+        stays in the gui_tools instance list, started from the symlinked
+        ~/.config/ags-capture (config-links -> live-capture link)."""
+        gui_instances = _sibling_vars("gui_tools")["gui_tools_ags_instances"]
+        names = [str(i["name"]) for i in gui_instances]
+        assert "capture" in names, (
+            f"the capture AGS instance must stay in gui_tools_ags_instances; got {names}"
         )
 
     def test_ags_gate_is_session_aware(self) -> None:
@@ -1964,6 +1993,9 @@ class TestVerifyVars:
             "verify_ags_apps_notifications_dir",
             "verify_ags_apps_live_notifications_link",
             "verify_ags_apps_notifications_files",
+            "verify_ags_apps_capture_tool_dir",
+            "verify_ags_apps_live_capture_link",
+            "verify_ags_apps_capture_tool_files",
             "install_dir",
             "ansible_facts.env",
         )
@@ -2721,11 +2753,10 @@ def _build_provisioned_layout(
         "config/hypr",
         "config/hyprpaper",
         # config/ags is the ags_apps live-bar SYMLINK (<install>/config/ags ->
-        # the pinned unit's bar/), NOT a spine dir; it is created in the
-        # ags-apps unit block below. config/ags-capture stays a spine dir.
-        # config/ags-hypr-pano is likewise the live-pano SYMLINK (slice 3), not
-        # a spine dir — created in the same block.
-        "config/ags-capture",
+        # the pinned unit's bar/) and config/ags-capture is the live-capture
+        # SYMLINK (-> the unit's capture-tool/), NOT spine dirs; both are created
+        # in the ags-apps unit block below. config/ags-hypr-pano is likewise the
+        # live-pano SYMLINK (slice 3), not a spine dir — created in the same block.
         "config/ags-icme",
         "config/ags-wallpaper-selector",
         "config/ags-btop-studio",
@@ -2879,15 +2910,13 @@ def _build_provisioned_layout(
     (install / "config" / "hyprpaper" / "hyprpaper.conf").write_text("")
     # rofi launcher skeleton (compositor_configs role, add-rofi-app-launcher).
     (install / "config" / "rofi" / "launcher" / "config.rasi").write_text("")
-    (install / "config" / "ags-capture" / "icons.json").write_text("{}")
-    # Sibling AGS apps stay spine dirs (the ags_apps role owns ONLY the bar).
-    # The bar's own per-file sources are gone: the bar deploys WHOLE as the
-    # ags-apps unit and its live link, built in the unit block below.
+    # The capture instance's generated icons.json lands THROUGH the live-capture
+    # symlink (into the unit's capture-tool/); it is written in the ags-apps unit
+    # block below, after that link exists.
+    # Sibling AGS apps stay spine dirs (the ags_apps role owns the bar, the
+    # clipboard overlay, the notification overlay and the capture GUI as live
+    # links; those links are built in the unit block below).
     for rel in (
-        "ags-capture",
-        "ags-capture/ui",
-        "ags-capture/controllers",
-        "ags-capture/lib",
         "ags-icme/lib",
         "ags-wallpaper-selector",
         "ags-wallpaper-selector/ui",
@@ -2923,7 +2952,7 @@ def _build_provisioned_layout(
     # real dir of per-file bar sources. The fixture mirrors
     # verify_ags_apps_unit_dir / _bar_dir / _pin_file / _live_bar_link /
     # _resolution_shortcut so the criterion asserts have something to pass on.
-    apps_unit = install / "ags-apps" / "v0.3.4"
+    apps_unit = install / "ags-apps" / "v0.3.5"
     apps_bar = apps_unit / "bar"
     (apps_bar / "bar" / "widgets").mkdir(parents=True, exist_ok=True)
     for apps_file in (
@@ -2939,7 +2968,7 @@ def _build_provisioned_layout(
         "bar/validate-cli.ts",
     ):
         (apps_bar / apps_file).write_text("")
-    (install / "ags-apps" / "pinned").write_text("v0.3.4\n")
+    (install / "ags-apps" / "pinned").write_text("v0.3.5\n")
     (apps_unit / "node_modules").mkdir(parents=True, exist_ok=True)
     (apps_unit / "node_modules" / "ags-platform").symlink_to(unit)
     (install / "config" / "ags").symlink_to(apps_bar, target_is_directory=True)
@@ -2989,63 +3018,30 @@ def _build_provisioned_layout(
     (install / "config" / "ags" / "colors.css").symlink_to(
         state_current / "colors.gtk.css"
     )
-    # Standalone capture app (gui_tools role): must match
-    # verify_gui_tools_app_files EXACTLY.
-    (install / "config" / "ags-capture" / "app.tsx").write_text("")
-    (install / "config" / "ags-capture" / "style.css").write_text("")
-    (install / "config" / "ags-capture" / "types.ts").write_text("")
-    (install / "config" / "ags-capture" / "lib" / "icon-registry.ts").write_text("")
-    # The classic layout (hexagonal refactor A8): the window shell and the
-    # three top-level views.
-    (install / "config" / "ags-capture" / "ui" / "classic").mkdir(parents=True, exist_ok=True)
-    for capture_page in (
-        "ClassicWindow.tsx",
-        "ScreenshotPage.tsx",
-        "RecordingPage.tsx",
-        "SettingsPage.tsx",
+    # The capture-tool AGS GUI deploys WHOLE like the bar (slice 5): the unit's
+    # capture-tool/ subdir is linked as <install>/config/ags-capture — NOT a real
+    # dir of per-file app sources. Mirror of verify_ags_apps_capture_tool_dir /
+    # _live_capture_link / _capture_tool_files. The generated icons.json lands
+    # THROUGH that link into the unit tree, exactly like the bar's.
+    apps_capture = apps_unit / "capture-tool"
+    (apps_capture / "ui" / "classic").mkdir(parents=True, exist_ok=True)
+    (apps_capture / "domain").mkdir(parents=True, exist_ok=True)
+    (apps_capture / "ports").mkdir(parents=True, exist_ok=True)
+    (apps_capture / "adapters").mkdir(parents=True, exist_ok=True)
+    for capture_file in (
+        "app.tsx",
+        "style.css",
+        "ui/classic/ClassicWindow.tsx",
+        "domain/settings.ts",
+        "domain/cli-args.ts",
+        "ports/capture-ports.ts",
+        "adapters/exec-capture-launcher.ts",
     ):
-        (install / "config" / "ags-capture" / "ui" / "classic" / capture_page).write_text("")
-    # The pure domain layer ClassicWindow imports (hexagonal refactor A3).
-    (install / "config" / "ags-capture" / "domain").mkdir(parents=True, exist_ok=True)
-    (install / "config" / "ags-capture" / "domain" / "settings.ts").write_text("")
-    (install / "config" / "ags-capture" / "domain" / "ui-state.ts").write_text("")
-    # The request->argv half of the domain layer (hexagonal refactor A6): the
-    # capture intent value objects and the single module that writes an argv
-    # literal for `capture-tool screenshot|start`.
-    (install / "config" / "ags-capture" / "domain" / "capture-request.ts").write_text("")
-    (install / "config" / "ags-capture" / "domain" / "cli-args.ts").write_text("")
-    # The monitor lifecycle (fix-capture-monitor-lifecycle): the pure decision
-    # layer, and the two ports app.tsx reads monitors and focus through.
-    (install / "config" / "ags-capture" / "domain" / "monitor-registry.ts").write_text("")
-    # The shared builder kit BOTH layouts import (hexagonal refactor A7): the
-    # row builders, the group/selection helpers and the icon resolver.
-    (install / "config" / "ags-capture" / "ui" / "shared").mkdir(parents=True, exist_ok=True)
-    for capture_shared in ("rows.ts", "groups.ts", "icons.ts"):
-        (install / "config" / "ags-capture" / "ui" / "shared" / capture_shared).write_text("")
-    # The ports/ and adapters/ layers (hexagonal refactor A5): ClassicWindow
-    # imports ports/, the composition root injects adapters/.
-    for capture_layer in ("ports", "adapters"):
-        (install / "config" / "ags-capture" / capture_layer).mkdir(parents=True, exist_ok=True)
-    for capture_port in (
-        "settings-store.ts",
-        "ui-state-store.ts",
-        "capture-launcher.ts",
-        "backend-probe.ts",
-        "capture-ports.ts",
-        "monitor-topology.ts",
-        "monitor-focus.ts",
-    ):
-        (install / "config" / "ags-capture" / "ports" / capture_port).write_text("")
-    for capture_adapter in (
-        "glib-settings-store.ts",
-        "glib-ui-state-store.ts",
-        "exec-capture-launcher.ts",
-        "exec-backend-probe.ts",
-        "gdk-monitor-topology.ts",
-        "hyprland-monitor-focus.ts",
-        "monitor-window-set.ts",
-    ):
-        (install / "config" / "ags-capture" / "adapters" / capture_adapter).write_text("")
+        (apps_capture / capture_file).write_text("")
+    (install / "config" / "ags-capture").symlink_to(
+        apps_capture, target_is_directory=True
+    )
+    (install / "config" / "ags-capture" / "icons.json").write_text("{}")
     # Icon color mapping editor (gui_tools role): verify gates its event seam
     # modules (Phase 5 event-contract + event-bus) and the wallpaper.state
     # consumer core (event-bus-core) behind the live palette refresh.

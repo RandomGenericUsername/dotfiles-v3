@@ -100,8 +100,9 @@ verify_install_spine_dirs:
   # SYMLINK (<install>/config/ags -> the pinned unit's bar/), asserted
   # separately by verify_ags_apps_live_bar_link. Listing it here made the
   # criterion-1 isdir assert fail on a real bootstrap (stat.isdir is false
-  # through a symlink). config/ags-capture stays a spine dir.
-  - config/ags-capture
+  # through a symlink). config/ags-capture is absent for the SAME reason
+  # (slice 5): it is the live-capture SYMLINK into the unit's capture-tool/,
+  # asserted separately by verify_ags_apps_live_capture_link.
   - config/nvim
   - config/starship
   - config/wlogout
@@ -505,7 +506,7 @@ verify_ags_platform_unit_files:
 #   platform unit: esbuild realpaths the live-bar link, so the shared-ancestor
 #   shortcut is not an ancestor of the real bar tree and the bar's bare
 #   `ags-platform` imports would not resolve without it.
-verify_ags_apps_version: v0.3.4
+verify_ags_apps_version: v0.3.5
 verify_ags_apps_platform_version: v0.2.0
 verify_ags_apps_unit_dir: "{{ install_dir | trim }}/ags-apps/{{ verify_ags_apps_version }}"
 verify_ags_apps_bar_dir: "{{ verify_ags_apps_unit_dir }}/bar"
@@ -581,96 +582,49 @@ verify_ags_apps_notifications_files:
   - "{{ verify_ags_apps_notifications_dir }}/ui/NotificationsWindow.tsx"
   - "{{ verify_ags_apps_notifications_dir }}/lib/card-model.ts"
 
+# verify_ags_apps_capture_tool_dir / _live_capture_link / _capture_tool_files:
+#   the capture-tool AGS GUI, deployed WHOLE like the bar/hypr-pano/notifications
+#   (slice 5). The live-capture link <install>/config/ags-capture is a symlink
+#   into the unit's capture-tool/ dir, so the live GUI is always exactly the
+#   pinned tag — no per-file mirror can drift. Mirror of the ags_apps role vars.
+#   The ~/.config/ags-capture symlink (config_links) and the `capture-ui`
+#   launcher / autostart.lua are unchanged: they resolve through this link. The
+#   Python backend is NOT here (it stays in-repo, installed by cli_tools).
+verify_ags_apps_capture_tool_dir: "{{ verify_ags_apps_unit_dir }}/capture-tool"
+verify_ags_apps_live_capture_link: "{{ install_dir | trim }}/config/ags-capture"
+
+# verify_ags_apps_capture_tool_files: representative files that MUST be present
+#   in the installed unit's capture-tool/. NOT the whole app (that is the clone's
+#   job) — one file per concern: the composition-root entry, the stylesheet, the
+#   classic-layout shell, the pure settings domain, the single request->argv
+#   translator (the file that carries the --size/--audio vocabulary), a port and
+#   an adapter. A missing file is a capture panel that cannot bundle. NOTE: the
+#   v0.3.5 unit's capture-tool has NO lib/icon-registry.ts — it consumes the
+#   platform icon registry through `ags-platform` instead, so no such file is
+#   asserted here.
+verify_ags_apps_capture_tool_files:
+  - "{{ verify_ags_apps_capture_tool_dir }}/app.tsx"
+  - "{{ verify_ags_apps_capture_tool_dir }}/style.css"
+  - "{{ verify_ags_apps_capture_tool_dir }}/ui/classic/ClassicWindow.tsx"
+  - "{{ verify_ags_apps_capture_tool_dir }}/domain/settings.ts"
+  - "{{ verify_ags_apps_capture_tool_dir }}/domain/cli-args.ts"
+  - "{{ verify_ags_apps_capture_tool_dir }}/ports/capture-ports.ts"
+  - "{{ verify_ags_apps_capture_tool_dir }}/adapters/exec-capture-launcher.ts"
+
 # verify_gui_tools_app_files: the standalone GUI tool app files that must be
 #   present in the spine (criterion 7, extended to the gui_tools role —
-#   mirror of gui_tools_app_files + gui_tools_icme_app_files dests). The bar's
-#   old ags/capture/* paths are deliberately absent: the gui_tools role removes
-#   that legacy subtree. The ICME event seam modules (event-contract.ts,
-#   event-bus.ts) and the wallpaper.state consumer core (event-bus-core.ts)
-#   are gated here so a real install cannot ship an editor whose event
-#   contract or live palette refresh is missing.
+#   mirror of gui_tools_icme_app_files + gui_tools_wallpaper_selector_app_files
+#   + gui_tools_btop_studio_app_files dests). The ICME event seam modules
+#   (event-contract.ts, event-bus.ts) and the wallpaper.state consumer core
+#   (event-bus-core.ts) are gated here so a real install cannot ship an editor
+#   whose event contract or live palette refresh is missing.
+#   NOTE: the capture-tool AGS GUI is deliberately NOT mirrored per file here
+#   anymore (slice 5). It moved into the ags-apps unit and deploys WHOLE via
+#   the live-capture link; its sources are asserted as a UNIT below
+#   (verify_ags_apps_capture_tool_files). Keeping a stale per-file mirror here
+#   would assert files the bridge no longer deploys. The bar's old
+#   ags/capture/* paths are likewise absent (the legacy subtree is retired).
 verify_gui_tools_app_files:
-  - "{{ install_dir | trim }}/config/ags-capture/app.tsx"
-  - "{{ install_dir | trim }}/config/ags-capture/style.css"
-  - "{{ install_dir | trim }}/config/ags-capture/types.ts"
-  # The classic layout (refactor-capture-tool-hexagonal A8): the window shell
-  # and the three top-level views. Asserted for the same reason as the rest of
-  # the capture set -- gui_tools placement is per-file, and ClassicWindow
-  # reaches all three pages only through its own imports, so a missing one is a
-  # panel that cannot bundle.
-  - "{{ install_dir | trim }}/config/ags-capture/ui/classic/ClassicWindow.tsx"
-  - "{{ install_dir | trim }}/config/ags-capture/ui/classic/ScreenshotPage.tsx"
-  - "{{ install_dir | trim }}/config/ags-capture/ui/classic/RecordingPage.tsx"
-  - "{{ install_dir | trim }}/config/ags-capture/ui/classic/SettingsPage.tsx"
-  # The shared builder kit BOTH layouts import (refactor-capture-tool-hexagonal
-  # A7). Asserted for the same reason as the rest of the capture set: gui_tools
-  # placement is per-file, so an undeployed ui/shared/ module means the capture
-  # panel cannot even bundle -- and this kit is exactly what a SECOND layout is
-  # meant to reuse instead of re-deriving.
-  #   rows.ts    -- the row builders every settings/selection surface composes.
-  #   groups.ts  -- the group + selection helpers the row builders take.
-  #   icons.ts   -- the shared icon resolver the rows render through.
-  - "{{ install_dir | trim }}/config/ags-capture/ui/shared/rows.ts"
-  - "{{ install_dir | trim }}/config/ags-capture/ui/shared/groups.ts"
-  - "{{ install_dir | trim }}/config/ags-capture/ui/shared/icons.ts"
-  - "{{ install_dir | trim }}/config/ags-capture/lib/icon-registry.ts"
-  # The PURE domain layer ClassicWindow imports (refactor-capture-tool-hexagonal
-  # A3). Asserted for the same reason as the rest of the capture set: gui_tools
-  # placement is per-file, so an undeployed domain/ module means the dialog
-  # cannot even bundle.
-  - "{{ install_dir | trim }}/config/ags-capture/domain/settings.ts"
-  - "{{ install_dir | trim }}/config/ags-capture/domain/ui-state.ts"
-  # The request->argv half of the domain layer (refactor-capture-tool-hexagonal
-  # A6) -- the pair the composition root hands to the dialog. Asserted for the
-  # same reason as the rest of the capture set: gui_tools placement is per-file,
-  # so an undeployed domain/ module means the capture panel cannot even bundle.
-  #   capture-request.ts -- the capture intent value objects (target, format,
-  #     quality, duration). The dialog builds one and the launcher consumes one,
-  #     so it is the seam's type contract; absent, there is nothing to bundle.
-  #   cli-args.ts -- THE single module in the whole tool that writes an argv
-  #     literal for `capture-tool screenshot|start`. BOTH capture actions call it
-  #     and the next layout must call it too. It also owns the two tokens the
-  #     backend's argparse rejects (--size 75, not 75%; --audio mic, not
-  #     microphone), so it is the one place a capture can be lost in translation
-  #     rather than merely failing to build. Absent: the bundle fails outright
-  #     and EVERY capture dies at startup, with nothing in verify to say so.
-  - "{{ install_dir | trim }}/config/ags-capture/domain/capture-request.ts"
-  - "{{ install_dir | trim }}/config/ags-capture/domain/cli-args.ts"
-  # The monitor lifecycle (fix-capture-monitor-lifecycle). Asserted for the
-  # same reason as the rest of the capture set -- gui_tools placement is
-  # per-file, so an undeployed module means the capture panel cannot even bundle:
-  #   monitor-registry.ts -- the PURE decision layer: which windows a monitor
-  #     change means, and which window the launcher's name lookup reaches first.
-  #   monitor-topology.ts -- the port app.tsx reads the monitors through.
-  #   monitor-focus.ts -- the port that answers "which monitor is the user on".
-  #     GTK 4.22 cannot answer that at all, so this is a port with a compositor
-  #     adapter rather than a Gdk call.
-  - "{{ install_dir | trim }}/config/ags-capture/domain/monitor-registry.ts"
-  - "{{ install_dir | trim }}/config/ags-capture/ports/monitor-topology.ts"
-  - "{{ install_dir | trim }}/config/ags-capture/ports/monitor-focus.ts"
-  # The ports/ and adapters/ layers ClassicWindow and the composition root
-  # import (refactor-capture-tool-hexagonal A5). Asserted for the same reason
-  # as the rest of the capture set: gui_tools placement is per-file, so an
-  # undeployed module means the capture panel cannot even bundle.
-  - "{{ install_dir | trim }}/config/ags-capture/ports/settings-store.ts"
-  - "{{ install_dir | trim }}/config/ags-capture/ports/ui-state-store.ts"
-  - "{{ install_dir | trim }}/config/ags-capture/ports/capture-launcher.ts"
-  - "{{ install_dir | trim }}/config/ags-capture/ports/backend-probe.ts"
-  - "{{ install_dir | trim }}/config/ags-capture/ports/capture-ports.ts"
-  - "{{ install_dir | trim }}/config/ags-capture/adapters/glib-settings-store.ts"
-  - "{{ install_dir | trim }}/config/ags-capture/adapters/glib-ui-state-store.ts"
-  - "{{ install_dir | trim }}/config/ags-capture/adapters/exec-capture-launcher.ts"
-  - "{{ install_dir | trim }}/config/ags-capture/adapters/exec-backend-probe.ts"
-  # The monitor adapters and the window set (fix-capture-monitor-lifecycle).
-  # gdk-monitor-topology is the ONLY place that subscribes to monitor hotplug.
-  # monitor-window-set owns one window per monitor ACROSS hotplug and replaces
-  # the name lookup the provisioned `ags toggle capture-window` launcher
-  # resolves through, so the panel opens on the focused monitor with no
-  # provisioning change. Absent, the panel is rebuilt once at startup and the
-  # launcher still opens one fixed monitor's window forever.
-  - "{{ install_dir | trim }}/config/ags-capture/adapters/gdk-monitor-topology.ts"
-  - "{{ install_dir | trim }}/config/ags-capture/adapters/hyprland-monitor-focus.ts"
-  - "{{ install_dir | trim }}/config/ags-capture/adapters/monitor-window-set.ts"
   - "{{ install_dir | trim }}/config/ags-icme/lib/event-contract.ts"
   - "{{ install_dir | trim }}/config/ags-icme/lib/event-bus-core.ts"
   - "{{ install_dir | trim }}/config/ags-icme/lib/event-bus.ts"

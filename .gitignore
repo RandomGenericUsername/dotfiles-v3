@@ -1,13 +1,12 @@
 __pycache__/
 *.pyc
 
-# AGS/TS typecheck artifacts. `ags types -u` regenerates all of these from the
-# GTK/Astal libraries installed on THIS machine: @girs/ is 168 .d.ts files and
-# ~49 MB, and node_modules/ holds symlinks into /usr/share/ags/js. They describe
-# the local toolchain, not the repo, so they are rebuilt on demand via
-# `make capture-types` and never committed. node_modules must never be deployed
-# — placement is per-file (gui_tools_app_files), so an unregistered directory
-# simply never ships, but it also must never reach a commit.
+# AGS/TS typecheck artifacts for the capture-tool GUI. The GUI (and its
+# `@girs/` + `node_modules/` typecheck artifacts) moved into the `ags-apps` unit
+# in ags-apps-bar-first slice 5, so nothing under src/gui-tools/capture-tool/
+# generates these anymore. The entries are KEPT as a belt-and-suspenders guard:
+# the directory still exists (it holds the Python backend), and a stray
+# `ags types` run against it must never reach a commit.
 /src/gui-tools/capture-tool/@girs/
 /src/gui-tools/capture-tool/node_modules/
 /src/gui-tools/capture-tool/tsconfig.json
@@ -23,16 +22,12 @@ __pycache__/
 # symlink, so the checkout must live here. A committed copy of the consumed unit
 # would defeat AD-17 (consume the published unit, not a vendored one).
 /.dev/
-# @types/node, for the domain unit tests' node:test / node:assert. `make
-# capture-test` installs it HERE, on demand, under tests/ and nowhere else (see
-# the capture-test-deps target). The location is load-bearing in two independent
-# ways, both measured: (a) tsconfig.capture.json pins "types": [], so the GJS
-# app's ambient surface is empty by intent; (b) tests/ is BELOW the app config's
-# own directory, so the default typeRoots walk never descends into it even if
-# that pin were deleted. Relocate it to the repo root or to capture-tool/ and
-# the walk reaches it — measured at 66 @types/node files joining the app
-# program. The path is ignored explicitly because the capture tool's placement
-# is per-file and a committed node_modules is a deployment hazard.
+# @types/node, for the capture-tool domain unit tests' node:test / node:assert.
+# Those tests (and the `make capture-test` gate that installed this) moved into
+# the `ags-apps` unit with the GUI (slice 5), so nothing under this repo installs
+# it anymore. The entry is KEPT as a guard: the directory survives (it holds the
+# Python backend tests), and a stray `npm install @types/node` under it must never
+# reach a commit.
 /src/gui-tools/capture-tool/tests/node_modules/
 /package-lock.json
 /package.json

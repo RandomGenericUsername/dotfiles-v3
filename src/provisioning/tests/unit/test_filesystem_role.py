@@ -276,21 +276,23 @@ class TestFilesystemVars:
             "the file-node partition must be exactly weg-effects.yaml"
         )
 
-    def test_spine_dirs_exclude_the_ags_live_bar_link(self) -> None:
-        """ags-apps-bar-first slice 2 (AD-1/AD-17/AD-23): <install>/config/ags
-        is the ags_apps role's live-bar SYMLINK (-> the pinned unit's bar/), NOT
-        a filesystem-owned dir. The role must not list it: verify's criterion-1
-        isdir assert counts every filesystem_spine_dirs entry as a DIR, and a
-        symlinked config/ags made that assert false on a real bootstrap (the
-        regression this locks). The sibling capture dir stays a real dir."""
+    def test_spine_dirs_exclude_the_ags_live_links(self) -> None:
+        """ags-apps-bar-first (AD-1/AD-17/AD-23): <install>/config/ags and
+        <install>/config/ags-capture are the ags_apps role's live SYMLINKS (-> the
+        pinned unit's bar/ and capture-tool/), NOT filesystem-owned dirs. The role
+        must not list them: verify's criterion-1 isdir assert counts every
+        filesystem_spine_dirs entry as a DIR, and a symlinked config/ags made that
+        assert false on a real bootstrap (the regression this locks). Slice 5
+        retired config/ags-capture for the same reason."""
         data = _vars()
         spine = [str(item) for item in data["filesystem_spine_dirs"]]
         assert "config/ags" not in spine, (
             "config/ags is the ags_apps live-bar symlink, not a filesystem dir — "
             f"got {spine}"
         )
-        assert "config/ags-capture" in spine, (
-            "config/ags-capture must stay a filesystem-created spine dir"
+        assert "config/ags-capture" not in spine, (
+            "config/ags-capture is the ags_apps live-capture symlink (slice 5), "
+            f"not a filesystem dir — got {spine}"
         )
 
     def test_spine_dirs_have_no_generated_tree(self) -> None:

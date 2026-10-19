@@ -71,19 +71,6 @@ class TestGuiToolsTasks:
         for task in dir_tasks:
             assert _module(task)["state"] == "directory"
 
-    def test_app_files_placed_via_template_force(self) -> None:
-        """Per-file `template` + `force: true` (repo-authoritative, mirror of
-        the compositor_configs decision 2026-08-26 — never a directory src)."""
-        tasks = [
-            task
-            for task in _tasks()
-            if task.keys() & {"ansible.builtin.template"}
-            and "gui_tools_app_files" in str(task.get("loop", ""))
-        ]
-        assert tasks, "no app-file placement task found"
-        for task in tasks:
-            assert _module(task).get("force") is True
-
     def test_wallpaper_selector_files_placed_via_template_force(self) -> None:
         """Per-file `template` + `force: true` (repo-authoritative) for the
         selector list — same placement discipline as the sibling apps."""
@@ -97,18 +84,27 @@ class TestGuiToolsTasks:
         for task in tasks:
             assert _module(task).get("force") is True
 
-    def test_legacy_capture_subtree_removed(self) -> None:
-        """Reprovision convergence: the bar spine's old ags/capture/ subtree
-        is removed (superseded by ags-capture/)."""
-        tasks = [
-            task
-            for task in _tasks()
-            if task.keys() & {"ansible.builtin.file"}
-            and "ags/capture" in str(_module(task).get("path", ""))
-        ]
-        assert tasks, "no legacy capture-subtree removal task found"
-        for task in tasks:
-            assert _module(task).get("state") == "absent"
+    def test_no_legacy_capture_removal_or_placement_tasks_remain(self) -> None:
+        """Slice 5: the capture-tool GUI's per-file placement AND its legacy
+        in-bar `ags/capture` subtree removal are BOTH retired. The GUI deploys
+        WHOLE via the ags_apps live-capture link, and the legacy path now resolves
+        THROUGH the live-bar symlink into the unit tree — an `absent` there would
+        mutate the unit, not a bridge. No task may loop a capture manifest or
+        target `ags/capture`."""
+        for task in _tasks():
+            loop = str(task.get("loop", ""))
+            assert "gui_tools_app_files" not in loop, (
+                f"task {task.get('name')!r} still loops the retired "
+                "gui_tools_app_files capture manifest"
+            )
+            assert "gui_tools_capture_obsolete" not in loop, (
+                f"task {task.get('name')!r} still loops the retired "
+                "gui_tools_capture_obsolete list"
+            )
+            assert "/ags/capture" not in str(_module(task).get("path", "")), (
+                f"task {task.get('name')!r} still targets the legacy ags/capture "
+                "subtree — through the live-bar symlink that is the unit tree"
+            )
 
     def test_state_dirs_ensured_via_file_directory(self) -> None:
         """Runtime state dirs (e.g. the AGS log dir) are ensured by the role —
@@ -198,162 +194,69 @@ class TestGuiToolsVars:
         "gui_tools_state_dirs",
         "gui_tools_spine_config_dir",
         "gui_tools_config_dirs",
-        "gui_tools_app_files",
     }
 
     def test_vars_parse_with_required_keys(self) -> None:
         data = _vars()
         assert self._REQUIRED_KEYS.issubset(set(data))
 
-    def test_app_files_exact_list(self) -> None:
-        """The capture app file set, exactly: entry point, stylesheet,
-        types, the classic layout, the capture-owned icon registry (the per-app
-        registry pattern) deployed beside the app sources so the instance resolves
-        palette-aware icons with fallback to the shared bar manifest, and the
-        PURE domain layer the layout now imports (refactor-capture-tool-hexagonal
-        A3 task 3.6 — the layout has no runtime meaning without it).
-
-        The pre-hexagonal views + controllers were removed by
-        refactor-capture-tool-hexagonal (A1 task 1.4): they were unimplemented
-        scaffolding, and their placement entries went with them.
-
-        The shared builder kit in ui/shared/ joined them in the same change
-        (A7 task 7.4). Both layouts import it -- registering it is what stops a
-        second layout from growing its own divergent row builders -- but
-        placement is per-file, so an unregistered file silently never deploys.
-
-        The ports/ and adapters/ layers joined them next (A5 tasks 5.1-5.8):
-        the layout imports ports/ and the composition root injects
-        adapters/, so a missing member of either layer is a panel that cannot
-        bundle at runtime. This exact list is the only thing standing between
-        A5 and a role that passes against a tree whose adapters are absent.
-
-        The request->argv translator joined them in the same change (A6 tasks
-        6.1-6.3): domain/capture-request.ts (the value objects) and
-        domain/cli-args.ts (the SINGLE module that writes an argv literal for
-        `capture-tool screenshot|start`). Both are loaded through the bundle,
-        and cli-args.ts carries the two tokens the backend's argparse rejects
-        (--size 75 not 75%, --audio mic not microphone) -- so an unregistered
-        member of this pair is a capture that silently never happens, not a
-        build error someone would notice.
-
-        ui/classic/ replaced the single ui/CaptureWindow.tsx in the same
-        change (A8 tasks 8.1-8.6): ClassicWindow.tsx (the shell) plus the
-        three top-level views it renders. ClassicWindow reaches all three
-        pages only through its own imports, so an unregistered page is a
-        capture panel that cannot bundle -- the same failure the ports and
-        adapters entries guard against.
-
-        The monitor lifecycle joined them in fix-capture-monitor-lifecycle,
-        with the same argument and one more: app.tsx now IMPORTS these
-        directly rather than calling get_monitors() itself, so an undeployed
-        member does not fail a build check -- it fails at bundle time, on the
-        host, with a capture panel that never opens. Six files:
-          domain/monitor-registry.ts   the pure plan/order decisions
-          ports/monitor-topology.ts    read the monitors, be told when they change
-          ports/monitor-focus.ts       which monitor the user is on
-          adapters/gdk-monitor-topology.ts   the hotplug subscription
-          adapters/hyprland-monitor-focus.ts  the focus source GTK4 lacks
-          adapters/monitor-window-set.ts      one window per monitor, always"""
-        files = list(_vars()["gui_tools_app_files"])
-        assert len(files) == 30, f"expected exactly 30 app files; found {len(files)}"
-        sources = sorted(str(f["source"]) for f in files)
-        expected = [
-            "src/gui-tools/capture-tool/adapters/exec-backend-probe.ts",
-            "src/gui-tools/capture-tool/adapters/exec-capture-launcher.ts",
-            "src/gui-tools/capture-tool/adapters/gdk-monitor-topology.ts",
-            "src/gui-tools/capture-tool/adapters/glib-settings-store.ts",
-            "src/gui-tools/capture-tool/adapters/glib-ui-state-store.ts",
-            "src/gui-tools/capture-tool/adapters/hyprland-monitor-focus.ts",
-            "src/gui-tools/capture-tool/adapters/monitor-window-set.ts",
-            "src/gui-tools/capture-tool/app.tsx",
-            "src/gui-tools/capture-tool/domain/capture-request.ts",
-            "src/gui-tools/capture-tool/domain/cli-args.ts",
-            "src/gui-tools/capture-tool/domain/monitor-registry.ts",
-            "src/gui-tools/capture-tool/domain/settings.ts",
-            "src/gui-tools/capture-tool/domain/ui-state.ts",
-            "src/gui-tools/capture-tool/lib/icon-registry.ts",
-            "src/gui-tools/capture-tool/ports/backend-probe.ts",
-            "src/gui-tools/capture-tool/ports/capture-launcher.ts",
-            "src/gui-tools/capture-tool/ports/capture-ports.ts",
-            "src/gui-tools/capture-tool/ports/monitor-focus.ts",
-            "src/gui-tools/capture-tool/ports/monitor-topology.ts",
-            "src/gui-tools/capture-tool/ports/settings-store.ts",
-            "src/gui-tools/capture-tool/ports/ui-state-store.ts",
-            "src/gui-tools/capture-tool/style.css",
-            "src/gui-tools/capture-tool/types.ts",
-            "src/gui-tools/capture-tool/ui/classic/ClassicWindow.tsx",
-            "src/gui-tools/capture-tool/ui/classic/RecordingPage.tsx",
-            "src/gui-tools/capture-tool/ui/classic/ScreenshotPage.tsx",
-            "src/gui-tools/capture-tool/ui/classic/SettingsPage.tsx",
-            "src/gui-tools/capture-tool/ui/shared/groups.ts",
-            "src/gui-tools/capture-tool/ui/shared/icons.ts",
-            "src/gui-tools/capture-tool/ui/shared/rows.ts",
-        ]
-        assert sources == expected, (
-            f"gui_tools_app_files sources must be exactly {expected}; got {sources}"
+    def test_capture_tool_is_retired_as_a_gui_tools_app(self) -> None:
+        """ags-apps-bar-first slice 5: the capture-tool AGS GUI moved into the
+        ags-apps unit and deploys WHOLE via the ags_apps role's live-capture link
+        (<install>/config/ags-capture -> <unit>/capture-tool). gui_tools must
+        carry NO per-file capture manifest, NO ags-capture spine dir, and NO
+        placement/cleanup task — a stale entry would template INTO the unit tree
+        through the live-capture link and diverge the live GUI from the pinned
+        tag. The in-repo GUI source is gone; the Python BACKEND survives."""
+        data = _vars()
+        assert "gui_tools_app_files" not in data, (
+            "gui_tools_app_files must be retired — the GUI deploys WHOLE via the "
+            "ags_apps live-capture link"
+        )
+        assert "gui_tools_capture_obsolete" not in data, (
+            "gui_tools_capture_obsolete must be retired — placement is per-file "
+            "only for the remaining apps, and the capture GUI is not one"
+        )
+        # No app-file list may still target the retired ags-capture/ spine.
+        for key, value in data.items():
+            if key.endswith("_app_files") and isinstance(value, list):
+                for entry in value:
+                    dest = str(entry.get("dest", ""))
+                    assert "/ags-capture/" not in dest, (
+                        f"{key} still deploys into the retired ags-capture/ "
+                        f"spine: {dest}"
+                    )
+        assert not any(
+            "ags-capture" in str(d) for d in data["gui_tools_config_dirs"]
+        ), "the retired ags-capture/ spine dir must not be ensured as a dir"
+        assert not any(
+            "capture" in str(t.get("loop", "")) for t in _tasks()
+        ), "no gui_tools task may loop a capture manifest"
+        # The GUI source is gone; the backend is NOT.
+        assert not (_REPO_ROOT / "src" / "gui-tools" / "capture-tool" / "app.tsx").exists(), (
+            "the in-repo capture GUI entry must be deleted (it lives in the "
+            "ags-apps unit now)"
+        )
+        assert not (_REPO_ROOT / "src" / "gui-tools" / "capture-tool" / "ui").exists(), (
+            "the in-repo capture GUI ui/ tree must be deleted"
+        )
+        assert (
+            _REPO_ROOT / "src" / "gui-tools" / "capture-tool" / "bin" / "capture-tool"
+        ).is_file(), (
+            "the capture-tool Python BACKEND must survive in-repo (cli_tools "
+            "installs it); only the GUI moved into the unit"
         )
 
-    def test_app_sources_exist_in_repo(self) -> None:
-        """Every source resolves to a real repo file (typo-proof)."""
-        for entry in _vars()["gui_tools_app_files"]:
-            path = _REPO_ROOT / str(entry["source"])
-            assert path.is_file(), f"app source missing from repo: {entry['source']}"
-
-    def test_retired_capture_sources_are_removed_from_the_spine(self) -> None:
-        """Per-file placement only WRITES, so a source dropped from
-        gui_tools_app_files leaves its placed copy on disk forever. The capture
-        app's hexagonal refactor retired four pre-refactor sources; without an
-        explicit removal task they persist in derived state, where they are the
-        exact "parallel, never-exercised architecture" the refactor deleted,
-        invisible to every gate (the gates read the repo, not the spine)."""
-        obsolete = _vars()["gui_tools_capture_obsolete"]
-        assert len(obsolete) == 4, f"expected 4 retired paths; found {len(obsolete)}"
-
-        removal_tasks = [
-            t
-            for t in _tasks()
-            if t.get("ansible.builtin.file", {}).get("state") == "absent"
-            and "gui_tools_capture_obsolete" in str(t.get("loop", ""))
-        ]
-        assert len(removal_tasks) == 1, (
-            "expected exactly one task looping gui_tools_capture_obsolete with "
-            f"state: absent; found {len(removal_tasks)}"
+    def test_capture_ags_instance_still_launches_from_the_symlink(self) -> None:
+        """The GUI still launches: the on-demand `capture` AGS instance entry
+        stays in gui_tools_ags_instances, so the provisioned `capture-ui` launcher
+        and autostart.lua start it from ~/.config/ags-capture (the config-links
+        symlink to the live-capture link), never the unit path."""
+        instances = [str(i["name"]) for i in _vars()["gui_tools_ags_instances"]]
+        assert "capture" in instances, (
+            f"the capture AGS instance must stay in gui_tools_ags_instances; "
+            f"got {instances}"
         )
-        task = removal_tasks[0]
-        assert task.get("when") == "not ansible_check_mode", (
-            "the removal must be check-gated: under --check it reports what "
-            "would go without deleting it"
-        )
-
-    def test_retired_capture_sources_are_not_also_placed(self) -> None:
-        """A path cannot be both placed and removed in the same run. This is the
-        ordering that would silently no-op one of the two tasks."""
-        placed = {str(e["dest"]) for e in _vars()["gui_tools_app_files"]}
-        obsolete = set(_vars()["gui_tools_capture_obsolete"])
-        overlap = placed & obsolete
-        assert not overlap, f"paths both placed and removed: {sorted(overlap)}"
-
-    def test_retired_capture_paths_are_the_real_pre_refactor_ones(self) -> None:
-        """Pins WHICH paths are retired, so a future layout move that retires a
-        different set cannot pass by editing the list silently. Each entry must
-        name a spine path under ags-capture/ that is no longer a placed dest."""
-        placed = {str(e["dest"]) for e in _vars()["gui_tools_app_files"]}
-        expected_suffixes = {
-            "ui/CaptureWindow.tsx",
-            "ui/RecordingView.tsx",
-            "ui/ScreenshotView.tsx",
-            "controllers",
-        }
-        suffixes = {
-            str(p).split("ags-capture/", 1)[1] for p in _vars()["gui_tools_capture_obsolete"]
-        }
-        assert suffixes == expected_suffixes, (
-            f"gui_tools_capture_obsolete must be exactly {sorted(expected_suffixes)}; "
-            f"got {sorted(suffixes)}"
-        )
-        for path in _vars()["gui_tools_capture_obsolete"]:
-            assert str(path) not in placed, f"still placed, do not remove: {path}"
 
     def test_icme_app_files_exact_list(self) -> None:
         """The icon color mapping editor file set, exactly: entry point,
@@ -420,26 +323,6 @@ class TestGuiToolsVars:
             assert parent in ensured, (
                 f"dest parent {parent!r} of {entry['name']} is not an ensured "
                 f"dir (copy would fail); add it to gui_tools_config_dirs"
-            )
-
-    def test_every_dest_parent_is_an_ensured_dir(self) -> None:
-        """Regression lock (bootstrap failure 2026-09-05): `template` does
-        NOT create dest parents, so every file dest's parent dir must be
-        listed in gui_tools_config_dirs — otherwise placement fails with
-        'Destination directory does not exist'."""
-        data = _vars()
-        ensured = {
-            str(d).replace("{{ gui_tools_spine_config_dir }}", "<spine>")
-            for d in data["gui_tools_config_dirs"]
-        }
-        for entry in data["gui_tools_app_files"]:
-            dest = str(entry["dest"])
-            parent = dest.rsplit("/", 1)[0].replace(
-                "{{ gui_tools_spine_config_dir }}", "<spine>"
-            )
-            assert parent in ensured, (
-                f"dest parent {parent!r} of {entry['name']} is not an ensured "
-                f"dir (template would fail); add it to gui_tools_config_dirs"
             )
 
     def test_hypr_pano_is_retired_as_a_gui_tools_app(self) -> None:

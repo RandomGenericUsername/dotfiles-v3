@@ -61,7 +61,13 @@ config_links_backup_policy: auto
 #   symlinks. Mirrors the union of what the writing roles place:
 #   - assets       → color-scheme-generator (templates/), weg (effects.yaml)
 #   - compositor_configs → hypr, hyprpaper, ags
-#   - gui_tools    → ags-capture
+#   - gui_tools    → ags-capture, ags-icme, ags-wallpaper-selector,
+#                    ags-btop-studio (slice 5: ags-capture's TARGET is now the
+#                    ags_apps role's live-capture SYMLINK -> the unit's
+#                    capture-tool/, not a gui_tools per-file dir; the ~/.config
+#                    link itself is unchanged)
+#   - ags_apps     → ags, ags-hypr-pano, ags-notifications (the live links the
+#                    config-links role exposes at ~/.config/<name>)
 #   - config_copies → nvim, starship, wlogout, zsh
 #   - settings     → color-scheme-generator, weg, itr
 #   - gt-3-1       → gtk-3.0, gtk-4.0 (the GTK consumer dirs)

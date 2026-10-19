@@ -8,10 +8,15 @@
 # - The FIRST task is the fail-loud install_dir seam assert, copied verbatim
 #   from the sibling roles: install_dir is deliberately never defaulted, so
 #   an undefined spine root aborts before any task evaluates.
-# - App placement uses `ansible.builtin.template` with PER-FILE entries
-#   (gui_tools_app_files), NOT a directory source: review finding 2026-08-12
-#   proved `copy` with a directory `src` + a pre-existing dest dir is a
-#   SILENT NO-OP. Per-file copy is the only safe shape.
+# - App placement uses `ansible.builtin.template` (or raw `copy` where the
+#   sources contain Jinja-sensitive sequences) with PER-FILE entries
+#   (gui_tools_icme_app_files / gui_tools_wallpaper_selector_app_files /
+#   gui_tools_btop_studio_app_files), NOT a directory source: review finding
+#   2026-08-12 proved `copy` with a directory `src` + a pre-existing dest dir is
+#   a SILENT NO-OP. Per-file copy is the only safe shape.
+# - The bar, the clipboard overlay, the notification overlay and the capture-tool
+#   GUI are NOT placed here: they deploy WHOLE as the pinned external `ags-apps`
+#   unit and are linked by the `ags_apps` role (slices 2-5).
 # - Skeletons are repo-authoritative (`force: true`, idempotent): every
 #   bootstrap converges to the repo (owner decision 2026-08-26, shared with
 #   compositor_configs).
@@ -43,13 +48,6 @@
     mode: "0755"
   loop: "{{ gui_tools_state_dirs }}"
 
-- name: Place GUI tool app files
-  ansible.builtin.template:
-    src: "{{ gui_tools_repo_root }}/{{ item.source }}"
-    dest: "{{ item.dest }}"
-    force: true
-  loop: "{{ gui_tools_app_files }}"
-
 - name: Ensure icon color mapping editor app dirs exist
   ansible.builtin.file:
     path: "{{ item }}"
@@ -75,7 +73,7 @@
 
 # The wallpaper selector sources carry no Jinja-sensitive sequences (the role
 # test pins that), so they take the same per-file, repo-authoritative template
-# placement as the capture app.
+# placement as the icme editor.
 - name: Place wallpaper selector app files
   ansible.builtin.template:
     src: "{{ gui_tools_repo_root }}/{{ item.source }}"
@@ -102,23 +100,19 @@
     force: true
   loop: "{{ gui_tools_btop_studio_app_files }}"
 
-- name: Remove legacy capture subtree from the bar spine dir (superseded by ags-capture/)
-  ansible.builtin.file:
-    path: "{{ gui_tools_spine_config_dir }}/ags/capture"
-    state: absent
-  when: not ansible_check_mode
-
-# Per-file placement only WRITES: a source dropped from
-# gui_tools_app_files leaves its previously-placed copy on disk forever, so the
-# capture app's retired pre-refactor sources would linger in derived state where
-# no gate can see them. Actively remove them. `state: absent` is idempotent, and
-# this mirrors the legacy-capture removal directly above.
-- name: Remove the capture app's retired pre-refactor sources from the spine
-  ansible.builtin.file:
-    path: "{{ item }}"
-    state: absent
-  loop: "{{ gui_tools_capture_obsolete }}"
-  when: not ansible_check_mode
+# The capture-tool AGS GUI's per-file placement is RETIRED (slice 5): the GUI
+# moved into the ags-apps unit and deploys WHOLE via the ags_apps role's
+# live-capture link (<install>/config/ags-capture -> <unit>/capture-tool). No
+# placement task and no obsolete-path cleanup remain here — a stale per-file entry
+# would template INTO the unit tree through the live-capture link and diverge the
+# live GUI from the pinned tag (the deploy-coverage gate asserts its absence). The
+# on-demand `capture` AGS instance entry in gui_tools_ags_instances STAYS: the
+# provisioned `capture-ui` launcher and autostart.lua start the GUI from the
+# now-symlinked ~/.config/ags-capture. The legacy in-bar `ags/capture` subtree
+# removal is RETIRED TOO: `<install>/config/ags` is the live-bar SYMLINK into the
+# unit, so that path now resolves to `<unit>/bar/capture` and an `absent` there
+# would mutate the unit tree. The Python backend is not a GUI-tools concern: it
+# stays in-repo, installed by cli_tools.
 
 # Quit known AGS instances so the next invocation picks up the freshly placed
 # sources. AGS bundles TypeScript at startup and holds the result in memory;

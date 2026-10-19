@@ -62,8 +62,10 @@ filesystem_spine_dirs:
   # filesystem role must not claim it as a dir. A dir entry here made verify's
   # criterion-1 isdir assert false on a real bootstrap (stat.isdir is false
   # through a symlink); verify asserts the symlink separately via
-  # verify_ags_apps_live_bar_link.
-  - config/ags-capture
+  # verify_ags_apps_live_bar_link. config/ags-capture is absent for the SAME
+  # reason (slice 5): the ags_apps role owns it as the live-capture SYMLINK
+  # (<install>/config/ags-capture -> the unit's capture-tool/), asserted via
+  # verify_ags_apps_live_capture_link.
   - config/nvim
   - config/starship
   - config/wlogout

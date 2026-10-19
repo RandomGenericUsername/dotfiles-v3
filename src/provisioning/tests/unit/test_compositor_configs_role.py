@@ -177,15 +177,26 @@ def _preseed_bar_unit(install: Path) -> Path:
             f"ags-apps bar unit not found at {src} (set AGS_APPS_REPO); the "
             "strict bar gate needs the unit's validate-cli.ts"
         )
-    bar = install / "ags-apps" / "v0.3.4" / "bar"
+    bar = install / "ags-apps" / "v0.3.5" / "bar"
     shutil.copytree(
         src,
         bar,
         ignore=shutil.ignore_patterns("node_modules", "@girs", ".git"),
     )
-    (install / "ags-apps" / "pinned").write_text("v0.3.4\n")
+    (install / "ags-apps" / "pinned").write_text("v0.3.5\n")
     (install / "config").mkdir(parents=True, exist_ok=True)
     (install / "config" / "ags").symlink_to(bar, target_is_directory=True)
+    # The capture-tool AGS GUI deploys WHOLE the same way (slice 5): the unit's
+    # capture-tool/ subdir is linked as <install>/config/ags-capture, and the
+    # role's capture icons.json is generated THROUGH that link (mirror of the
+    # bar's icons.json). A standalone compositor-configs run must build that state
+    # by hand, exactly as it does for the bar.
+    capture = install / "ags-apps" / "v0.3.5" / "capture-tool"
+    capture.mkdir(parents=True, exist_ok=True)
+    (capture / "app.tsx").write_text("export {}\n")
+    (install / "config" / "ags-capture").symlink_to(
+        capture, target_is_directory=True
+    )
     return bar
 
 
@@ -399,8 +410,10 @@ class TestCompositorConfigsTasks:
     def test_no_ags_config_dirs_remain(self) -> None:
         """Slice 2: the role no longer ensures the live-bar `ags` dir — it is
         owned by the ags_apps role as a symlink (the filesystem role still
-        creates the empty spine dir; ags_apps converts it). Sibling app dirs
-        (ags-capture, ...) are untouched."""
+        creates the empty spine dir; ags_apps converts it). Slice 5 retired the
+        `ags-capture` dir the same way (the ags_apps live-capture link owns it);
+        the remaining sibling app dirs (ags-icme, ags-wallpaper-selector,
+        ags-btop-studio) are untouched."""
         import re
 
         data = _vars()
@@ -408,6 +421,10 @@ class TestCompositorConfigsTasks:
             assert not re.search(r"/ags([\"'/]|$)", str(config_dir)), (
                 f"stale ags dir ensure {config_dir!r}: the live bar link is "
                 "owned by ags_apps"
+            )
+            assert not re.search(r"/ags-capture([\"'/]|$)", str(config_dir)), (
+                f"stale ags-capture dir ensure {config_dir!r}: the live capture "
+                "link is owned by ags_apps (slice 5)"
             )
 
     def test_desktop_entries_placed_into_xdg_data_applications(self) -> None:
@@ -1038,6 +1055,7 @@ class TestDeployCoverageGate:
     _SCRIPT = _ANSIBLE_DIR.parents[2] / "scripts" / "deploy-coverage.py"
     _VARS = "src/provisioning/ansible/roles/compositor_configs/vars/main.yml"
     _AGS = "dotfiles/config/ags"
+    _BACKEND = "src/gui-tools/capture-tool/bin/capture-tool"
 
     def _run(self, root: Path) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
@@ -1045,6 +1063,31 @@ class TestDeployCoverageGate:
             capture_output=True,
             text=True,
         )
+
+    def _seed_root(
+        self,
+        root: Path,
+        repo_root: Path,
+        roles: tuple[str, ...] = ("ags_platform", "ags_apps", "gui_tools"),
+    ) -> None:
+        """Seed a hermetic temp root for the gate.
+
+        The real compositor manifest, the named unit/app roles, and the
+        capture-tool Python backend — which the gate asserts SURVIVES (slice 5).
+        Without the backend the gate fails on its own subject, so every hermetic
+        positive case must carry it.
+        """
+        vars_dst = root / self._VARS
+        vars_dst.parent.mkdir(parents=True, exist_ok=True)
+        vars_dst.write_text((repo_root / self._VARS).read_text())
+        for role in roles:
+            shutil.copytree(
+                repo_root / "src/provisioning/ansible/roles" / role,
+                root / "src/provisioning/ansible/roles" / role,
+            )
+        backend_dst = root / self._BACKEND
+        backend_dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(repo_root / self._BACKEND, backend_dst)
 
     def test_gate_passes_on_the_real_tree(self) -> None:
         repo_root = _ANSIBLE_DIR.parents[2]
@@ -1060,14 +1103,7 @@ class TestDeployCoverageGate:
         repo_root = _ANSIBLE_DIR.parents[2]
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            vars_dst = root / self._VARS
-            vars_dst.parent.mkdir(parents=True)
-            vars_dst.write_text((repo_root / self._VARS).read_text())
-            for role in ("ags_platform", "ags_apps", "gui_tools"):
-                shutil.copytree(
-                    repo_root / "src/provisioning/ansible/roles" / role,
-                    root / "src/provisioning/ansible/roles" / role,
-                )
+            self._seed_root(root, repo_root)
             assert not (root / self._AGS).exists()
             result = self._run(root)
             assert result.returncode == 0, result.stdout + result.stderr
@@ -1085,16 +1121,7 @@ class TestDeployCoverageGate:
         repo_root = _ANSIBLE_DIR.parents[2]
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            # The gate parses the compositor manifest first; give it the real one
-            # so it reaches the gui_tools assertion under test.
-            vars_dst = root / self._VARS
-            vars_dst.parent.mkdir(parents=True)
-            vars_dst.write_text((repo_root / self._VARS).read_text())
-            for role in ("ags_platform", "ags_apps", "gui_tools"):
-                shutil.copytree(
-                    repo_root / "src/provisioning/ansible/roles" / role,
-                    root / "src/provisioning/ansible/roles" / role,
-                )
+            self._seed_root(root, repo_root)
             gui_vars = (
                 root / "src/provisioning/ansible/roles/gui_tools/vars/main.yml"
             )
@@ -1126,16 +1153,7 @@ class TestDeployCoverageGate:
         repo_root = _ANSIBLE_DIR.parents[2]
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            # The gate parses the compositor manifest first; give it the real one
-            # so it reaches the gui_tools assertion under test.
-            vars_dst = root / self._VARS
-            vars_dst.parent.mkdir(parents=True)
-            vars_dst.write_text((repo_root / self._VARS).read_text())
-            for role in ("ags_platform", "ags_apps", "gui_tools"):
-                shutil.copytree(
-                    repo_root / "src/provisioning/ansible/roles" / role,
-                    root / "src/provisioning/ansible/roles" / role,
-                )
+            self._seed_root(root, repo_root)
             gui_vars = (
                 root / "src/provisioning/ansible/roles/gui_tools/vars/main.yml"
             )
@@ -1248,4 +1266,52 @@ class TestDeployCoverageGate:
             assert "retired in-place platform" in result.stdout, (
                 "the failure must name the retired platform path; recap:\n"
                 + result.stdout
+            )
+
+    def test_gate_fails_when_a_stale_capture_gui_entry_returns(self) -> None:
+        """Slice 5: a per-file capture GUI entry in the gui_tools manifest must
+        FAIL. The GUI deploys WHOLE via the unit symlink, so any ags-capture/
+        source would template INTO the unit tree through the live-capture link and
+        silently diverge the live GUI from the pinned tag. Hermetic: a temp root
+        whose gui_tools vars re-add a retired gui_tools_app_files — plus both unit
+        roles and the backend, which the gate asserts."""
+        repo_root = _ANSIBLE_DIR.parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._seed_root(root, repo_root)
+            gui_vars = root / "src/provisioning/ansible/roles/gui_tools/vars/main.yml"
+            gui_vars.write_text(
+                gui_vars.read_text()
+                + "\ngui_tools_app_files:\n"
+                + "  - { name: stale-capture-app, "
+                + "source: src/gui-tools/capture-tool/app.tsx, "
+                + 'dest: "{{ gui_tools_spine_config_dir }}/ags-capture/app.tsx" }\n'
+            )
+            result = self._run(root)
+            assert result.returncode != 0, (
+                "the gate must FAIL when a stale per-file capture GUI entry is "
+                f"listed; recap:\n{result.stdout}"
+            )
+            assert "ags-capture/" in result.stdout, (
+                "the failure must name the stale capture entry; recap:\n"
+                + result.stdout
+            )
+
+    def test_gate_fails_when_the_capture_backend_is_deleted(self) -> None:
+        """Slice 5: capture-tool is a SPLIT package. Deleting the whole
+        src/gui-tools/capture-tool/ dir would silently drop the Python backend
+        that cli_tools installs and the GUI shells out to, so the gate must FAIL
+        when the backend is gone even with the GUI correctly retired."""
+        repo_root = _ANSIBLE_DIR.parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._seed_root(root, repo_root)
+            (root / self._BACKEND).unlink()
+            result = self._run(root)
+            assert result.returncode != 0, (
+                "the gate must FAIL when the capture-tool Python backend is "
+                f"deleted; recap:\n{result.stdout}"
+            )
+            assert "backend" in result.stdout.lower(), (
+                "the failure must name the missing backend; recap:\n" + result.stdout
             )
