@@ -23,6 +23,16 @@
 # from ~/.config/ags-hypr-pano (the config-links symlink to the live-pano link),
 # and the quit loop must still restart it after placement. The deploy-coverage
 # gate asserts the absence of a stale per-file hypr-pano entry.
+#
+# notifications IS RETIRED AS A GUI-TOOLS APP TOO (slice 4). The notification
+# daemon moved into the same ags-apps monorepo unit and deploys WHOLE via the
+# ags_apps role's live-notifications link (<install>/config/ags-notifications ->
+# <unit>/notifications), so this role no longer enumerates it per file. The
+# always-on AGS instance entry STAYS in gui_tools_ags_instances below: it is the
+# mechanism that STARTS the daemon from ~/.config/ags-notifications (the
+# config-links symlink to the live-notifications link) and restarts it after the
+# quit loop. The deploy-coverage gate asserts the absence of a stale per-file
+# notifications entry.
 
 # gui_tools_repo_root: repo root derived from this playbook's location.
 #   Mirror of compositor_configs_repo_root / cli_tools_repo_root exactly.
@@ -76,9 +86,6 @@ gui_tools_config_dirs:
   - "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector"
   - "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/ui"
   - "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/lib"
-  - "{{ gui_tools_spine_config_dir }}/ags-notifications"
-  - "{{ gui_tools_spine_config_dir }}/ags-notifications/ui"
-  - "{{ gui_tools_spine_config_dir }}/ags-notifications/lib"
   - "{{ gui_tools_spine_config_dir }}/ags-btop-studio"
   - "{{ gui_tools_spine_config_dir }}/ags-btop-studio/ui"
   - "{{ gui_tools_spine_config_dir }}/ags-btop-studio/lib"
@@ -254,21 +261,12 @@ gui_tools_wallpaper_selector_app_files:
   - { name: wallpaper-selector-lib-event-bus, source: src/gui-tools/wallpaper-selector/lib/event-bus.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/lib/event-bus.ts" }
   - { name: wallpaper-selector-lib-theme, source: src/gui-tools/wallpaper-selector/lib/theme.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-wallpaper-selector/lib/theme.ts" }
 
-# gui_tools_notifications_app_files: the notifd overlay's app files,
-#   deployed into their own ags-notifications/ spine dir. Rendered via
-#   `template` with force: true (repo-authoritative); the sources contain no
-#   Jinja-sensitive `{{`/`{%` sequences (verified by the provisioning role
-#   test) — same placement discipline as the wallpaper
-#   selector. Wallpaper progress uses the shared ITR icon manifest and a
-#   local resolver to load its palette-rendered picture and check-circle icons.
-gui_tools_notifications_app_files:
-  - { name: notifications-app-tsx, source: src/gui-tools/notifications/app.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-notifications/app.tsx" }
-  - { name: notifications-style-css, source: src/gui-tools/notifications/style.css, dest: "{{ gui_tools_spine_config_dir }}/ags-notifications/style.css" }
-  - { name: notifications-window, source: src/gui-tools/notifications/ui/NotificationsWindow.tsx, dest: "{{ gui_tools_spine_config_dir }}/ags-notifications/ui/NotificationsWindow.tsx" }
-  - { name: notifications-makefile, source: src/gui-tools/notifications/Makefile, dest: "{{ gui_tools_spine_config_dir }}/ags-notifications/Makefile" }
-  - { name: notifications-lib-theme, source: src/gui-tools/notifications/lib/theme.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-notifications/lib/theme.ts" }
-  - { name: notifications-lib-icon-registry, source: src/gui-tools/notifications/lib/icon-registry.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-notifications/lib/icon-registry.ts" }
-  - { name: notifications-lib-wallpaper-events, source: src/gui-tools/notifications/lib/wallpaper-events.ts, dest: "{{ gui_tools_spine_config_dir }}/ags-notifications/lib/wallpaper-events.ts" }
+# gui_tools_notifications_app_files is RETIRED (slice 4): the notification
+# daemon moved into the ags-apps unit and deploys WHOLE via the ags_apps role's
+# live-notifications link. No per-file manifest remains — a stale entry would
+# template INTO the unit tree through the link and diverge the live daemon from
+# the pinned tag (the deploy-coverage gate asserts its absence). The AGS
+# instance entry that STARTS the daemon stays in gui_tools_ags_instances below.
 
 # gui_tools_btop_studio_app_files: the btop Theme Studio's app files, deployed
 #   into their own ags-btop-studio/ spine dir. RAW COPY (ansible.builtin.copy),
@@ -332,6 +330,14 @@ gui_tools_ags_instances:
     always_on: false
   - name: wallpaper-selector
     always_on: false
+  # The notification overlay's per-file placement is RETIRED (slice 4 — the
+  # app now deploys WHOLE from the ags-apps unit via the ags_apps role's
+  # live-notifications link), but this AGS instance entry STAYS: it is the
+  # mechanism that STARTS the daemon and restarts it after the quit loop above.
+  # It launches from ~/.config/ags-notifications (the config-links symlink to
+  # the live-notifications link), never the unit path directly, so a re-provision
+  # re-bundles the freshly linked sources. autostart.lua starts the same command
+  # at login (same stagger-free log file).
   - name: notifications
     always_on: true
     launch: "ags run -d {{ gui_tools_xdg_config_home }}/ags-notifications --log-file {{ gui_tools_xdg_state_home }}/ags/notifications.log"
