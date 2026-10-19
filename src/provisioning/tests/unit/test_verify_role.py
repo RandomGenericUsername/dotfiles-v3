@@ -1586,11 +1586,57 @@ class TestVerifyVars:
             assert entry.startswith("{{ verify_ags_apps_capture_tool_dir }}/"), (
                 f"a capture-tool unit file must derive from the unit dir; got {entry!r}"
             )
-        # The Python backend is NOT a unit file — it stays in-repo and is
-        # asserted via verify_bin_scripts.
+        # The Python backend ships in the SAME unit from ags-apps v0.4.0, but it
+        # is a CLI (symlinked into the bin dir), not a GUI source: it stays out
+        # of the unit-file list and is asserted by its own symlink check.
         assert not any("bin/capture-tool" in entry for entry in capture_files), (
-            "the capture-tool Python backend must not be asserted as a unit file; "
-            "it stays in-repo (cli_tools installs it)"
+            "the capture-tool Python backend must not be asserted as a GUI unit "
+            "file; it is asserted separately as the bin-dir symlink"
+        )
+        # The installed CLI mirrors the ags_apps role: unit-derived backend +
+        # the same user bin dir the rest of provisioning uses.
+        assert (
+            str(data["verify_ags_apps_capture_tool_backend"])
+            == "{{ verify_ags_apps_capture_tool_dir }}/bin/capture-tool"
+        )
+        assert (
+            str(data["verify_ags_apps_capture_tool_bin_link"])
+            == "{{ verify_cli_bin_dir | trim }}/capture-tool"
+        )
+        role_bin = str(apps["ags_apps_capture_tool_bin_link"])
+        assert role_bin == "{{ ags_apps_bin_dir | trim }}/capture-tool", (
+            "the ags_apps role must install the CLI into its user bin dir"
+        )
+
+    def test_capture_cli_assertion_is_a_pinned_symlink_check(self) -> None:
+        """v0.4.0: verify must catch both failure modes a regular-file stat
+        cannot — a stale copy (not a symlink) and a link into another tag (the
+        controller and the GUI can then disagree)."""
+        tasks = _load_tasks()
+        names = [str(t.get("name", "")) for t in tasks]
+        check_name = "Check the capture-tool CLI entry point is a symlink"
+        resolve_name = "Check the capture-tool CLI entry point resolves to the unit backend"
+        assert_name = "Assert the capture-tool CLI is the pinned unit's backend symlink"
+        for name in (check_name, resolve_name, assert_name):
+            assert name in names, f"missing task {name!r}"
+
+        check = tasks[names.index(check_name)]
+        assert _module_key(check) == "ansible.builtin.stat"
+        assert _module(check).get("follow") is False, (
+            "the link check must inspect the link itself, not its target"
+        )
+        resolve = tasks[names.index(resolve_name)]
+        assert _module(resolve).get("follow") is True, (
+            "the resolve check must follow the link to prove the target exists"
+        )
+        assertion = tasks[names.index(assert_name)]
+        that = str(_module(assertion).get("that"))
+        assert "islnk" in that, "the assertion must reject a stale regular file"
+        assert "verify_ags_apps_version" in that, (
+            "the assertion must pin the link target to the installed tag"
+        )
+        assert names.index(check_name) < names.index(assert_name), (
+            "the stats must run before the assertion"
         )
 
     def test_live_wallpaper_selector_link_mirrors_the_ags_apps_role_and_is_not_a_spine_dir(
@@ -2992,10 +3038,11 @@ def _write_stub_binaries(home: Path) -> Path:
     helper = bin_dir / "toggle-touchpad"
     helper.write_text("#!/bin/sh\nexit 0\n")
     helper.chmod(0o755)
-    # capture-tool / capture-ui: installed by the cli_tools role, asserted by
-    # verify (the keybind launcher + the controller every UI action calls).
-    # rofi-ui: the SUPER+D open/close toggle launcher.
-    for name in ("capture-tool", "capture-ui", "rofi-ui"):
+    # capture-ui: installed by the cli_tools role, asserted by verify (the
+    # keybind launcher). rofi-ui: the SUPER+D open/close toggle launcher.
+    # capture-tool itself is a SYMLINK into the ags-apps unit (v0.4.0) and is
+    # created below once the unit fixture exists.
+    for name in ("capture-ui", "rofi-ui"):
         stub = bin_dir / name
         stub.write_text("#!/bin/sh\nexit 0\n")
         stub.chmod(0o755)
@@ -3244,7 +3291,7 @@ def _build_provisioned_layout(
     # real dir of per-file bar sources. The fixture mirrors
     # verify_ags_apps_unit_dir / _bar_dir / _pin_file / _live_bar_link /
     # _resolution_shortcut so the criterion asserts have something to pass on.
-    apps_unit = install / "ags-apps" / "v0.3.8"
+    apps_unit = install / "ags-apps" / "v0.4.0"
     apps_bar = apps_unit / "bar"
     (apps_bar / "bar" / "widgets").mkdir(parents=True, exist_ok=True)
     for apps_file in (
@@ -3260,7 +3307,7 @@ def _build_provisioned_layout(
         "bar/validate-cli.ts",
     ):
         (apps_bar / apps_file).write_text("")
-    (install / "ags-apps" / "pinned").write_text("v0.3.8\n")
+    (install / "ags-apps" / "pinned").write_text("v0.4.0\n")
     (apps_unit / "node_modules").mkdir(parents=True, exist_ok=True)
     (apps_unit / "node_modules" / "ags-platform").symlink_to(unit)
     (install / "config" / "ags").symlink_to(apps_bar, target_is_directory=True)
@@ -3334,6 +3381,15 @@ def _build_provisioned_layout(
         apps_capture, target_is_directory=True
     )
     (install / "config" / "ags-capture" / "icons.json").write_text("{}")
+    # v0.4.0: the CLI ships in the SAME unit's capture-tool/bin/ and the
+    # ags_apps role installs it as a user-bin symlink. The fixture mirrors both
+    # halves so verify's islnk + pin-target assertion has a real link to check.
+    apps_capture_bin = apps_capture / "bin"
+    apps_capture_bin.mkdir(parents=True, exist_ok=True)
+    apps_capture_backend = apps_capture_bin / "capture-tool"
+    apps_capture_backend.write_text("#!/bin/sh\nexit 0\n")
+    apps_capture_backend.chmod(0o755)
+    (home / ".local" / "bin" / "capture-tool").symlink_to(apps_capture_backend)
     # The icon color mapping editor deploys WHOLE like the bar (slice 7): the
     # unit's icme/ subdir is linked as <install>/config/ags-icme — NOT a real dir
     # of per-file app sources. Mirror of verify_ags_apps_icme_dir /

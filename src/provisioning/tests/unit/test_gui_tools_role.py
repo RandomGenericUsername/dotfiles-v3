@@ -207,7 +207,8 @@ class TestGuiToolsVars:
         carry NO per-file capture manifest, NO ags-capture spine dir, and NO
         placement/cleanup task — a stale entry would template INTO the unit tree
         through the live-capture link and diverge the live GUI from the pinned
-        tag. The in-repo GUI source is gone; the Python BACKEND survives."""
+        tag. The in-repo app tree is gone entirely (v0.4.0 moved the Python
+        backend into the same unit)."""
         data = _vars()
         assert "gui_tools_app_files" not in data, (
             "gui_tools_app_files must be retired — the GUI deploys WHOLE via the "
@@ -232,19 +233,12 @@ class TestGuiToolsVars:
         assert not any(
             "capture" in str(t.get("loop", "")) for t in _tasks()
         ), "no gui_tools task may loop a capture manifest"
-        # The GUI source is gone; the backend is NOT.
-        assert not (_REPO_ROOT / "src" / "gui-tools" / "capture-tool" / "app.tsx").exists(), (
-            "the in-repo capture GUI entry must be deleted (it lives in the "
-            "ags-apps unit now)"
-        )
-        assert not (_REPO_ROOT / "src" / "gui-tools" / "capture-tool" / "ui").exists(), (
-            "the in-repo capture GUI ui/ tree must be deleted"
-        )
-        assert (
-            _REPO_ROOT / "src" / "gui-tools" / "capture-tool" / "bin" / "capture-tool"
-        ).is_file(), (
-            "the capture-tool Python BACKEND must survive in-repo (cli_tools "
-            "installs it); only the GUI moved into the unit"
+        # The whole app is gone from this repo (ags-apps v0.4.0): the GUI and the
+        # Python backend both ship in the unit, and the ags_apps role links the
+        # backend into the user bin dir.
+        assert not (_REPO_ROOT / "src" / "gui-tools" / "capture-tool").exists(), (
+            "the in-repo capture-tool tree (GUI + Python backend) must be "
+            "deleted — it all lives in the ags-apps unit now"
         )
 
     def test_capture_ags_instance_still_launches_from_the_symlink(self) -> None:

@@ -296,6 +296,27 @@ class TestCliToolsTasks:
                 "verify task must prepend cli_tools_bin_dir to PATH (AC 3)"
             )
 
+    def test_capture_tool_is_not_installed_by_this_role(self) -> None:
+        """v0.4.0: the capture-tool backend ships in the pinned ags-apps unit.
+
+        cli_tools runs BEFORE ags-apps on the bootstrap chain, so it cannot
+        install or assert the CLI anymore. The retired copy task must not come
+        back: it would install this checkout's old backend over the unit's
+        pinned one (two sources of truth).
+        """
+        tasks_text = (_ROLES_DIR / "tasks" / "main.yml").read_text()
+        assert "src/gui-tools/capture-tool" not in tasks_text, (
+            "cli_tools must not install the capture-tool backend — the ags_apps "
+            "role links it from the unit"
+        )
+        assert not any(
+            "capture-tool" in str(task.get("name", "")) for task in _load_tasks()
+        ), "no cli_tools task may install or verify capture-tool anymore"
+        assert not any(
+            "command -v capture-tool" in str(task.get(_module_key(task) or "", ""))
+            for task in _load_tasks()
+        ), "the capture-tool PATH assertion moved to the ags_apps role (after the link)"
+
     def test_no_become_anywhere_in_role(self) -> None:
         """User-scoped privilege context: `uv tool install` targets the
         intended user, never root (running as root would install into
