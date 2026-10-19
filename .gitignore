@@ -1,16 +1,6 @@
 __pycache__/
 *.pyc
 
-# AGS/TS typecheck artifacts for the capture-tool GUI. The GUI (and its
-# `@girs/` + `node_modules/` typecheck artifacts) moved into the `ags-apps` unit
-# in ags-apps-bar-first slice 5, so nothing under src/gui-tools/capture-tool/
-# generates these anymore. The entries are KEPT as a belt-and-suspenders guard:
-# the directory still exists (it holds the Python backend), and a stray
-# `ags types` run against it must never reach a commit.
-/src/gui-tools/capture-tool/@girs/
-/src/gui-tools/capture-tool/node_modules/
-/src/gui-tools/capture-tool/tsconfig.json
-/src/gui-tools/capture-tool/env.d.ts
 # TypeScript itself, installed with `npm install --no-save typescript` so that
 # `npx tsc` resolves from the tool directory without a package.json.
 /node_modules/
@@ -22,13 +12,6 @@ __pycache__/
 # symlink, so the checkout must live here. A committed copy of the consumed unit
 # would defeat AD-17 (consume the published unit, not a vendored one).
 /.dev/
-# @types/node, for the capture-tool domain unit tests' node:test / node:assert.
-# Those tests (and the `make capture-test` gate that installed this) moved into
-# the `ags-apps` unit with the GUI (slice 5), so nothing under this repo installs
-# it anymore. The entry is KEPT as a guard: the directory survives (it holds the
-# Python backend tests), and a stray `npm install @types/node` under it must never
-# reach a commit.
-/src/gui-tools/capture-tool/tests/node_modules/
 /package-lock.json
 /package.json
 /src/cli-tools/wallpaper-effects-generator/feedback.md

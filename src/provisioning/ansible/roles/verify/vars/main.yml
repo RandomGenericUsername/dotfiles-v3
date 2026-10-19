@@ -62,11 +62,10 @@ verify_state_current_dir: "{{ verify_xdg_state_home | trim }}/dotfiles/current"
 #   fresh machine cannot end up with dead Fn keys.
 verify_bin_scripts:
   - "{{ verify_cli_bin_dir | trim }}/toggle-touchpad"
-  # The capture tool: `capture-tool` (the controller the AGS UI shells out to)
-  # and `capture-ui` (the SUPER+PRINT launcher). Both are installed by the
-  # cli_tools role; without them the keybind is a silent no-op and every UI
-  # action fails, so their presence is asserted here too.
-  - "{{ verify_cli_bin_dir | trim }}/capture-tool"
+  # The capture UI launcher: `capture-ui` (SUPER+PRINT). Installed by the
+  # cli_tools role; without it the keybind is a silent no-op, so its presence is
+  # asserted here too. The `capture-tool` CLI itself is installed from the
+  # ags-apps unit and asserted (symlink + pin) in the ags-apps section below.
   - "{{ verify_cli_bin_dir | trim }}/capture-ui"
   # rofi's toggle launcher: the SUPER+D bind calls `rofi-ui` (open+close), so a
   # missing launcher would leave the key dead.
@@ -506,7 +505,7 @@ verify_ags_platform_unit_files:
 #   platform unit: esbuild realpaths the live-bar link, so the shared-ancestor
 #   shortcut is not an ancestor of the real bar tree and the bar's bare
 #   `ags-platform` imports would not resolve without it.
-verify_ags_apps_version: v0.3.8
+verify_ags_apps_version: v0.4.0
 verify_ags_apps_platform_version: v0.2.0
 verify_ags_apps_unit_dir: "{{ install_dir | trim }}/ags-apps/{{ verify_ags_apps_version }}"
 verify_ags_apps_bar_dir: "{{ verify_ags_apps_unit_dir }}/bar"
@@ -582,15 +581,21 @@ verify_ags_apps_notifications_files:
   - "{{ verify_ags_apps_notifications_dir }}/ui/NotificationsWindow.tsx"
   - "{{ verify_ags_apps_notifications_dir }}/lib/card-model.ts"
 
-# verify_ags_apps_capture_tool_dir / _live_capture_link / _capture_tool_files:
-#   the capture-tool AGS GUI, deployed WHOLE like the bar/hypr-pano/notifications
-#   (slice 5). The live-capture link <install>/config/ags-capture is a symlink
-#   into the unit's capture-tool/ dir, so the live GUI is always exactly the
-#   pinned tag — no per-file mirror can drift. Mirror of the ags_apps role vars.
-#   The ~/.config/ags-capture symlink (config_links) and the `capture-ui`
-#   launcher / autostart.lua are unchanged: they resolve through this link. The
-#   Python backend is NOT here (it stays in-repo, installed by cli_tools).
+# verify_ags_apps_capture_tool_dir / _capture_tool_backend / _capture_tool_bin_link
+#   / _live_capture_link / _capture_tool_files: the capture-tool app, deployed
+#   WHOLE like the bar/hypr-pano/notifications (slice 5). The live-capture link
+#   <install>/config/ags-capture is a symlink into the unit's capture-tool/ dir,
+#   so the live GUI is always exactly the pinned tag — no per-file mirror can
+#   drift. Mirror of the ags_apps role vars. The ~/.config/ags-capture symlink
+#   (config_links) and the `capture-ui` launcher / autostart.lua are unchanged:
+#   they resolve through this link. From ags-apps v0.4.0 the Python backend ships
+#   in the unit too, and the ags_apps role links it into the user bin dir, so the
+#   installed CLI is also pinned to the same tag. The backend is deliberately NOT
+#   in _capture_tool_files (those are regular GUI sources; the CLI is a symlink
+#   asserted separately).
 verify_ags_apps_capture_tool_dir: "{{ verify_ags_apps_unit_dir }}/capture-tool"
+verify_ags_apps_capture_tool_backend: "{{ verify_ags_apps_capture_tool_dir }}/bin/capture-tool"
+verify_ags_apps_capture_tool_bin_link: "{{ verify_cli_bin_dir | trim }}/capture-tool"
 verify_ags_apps_live_capture_link: "{{ install_dir | trim }}/config/ags-capture"
 
 # verify_ags_apps_capture_tool_files: representative files that MUST be present

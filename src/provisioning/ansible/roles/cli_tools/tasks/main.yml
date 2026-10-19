@@ -31,12 +31,10 @@
       (bootstrap.sh pre-seeds it; Story 3.1)
   when: not ansible_check_mode
 
-- name: Install the capture-tool controller into the provisioned user bin directory
-  ansible.builtin.copy:
-    src: "{{ cli_tools_repo_root }}/src/gui-tools/capture-tool/bin/capture-tool"
-    dest: "{{ cli_tools_bin_dir }}/capture-tool"
-    mode: "0755"
-    remote_src: true
+# capture-tool is NOT installed here: from ags-apps v0.4.0 its Python backend
+# ships inside the pinned unit (capture-tool/bin/capture-tool), and the ags_apps
+# role installs the bin-dir symlink after cloning the unit. This role runs BEFORE
+# ags-apps on the bootstrap chain, so it could not install or assert it anyway.
 
 - name: Install the Hyprland session plugin activator
   ansible.builtin.copy:
@@ -122,12 +120,6 @@
     UV_TOOL_BIN_DIR: "{{ cli_tools_bin_dir }}"
   loop: "{{ cli_tools }}"
   when: not ansible_check_mode
-
-- name: Verify capture-tool is on PATH
-  ansible.builtin.shell: "command -v capture-tool"
-  environment:
-    PATH: "{{ cli_tools_bin_dir }}:{{ ansible_facts.env.PATH }}"
-  changed_when: false
 
 - name: Verify csg/weg/itr resolve on PATH
   ansible.builtin.shell: "command -v {{ item.name }}"

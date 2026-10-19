@@ -29,8 +29,10 @@
 # (slice 5) follows the same shape: <install>/config/ags-capture is a symlink
 # into the unit's capture-tool/ subdir, and gui_tools no longer enumerates it per
 # file. Unlike the others, capture-tool ships a Python BACKEND as well as the AGS
-# GUI; the backend STAYS in-repo (src/gui-tools/capture-tool/bin/capture-tool,
-# installed by cli_tools) — only the GUI moves into the unit. The wallpaper
+# GUI; from ags-apps v0.4.0 that backend lives in the unit too
+# (<unit>/capture-tool/bin/capture-tool). This role installs a bin-dir SYMLINK to
+# it, so the whole app is one self-contained unit and nothing stays in-repo.
+# The wallpaper
 # selector (slice 6) is the sixth app: <install>/config/ags-wallpaper-selector is
 # a symlink into the unit's wallpaper-selector/ subdir, and gui_tools no longer
 # enumerates it per file (it keeps only the AGS-instance launch entry that starts
@@ -89,14 +91,15 @@ ags_apps_repo_url: https://github.com/RandomGenericUsername/ags-apps.git
 
 # ags_apps_version: THE PIN. The git tag to install, and the name of the
 #   version directory under the install root. The tag names a MONOREPO release
-#   (`v0.3.8` carries bar/ + hypr-pano/ + notifications/ + capture-tool/ +
+#   (`v0.4.0` carries bar/ + hypr-pano/ + notifications/ + capture-tool/ +
 #   wallpaper-selector/ + icme/ + btop-theme-studio/, the notifications app
-#   owning org.freedesktop.Notifications): the unit is deployed whole, so one tag
+#   owning org.freedesktop.Notifications, and the capture-tool Python backend at
+#   capture-tool/bin/capture-tool): the unit is deployed whole, so one tag
 #   moves every app it ships. Bump this to move the live apps forward, point a
 #   live link at an older sibling tag dir to roll back. Recorded on the host at
 #   ags_apps_pin_file so the installed version is observable without reading
 #   this file.
-ags_apps_version: v0.3.8
+ags_apps_version: v0.4.0
 
 # ags_apps_install_root: the monorepo home (<install>/ags-apps/). Trim lock:
 #   consumes the same validated {{ install_dir | trim }} value the sibling
@@ -184,14 +187,41 @@ ags_apps_notifications_dir: "{{ ags_apps_unit_dir }}/notifications"
 #   org.freedesktop.Notifications for the session. No per-file copy can drift.
 ags_apps_live_notifications_link: "{{ ags_apps_spine_config_dir }}/ags-notifications"
 
-# ags_apps_capture_tool_dir: the deployed capture-tool AGS GUI package — the
-#   `capture-tool/` subdir of the unit (slice 5 moved the in-repo
-#   src/gui-tools/capture-tool/ GUI here as a thin ags-platform consumer); the
+# ags_apps_capture_tool_dir: the deployed capture-tool app package — the
+#   `capture-tool/` subdir of the unit (slice 5 moved the in-repo GUI here as a
+#   thin ags-platform consumer; v0.4.0 moved the Python backend here too); the
 #   live-capture link points at this dir. Same monorepo deviation as the bar: the
-#   repo root is not the package, the app dir is the package. NOTE: only the GUI
-#   moved; the Python backend (src/gui-tools/capture-tool/bin/capture-tool) stays
-#   in-repo and is installed by cli_tools.
+#   repo root is not the package, the app dir is the package. The Python backend
+#   ships in the unit too (bin/capture-tool, ags-apps v0.4.0), so the app is one
+#   self-contained component: this role links the backend into the user bin dir
+#   (ags_apps_capture_tool_bin_link) and nothing stays in-repo.
 ags_apps_capture_tool_dir: "{{ ags_apps_unit_dir }}/capture-tool"
+
+# ags_apps_bin_dir: the user bin dir the capture-tool CLI lands in. Mirror of
+#   cli_tools_bin_dir EXACTLY ($UV_TOOL_BIN_DIR -> $XDG_BIN_HOME ->
+#   $HOME/.local/bin): the CLI ships in the unit now, but it must be reachable on
+#   the same PATH the rest of provisioning uses. A structural test locks the
+#   parity, and the role ensures the dir exists before linking (cli_tools also
+#   creates it on the bootstrap chain, but ags-apps must stand alone).
+ags_apps_bin_dir: >-
+  {{ ansible_facts.env.UV_TOOL_BIN_DIR
+     | default(ansible_facts.env.XDG_BIN_HOME | default(ansible_facts.env.HOME + '/.local/bin', true), true) }}
+
+# ags_apps_capture_tool_backend: the CLI entry point INSIDE the pinned unit. From
+#   ags-apps v0.4.0 the Python backend ships with the app, so the unit is the
+#   single source of truth for both the GUI and the controller the GUI shells
+#   out to.
+ags_apps_capture_tool_backend: "{{ ags_apps_capture_tool_dir }}/bin/capture-tool"
+
+# ags_apps_capture_tool_bin_link: the installed CLI entry point — a SYMLINK in
+#   the user bin dir pointing at the unit's backend, exactly mirroring the
+#   live-link discipline used for the GUI (`state: link`, `force: true`, so a
+#   repoint/rollback converges in one run and a version bump is a repoint, not a
+#   copy). `command -v capture-tool` resolves THROUGH it, so the keybind, the
+#   AGS GUI and the runtime's notify helper all execute the pinned unit's
+#   backend. A pre-existing real file from the retired cli_tools copy is replaced
+#   by the link (force).
+ags_apps_capture_tool_bin_link: "{{ ags_apps_bin_dir | trim }}/capture-tool"
 
 # ags_apps_live_capture_link: the live capture-tool GUI. A symlink named
 #   `ags-capture` in the spine config root pointing at the unit's capture-tool/
