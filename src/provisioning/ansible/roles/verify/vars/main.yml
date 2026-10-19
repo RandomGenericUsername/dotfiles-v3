@@ -505,7 +505,7 @@ verify_ags_platform_unit_files:
 #   platform unit: esbuild realpaths the live-bar link, so the shared-ancestor
 #   shortcut is not an ancestor of the real bar tree and the bar's bare
 #   `ags-platform` imports would not resolve without it.
-verify_ags_apps_version: v0.3.3
+verify_ags_apps_version: v0.3.4
 verify_ags_apps_platform_version: v0.2.0
 verify_ags_apps_unit_dir: "{{ install_dir | trim }}/ags-apps/{{ verify_ags_apps_version }}"
 verify_ags_apps_bar_dir: "{{ verify_ags_apps_unit_dir }}/bar"
@@ -556,6 +556,30 @@ verify_ags_apps_hypr_pano_files:
   - "{{ verify_ags_apps_hypr_pano_dir }}/ui/Preview.tsx"
   - "{{ verify_ags_apps_hypr_pano_dir }}/lib/clipboard-types.ts"
   - "{{ verify_ags_apps_hypr_pano_dir }}/lib/history.ts"
+
+# verify_ags_apps_notifications_dir / _live_notifications_link /
+#   _notifications_files: the notification overlay, deployed WHOLE like the bar
+#   and hypr-pano (slice 4). The live-notifications link
+#   <install>/config/ags-notifications is a symlink into the unit's
+#   notifications/ dir, so the live daemon is always exactly the pinned tag — no
+#   per-file mirror can drift. Mirror of the ags_apps role vars. The
+#   ~/.config/ags-notifications symlink (config_links) and the gui_tools
+#   always-on AGS-instance launch / autostart.lua are unchanged: they resolve
+#   through this link. It owns org.freedesktop.Notifications for the session.
+verify_ags_apps_notifications_dir: "{{ verify_ags_apps_unit_dir }}/notifications"
+verify_ags_apps_live_notifications_link: "{{ install_dir | trim }}/config/ags-notifications"
+
+# verify_ags_apps_notifications_files: representative files that MUST be present
+#   in the installed unit's notifications/. NOT the whole app (that is the
+#   clone's job) — one file per concern: the composition-root entry, the
+#   stylesheet, the overlay window, and the pure card-model module the window
+#   renders through. A missing file is a daemon that cannot bundle (so nothing
+#   owns org.freedesktop.Notifications).
+verify_ags_apps_notifications_files:
+  - "{{ verify_ags_apps_notifications_dir }}/app.tsx"
+  - "{{ verify_ags_apps_notifications_dir }}/style.css"
+  - "{{ verify_ags_apps_notifications_dir }}/ui/NotificationsWindow.tsx"
+  - "{{ verify_ags_apps_notifications_dir }}/lib/card-model.ts"
 
 # verify_gui_tools_app_files: the standalone GUI tool app files that must be
 #   present in the spine (criterion 7, extended to the gui_tools role —
@@ -660,10 +684,13 @@ verify_gui_tools_app_files:
   - "{{ install_dir | trim }}/config/ags-wallpaper-selector/lib/icon-registry.ts"
   - "{{ install_dir | trim }}/config/ags-wallpaper-selector/lib/event-bus-core.ts"
   - "{{ install_dir | trim }}/config/ags-wallpaper-selector/lib/event-bus.ts"
-  - "{{ install_dir | trim }}/config/ags-notifications/app.tsx"
-  - "{{ install_dir | trim }}/config/ags-notifications/style.css"
-  - "{{ install_dir | trim }}/config/ags-notifications/ui/NotificationsWindow.tsx"
-  - "{{ install_dir | trim }}/config/ags-notifications/Makefile"
+  # NOTE: the notification overlay is deliberately NOT mirrored per file here
+  # anymore (slice 4). It used to be placed per file under config/ags-notifications/;
+  # the consumption step installs it as ONE versioned unit via the `ags_apps`
+  # role and deploys the unit's notifications/ subdir as the live
+  # config/ags-notifications symlink. Its sources are asserted as a UNIT below
+  # (verify_ags_apps_notifications_*); keeping a stale per-file mirror here would
+  # assert files the bridge no longer deploys.
   # The btop Theme Studio's app + lib files (gui_tools per-file placement).
   # An undeployed member is a bundle that cannot start, exactly like the
   # sibling AGS tools.

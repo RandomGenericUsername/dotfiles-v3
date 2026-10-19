@@ -1080,6 +1080,51 @@
       ags-apps playbook first
   when: not ansible_check_mode
 
+# The notification overlay is deployed the same way as the bar and hypr-pano
+# (slice 4): the unit's notifications/ subdir is linked as the live
+# <install>/config/ags-notifications. verify asserts the unit files exist and
+# the live-notifications link is a symlink whose target names the pinned tag and
+# resolves to a directory — the host-side coverage the deploy-coverage gate's
+# repo-side shape assertion cannot provide.
+- name: Check the ags-apps notifications unit files
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop: "{{ verify_ags_apps_notifications_files }}"
+  register: verify_ags_apps_notifications_checks
+
+- name: Check the live notification overlay is a symlink
+  ansible.builtin.stat:
+    path: "{{ verify_ags_apps_live_notifications_link }}"
+    follow: false
+  register: verify_ags_apps_live_notifications_check
+
+- name: Check the live notification overlay resolves to the unit
+  ansible.builtin.stat:
+    path: "{{ verify_ags_apps_live_notifications_link }}"
+    follow: true
+  register: verify_ags_apps_live_notifications_resolve_check
+
+- name: Assert the ags-apps notifications unit + live-notifications link are installed
+  ansible.builtin.assert:
+    that:
+      - >-
+        verify_ags_apps_notifications_checks.results
+        | map(attribute='stat') | selectattr('isreg') | list | length
+        == verify_ags_apps_notifications_files | length
+      - verify_ags_apps_live_notifications_check.stat.islnk
+      - verify_ags_apps_live_notifications_check.stat.lnk_target is search(verify_ags_apps_version)
+      - verify_ags_apps_live_notifications_resolve_check.stat.isdir
+    fail_msg: >-
+      the ags-apps notifications unit or its live link is missing under
+      {{ install_dir | trim }} (spine AD-1/AD-17/AD-23). Expected the pinned
+      unit's notifications/ at {{ verify_ags_apps_notifications_dir }}/ (app.tsx,
+      ui/NotificationsWindow.tsx, lib/card-model.ts, ...) and
+      {{ verify_ags_apps_live_notifications_link }} as a symlink into it. Without
+      them nothing owns org.freedesktop.Notifications (dunst is masked on
+      purpose) and every notification is dropped silently. The ags_apps role
+      installs them; run the ags-apps playbook first
+  when: not ansible_check_mode
+
 - name: Check GUI tool app files
   ansible.builtin.stat:
     path: "{{ item }}"

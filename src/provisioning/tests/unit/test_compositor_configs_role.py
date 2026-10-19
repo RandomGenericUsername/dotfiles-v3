@@ -177,13 +177,13 @@ def _preseed_bar_unit(install: Path) -> Path:
             f"ags-apps bar unit not found at {src} (set AGS_APPS_REPO); the "
             "strict bar gate needs the unit's validate-cli.ts"
         )
-    bar = install / "ags-apps" / "v0.3.3" / "bar"
+    bar = install / "ags-apps" / "v0.3.4" / "bar"
     shutil.copytree(
         src,
         bar,
         ignore=shutil.ignore_patterns("node_modules", "@girs", ".git"),
     )
-    (install / "ags-apps" / "pinned").write_text("v0.3.3\n")
+    (install / "ags-apps" / "pinned").write_text("v0.3.4\n")
     (install / "config").mkdir(parents=True, exist_ok=True)
     (install / "config" / "ags").symlink_to(bar, target_is_directory=True)
     return bar
@@ -1112,6 +1112,47 @@ class TestDeployCoverageGate:
             )
             assert "gui_tools_hypr_pano_app_files" in result.stdout, (
                 "the failure must name the stale hypr-pano entry; recap:\n"
+                + result.stdout
+            )
+
+    def test_gate_fails_when_a_stale_notifications_entry_returns(self) -> None:
+        """Slice 4: a per-file notifications entry in the gui_tools manifest must
+        FAIL. The daemon deploys WHOLE via the unit symlink, so any
+        ags-notifications/ source would template INTO the unit tree through the
+        live-notifications link and silently diverge the live daemon from the
+        pinned tag. Hermetic: a temp root whose gui_tools vars re-add the retired
+        gui_tools_notifications_app_files — plus both unit roles, which the gate
+        asserts."""
+        repo_root = _ANSIBLE_DIR.parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            # The gate parses the compositor manifest first; give it the real one
+            # so it reaches the gui_tools assertion under test.
+            vars_dst = root / self._VARS
+            vars_dst.parent.mkdir(parents=True)
+            vars_dst.write_text((repo_root / self._VARS).read_text())
+            for role in ("ags_platform", "ags_apps", "gui_tools"):
+                shutil.copytree(
+                    repo_root / "src/provisioning/ansible/roles" / role,
+                    root / "src/provisioning/ansible/roles" / role,
+                )
+            gui_vars = (
+                root / "src/provisioning/ansible/roles/gui_tools/vars/main.yml"
+            )
+            gui_vars.write_text(
+                gui_vars.read_text()
+                + "\ngui_tools_notifications_app_files:\n"
+                + "  - { name: stale-notifications-app, "
+                + "source: src/gui-tools/notifications/app.tsx, "
+                + 'dest: "{{ gui_tools_spine_config_dir }}/ags-notifications/app.tsx" }\n'
+            )
+            result = self._run(root)
+            assert result.returncode != 0, (
+                "the gate must FAIL when a stale per-file notifications entry is "
+                f"listed; recap:\n{result.stdout}"
+            )
+            assert "gui_tools_notifications_app_files" in result.stdout, (
+                "the failure must name the stale notifications entry; recap:\n"
                 + result.stdout
             )
 
