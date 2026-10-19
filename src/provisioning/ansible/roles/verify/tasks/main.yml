@@ -1306,6 +1306,9 @@
       installs them; run the ags-apps playbook first
   when: not ansible_check_mode
 
+# verify_gui_tools_app_files is EMPTY since slice 8 (the last per-file app moved
+# into the ags-apps unit), so this pair is a no-op on a stock install. It stays
+# so a future per-file app is gated the moment it is appended to the list.
 - name: Check GUI tool app files
   ansible.builtin.stat:
     path: "{{ item }}"

@@ -714,8 +714,11 @@ verify_ags_apps_btop_studio_files:
   - "{{ verify_ags_apps_btop_studio_dir }}/live/btop_live.py"
 
 # verify_gui_tools_app_files: the standalone GUI tool app files that must be
-#   present in the spine (criterion 7, extended to the gui_tools role —
-#   mirror of gui_tools_btop_studio_app_files dests).
+#   present in the spine (criterion 7, extended to the gui_tools role). EMPTY
+#   since slice 8: the last per-file app (btop Theme Studio) moved into the
+#   ags-apps unit, so gui_tools places nothing per file. The criterion task
+#   passes on an empty list (0 == 0); a future per-file app appends here and to
+#   gui_tools_config_dirs.
 #   NOTE: the capture-tool AGS GUI is deliberately NOT mirrored per file here
 #   anymore (slice 5). It moved into the ags-apps unit and deploys WHOLE via
 #   the live-capture link; its sources are asserted as a UNIT below
