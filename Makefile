@@ -228,21 +228,32 @@ CAPTURE_TS_TESTS := $(CAPTURE_DIR)/tests/ts
 # cannot PRUNE the root one: `npm install --no-save X` at the repo root removes
 # previously --no-save'd packages, which is how a previous measurement in this
 # repo's history turned into a false green.
+#
+# EVERY path below is anchored to $(CURDIR), the directory of THIS Makefile, not
+# the process CWD. This target must be worktree-safe: run from a
+# `.worktrees/<id>/` checkout, a bare `npm install` (no --prefix) makes npm walk
+# UP for a project root, finds the MAIN checkout's node_modules and installs
+# THERE -- the worktree's own node_modules/.bin/tsc is never created, the guard
+# below never flips, and the gate dies with "tsc is not resolvable" (verified:
+# `npm prefix` from the worktree reports /home/inumaki/Development/dotfiles-v3).
+# --prefix "$(CURDIR)" pins the install to the tree being built, and invoking the
+# CURDIR-anchored binary for the tsc run stops `npx` from walking up into the
+# main repo's typescript too.
 capture-test-deps:
-	@if [ ! -x node_modules/.bin/tsc ]; then \
+	@if [ ! -x "$(CURDIR)/node_modules/.bin/tsc" ]; then \
 		echo "==> capture-test: installing typescript (npm install --no-save, ignored by git)"; \
-		npm install --no-save --no-package-lock typescript@5.9 >/dev/null || exit 1; \
+		npm install --no-save --no-package-lock --prefix "$(CURDIR)" typescript@5.9 >/dev/null || exit 1; \
 	fi
-	@if [ ! -d $(CAPTURE_DIR)/tests/node_modules/@types/node ]; then \
+	@if [ ! -d "$(CURDIR)/$(CAPTURE_DIR)/tests/node_modules/@types/node" ]; then \
 		echo "==> capture-test: installing @types/node under $(CAPTURE_DIR)/tests/ (gitignored)"; \
-		npm install --no-save --no-package-lock --prefix $(CAPTURE_DIR)/tests @types/node@24 >/dev/null || exit 1; \
+		npm install --no-save --no-package-lock --prefix "$(CURDIR)/$(CAPTURE_DIR)/tests" @types/node@24 >/dev/null || exit 1; \
 	fi
 
 capture-test: capture-test-deps
 	@echo "==> capture-test: node --test $(CAPTURE_TS_TESTS)"
 	node --import ./$(CAPTURE_TS_TESTS)/resolve-hooks.mjs --test $(CAPTURE_TS_TESTS)/*.test.ts
 	@echo "==> capture-test: tsc --noEmit -p $(CAPTURE_DIR)/tests/tsconfig.tests.json"
-	npx tsc --noEmit -p "$(CAPTURE_DIR)/tests/tsconfig.tests.json" || exit 1
+	"$(CURDIR)/node_modules/.bin/tsc" --noEmit -p "$(CAPTURE_DIR)/tests/tsconfig.tests.json" || exit 1
 	@echo "    OK: 0 type errors in the domain unit tests"
 
 # ---------------------------------------------------------------------------
