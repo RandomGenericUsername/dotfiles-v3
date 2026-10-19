@@ -51,6 +51,14 @@
 #   reads the BAR's colors.css). gui_tools keeps only the always-on AGS-instance
 #   launch entry that starts the daemon from the now-symlinked
 #   ~/.config/ags-notifications.
+# - The live capture-tool GUI is a symlink too (slice 5):
+#   <install>/config/ags-capture -> <unit>/capture-tool/. Identical discipline to
+#   the live-notifications link (backup-then-symlink, empty real dir removed,
+#   non-empty legacy dir moved aside, never deleted, NO seed step). gui_tools
+#   keeps only the on-demand `capture` AGS-instance entry, which the provisioned
+#   `capture-ui` launcher starts from the now-symlinked ~/.config/ags-capture. The
+#   Python backend stays in-repo (cli_tools installs it) — only the GUI is in the
+#   unit.
 # - User-scoped privilege context: NO become (everything lands under the user's
 #   install_dir).
 # - Distro-agnostic: a git clone + symlinks are identical on Arch and
@@ -378,5 +386,81 @@
   ansible.builtin.file:
     src: "{{ ags_apps_notifications_dir }}"
     dest: "{{ ags_apps_live_notifications_link }}"
+    state: link
+    force: true
+
+# The capture-tool GUI deploys the same way (slice 5): a symlink into the unit's
+# capture-tool/ dir, with the SAME migrate-then-symlink discipline for a
+# pre-existing real dir (empty -> removed, non-empty -> moved aside to a
+# timestamped backup, never deleted). Like hypr-pano and notifications it owns NO
+# runtime pointer inside its spine dir — its palette is applied through the
+# platform theme adapter, which reads the BAR's <install>/config/ags/colors.css —
+# so there is nothing to seed before the move. The backup is suffixed so a run
+# that displaces MULTIPLE legacy dirs cannot collide on the timestamp. The GUI's
+# icons.json is generated through this link by compositor_configs, exactly like
+# the bar's; the Python backend is NOT here (it stays in-repo, installed by
+# cli_tools) and the `capture` AGS instance entry stays in gui_tools.
+- name: Check whether the live-capture path already exists
+  ansible.builtin.stat:
+    path: "{{ ags_apps_live_capture_link }}"
+    follow: false
+  register: ags_apps_live_capture_check
+
+- name: List the live-capture path's children when it is a real dir
+  ansible.builtin.find:
+    paths:
+      - "{{ ags_apps_live_capture_link }}"
+    file_type: any
+    hidden: true
+  register: ags_apps_live_capture_children
+  when:
+    - ags_apps_live_capture_check.stat.exists
+    - not ags_apps_live_capture_check.stat.islnk | default(false)
+
+- name: Remove the live-capture path when it is an empty real dir
+  ansible.builtin.file:
+    path: "{{ ags_apps_live_capture_link }}"
+    state: absent
+  when:
+    - not ansible_check_mode
+    - ags_apps_live_capture_check.stat.exists
+    - not ags_apps_live_capture_check.stat.islnk | default(false)
+    - ags_apps_live_capture_children.matched | default(0) == 0
+
+- name: Determine the legacy-capture-bridge backup path for this run
+  ansible.builtin.set_fact:
+    ags_apps_capture_backup_path: "{{ ags_apps_backup_root }}/{{ lookup('pipe', 'date +%Y%m%dT%H%M%S') }}-capture-tool"
+  when:
+    - ags_apps_live_capture_check.stat.exists
+    - not ags_apps_live_capture_check.stat.islnk | default(false)
+    - (ags_apps_live_capture_children.matched | default(0)) != 0
+
+- name: Ensure the bridge-backup root exists for the live-capture link
+  ansible.builtin.file:
+    path: "{{ ags_apps_backup_root }}"
+    state: directory
+    mode: "0755"
+  when:
+    - ags_apps_live_capture_check.stat.exists
+    - not ags_apps_live_capture_check.stat.islnk | default(false)
+    - (ags_apps_live_capture_children.matched | default(0)) != 0
+
+- name: Move aside a non-empty legacy capture bridge dir blocking the live-capture link
+  ansible.builtin.command:
+    argv:
+      - mv
+      - "{{ ags_apps_live_capture_link }}"
+      - "{{ ags_apps_capture_backup_path }}"
+  changed_when: true
+  when:
+    - not ansible_check_mode
+    - ags_apps_live_capture_check.stat.exists
+    - not ags_apps_live_capture_check.stat.islnk | default(false)
+    - (ags_apps_live_capture_children.matched | default(0)) != 0
+
+- name: Deploy the unit's capture-tool as the live capture GUI
+  ansible.builtin.file:
+    src: "{{ ags_apps_capture_tool_dir }}"
+    dest: "{{ ags_apps_live_capture_link }}"
     state: link
     force: true
