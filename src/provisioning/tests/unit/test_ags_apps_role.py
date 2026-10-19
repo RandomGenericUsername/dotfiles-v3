@@ -293,24 +293,61 @@ class TestAgsAppsTasks:
             )
             assert "not ansible_check_mode" in when
 
-    def test_colors_pointer_is_seeded_before_the_move(self) -> None:
-        """Seed -> backup -> symlink (mirror of the config_links gtk handling):
-        the runtime-owned colors.css is copied into the unit BEFORE the legacy
-        dir moves, so a seed failure aborts with the legacy dir intact."""
+    def test_colors_pointer_is_ensured_unconditionally_after_the_live_bar_link(
+        self,
+    ) -> None:
+        """THE REGRESSION FIX. The runtime-owned colors.css pointer must be
+        ENSURED on the unit bar on EVERY deploy — not only when the live-bar
+        path is a real dir. A version bump repoints the live-bar symlink at a
+        NEW unit dir that never carried the pointer, so the old conditional
+        seed was skipped on every bump, leaving <unit>/bar/colors.css dangling;
+        wlogout's @import then failed, GTK dropped the whole stylesheet, and the
+        power icon opened wlogout with no wallpaper and no icons."""
         names = [str(t.get("name", "")) for t in _load_tasks()]
-        seed = names.index(
-            "Seed the runtime colors.css pointer into the unit bar before the move"
+        probe_name = "Read the live bar's pre-existing runtime colors.css pointer target"
+        ensure_name = "Ensure the unit bar carries the runtime colors.css pointer"
+        move_name = "Move aside a non-empty legacy bridge dir blocking the live-bar link"
+        link_name = "Deploy the unit's bar as the live bar"
+        for required in (probe_name, ensure_name, move_name, link_name):
+            assert required in names, f"missing task {required!r}"
+        # The pre-existing target is read BEFORE the legacy dir moves/repoints.
+        assert names.index(probe_name) < names.index(move_name), (
+            "the pointer target must be captured before the live bar is repointed"
         )
-        move = names.index(
-            "Move aside a non-empty legacy bridge dir blocking the live-bar link"
+        # The ensure runs AFTER the live-bar link is (re)pointed at this unit.
+        assert (
+            names.index(move_name) < names.index(link_name) < names.index(ensure_name)
+        ), "the ensure must run after the live-bar link is deployed"
+
+        ensure = _named(ensure_name)
+        assert _module_key(ensure) == "ansible.builtin.file"
+        module = _module(ensure)
+        assert module["state"] == "link", (
+            "a symlink (not a copy) makes the ensure idempotent + check-safe"
         )
-        link = names.index("Deploy the unit's bar as the live bar")
-        assert seed < move < link, "ordering must be seed -> backup -> symlink"
-        seed_task = _named(
-            "Seed the runtime colors.css pointer into the unit bar before the move"
+        assert module["force"] is True, "force makes a repoint converge in one run"
+        assert module["dest"] == "{{ ags_apps_bar_dir }}/colors.css"
+        # UNCONDITIONAL: no `when` gate at all. The bug was the gate
+        # (`not islnk` + legacy-colors-exists) which skipped every version bump.
+        assert "when" not in ensure, (
+            "the ensure must run on EVERY deploy (fresh host AND version bump) — "
+            "any `when` gate reintroduces the dangling-pointer regression"
         )
-        assert _module_key(seed_task) == "ansible.builtin.command"
-        assert "not ansible_check_mode" in str(seed_task.get("when", ""))
+        # The source falls back to the runtime state pointer (fresh host) and
+        # inherits the pre-existing target when the probe found one (bump).
+        src = str(module["src"])
+        assert "ags_apps_colors_pointer_source" in src
+        fallback = str(_named(ensure_name)["vars"]["ags_apps_colors_pointer_source"])
+        assert "ags_apps_runtime_colors_pointer" in fallback
+        assert "ags_apps_pre_colors_readlink" in fallback
+
+        probe = _named(probe_name)
+        assert _module_key(probe) == "ansible.builtin.command"
+        assert _module(probe)["argv"][0] == "readlink"
+        assert probe.get("failed_when") is False, (
+            "a missing/non-symlink pointer must fall back, not abort the run"
+        )
+        assert probe.get("changed_when") is False
 
     def test_live_bar_is_forced_symlink_into_the_unit_bar(self) -> None:
         task = _named("Deploy the unit's bar as the live bar")
@@ -486,6 +523,10 @@ class TestAgsAppsExecution:
             pytest.skip("ansible-playbook not installed; skipping execution test")
         env = {k: v for k, v in os.environ.items() if not k.startswith("ANSIBLE_")}
         env["HOME"] = str(home)
+        # Pin the state root so the role's runtime colors.css pointer resolves
+        # deterministically under the test home (the ambient XDG_STATE_HOME
+        # would otherwise leak the developer's real state dir into the run).
+        env["XDG_STATE_HOME"] = str(home / ".local" / "state")
         env["ANSIBLE_CONFIG"] = str(_ANSIBLE_DIR / "ansible.cfg")
         return subprocess.run(
             [ansible_playbook, str(self._PATH), "-e", f"install_dir={install}"],
@@ -563,6 +604,17 @@ class TestAgsAppsExecution:
         assert shortcut.resolve() == platform.resolve(), (
             "the shortcut must point at the pinned platform unit"
         )
+
+        # The runtime colors.css pointer is ensured on EVERY deploy — the live
+        # bar's colors.css must resolve (never dangle), or wlogout's @import
+        # fails and GTK drops the stylesheet.
+        pointer = unit_dir / "bar" / "colors.css"
+        assert pointer.is_symlink(), (
+            "the unit bar must carry the runtime colors.css pointer"
+        )
+        assert os.readlink(pointer) == str(
+            home / ".local" / "state" / "dotfiles" / "current" / "colors.gtk.css"
+        ), "the pointer must target the runtime state pointer"
 
         # Idempotent: a second run converges to the same state.
         second = self._run(install, home)
@@ -674,6 +726,89 @@ class TestAgsAppsExecution:
             "the runtime colors.css pointer must be seeded into the unit"
         )
         assert seeded.resolve() == (tmp_path / "colors-target.css").resolve()
+
+    def test_colors_pointer_is_seeded_on_a_fresh_deploy(self, tmp_path: Path) -> None:
+        """FRESH HOST: no pre-existing pointer to inherit, so the ensure falls
+        back to the runtime state pointer (<state>/dotfiles/current/
+        colors.gtk.css) and the live bar's colors.css resolves through it."""
+        home = tmp_path / "home"
+        install = tmp_path / "install"
+        home.mkdir()
+        install.mkdir()
+        (install / "config").mkdir()
+        self._seed_units(install)
+
+        state_current = home / ".local" / "state" / "dotfiles" / "current"
+        state_current.mkdir(parents=True)
+        (state_current / "colors.gtk.css").write_text(
+            "@define-color color_background #0b0b1a;\n"
+        )
+
+        result = self._run(install, home)
+        assert result.returncode == 0, result.stdout + result.stderr
+
+        unit_dir = install / "ags-apps" / str(_vars()["ags_apps_version"])
+        pointer = unit_dir / "bar" / "colors.css"
+        assert pointer.is_symlink(), (
+            "a fresh deploy must seed the runtime colors.css pointer"
+        )
+        assert os.readlink(pointer) == str(state_current / "colors.gtk.css")
+        # The consumer path wlogout imports resolves THROUGH the live-bar link.
+        live = install / "config" / "ags"
+        assert live.is_symlink()
+        assert (live / "colors.css").read_text().startswith("@define-color")
+
+        # Idempotent: a second run converges to the same pointer.
+        second = self._run(install, home)
+        assert second.returncode == 0, second.stdout + second.stderr
+        assert pointer.is_symlink()
+        assert os.readlink(pointer) == str(state_current / "colors.gtk.css")
+
+    def test_colors_pointer_is_seeded_on_a_version_bump(self, tmp_path: Path) -> None:
+        """THE REPORTED REGRESSION: the live-bar link is ALREADY a symlink into
+        a previous unit when a new tag is deployed. The old seed was gated on the
+        live-bar path being a REAL dir, so it was skipped on every bump and the
+        NEW unit's bar/colors.css dangled — wlogout opened with no wallpaper and
+        no icons. The ensure must inherit the previous pointer's target."""
+        home = tmp_path / "home"
+        install = tmp_path / "install"
+        home.mkdir()
+        install.mkdir()
+        (install / "config").mkdir()
+        self._seed_units(install)
+
+        state_current = home / ".local" / "state" / "dotfiles" / "current"
+        state_current.mkdir(parents=True)
+        (state_current / "colors.gtk.css").write_text(
+            "@define-color color_background #0b0b1a;\n"
+        )
+
+        # A PREVIOUS unit already carries the pointer, and the live-bar link
+        # already points at it (the state left by the prior deploy).
+        previous_bar = install / "ags-apps" / "v0.0.1" / "bar"
+        previous_bar.mkdir(parents=True)
+        (previous_bar / "app.tsx").write_text("export {}\n")
+        (previous_bar / "colors.css").symlink_to(state_current / "colors.gtk.css")
+
+        live = install / "config" / "ags"
+        live.symlink_to(previous_bar)
+        assert live.is_symlink()
+
+        result = self._run(install, home)
+        assert result.returncode == 0, result.stdout + result.stderr
+
+        unit_dir = install / "ags-apps" / str(_vars()["ags_apps_version"])
+        assert live.is_symlink(), "the live bar stays a symlink"
+        assert live.resolve() == (unit_dir / "bar").resolve(), (
+            "the live bar must repoint at the new unit"
+        )
+        pointer = unit_dir / "bar" / "colors.css"
+        assert pointer.is_symlink(), (
+            "a version bump must seed colors.css into the NEW unit — a dangling "
+            "pointer here is the wlogout regression"
+        )
+        assert pointer.resolve() == (state_current / "colors.gtk.css").resolve()
+        assert (live / "colors.css").read_text().startswith("@define-color")
 
 
 if __name__ == "__main__":
