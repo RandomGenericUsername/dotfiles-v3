@@ -3,6 +3,57 @@
 Execution order is fixed: S0a → S0b → S1 → S2 → S3 → S4 → S5 → S6. No slice
 starts before its predecessor is merged on `master`.
 
+## Status
+
+Last updated: 2026-10-19, after S0a landed.
+
+| Slice | State | Evidence anchor |
+| --- | --- | --- |
+| S0a — `contracts` invocation contract + first tag | done | `contracts` tag `v0.1.0` → commit `48cf3cf` (tag object `6ea43dcb`); `uv run pytest -q` → 49 passed; `openspec validate … --strict` → valid; public repo + anonymous `ls-remote` proven |
+| S0b — dotfiles prerequisites | pending (two items deferred from S0a: 2.7, 2.8) | consumes `contracts v0.1.0` |
+| S1 — `cli-output` repo + `v0.1.0` | pending | — |
+| S2 — `config-assembler-engine` repo + `v0.1.0` | pending | — |
+| S3 — `oci-runtime` repo + `v0.5.0` | pending | — |
+| S4 — `icon-templates-renderer` repo + `v0.1.0` | pending | — |
+| S5 — `wallpaper-effects-generator` repo + `v0.1.0` | pending | — |
+| S6 — `color-scheme-generator` repo + `v0.1.0`, both trees deleted | pending | — |
+| Post-migration verification | pending | — |
+
+Only S0a is done; nothing in S0b or later is ticked. Two S0a lines were only
+partly evidenced and are carried into S0b as 2.7 (boundary-spec relocation) and
+2.8 (missing `CHANGELOG.md` + GitHub Release assets) — the tag itself shipped,
+so 1.6 is ticked for the published tag and 2.8 holds the rest of the release
+ritual.
+
+### S0a verification log
+
+Run in `/home/inumaki/Development/contracts` at `48cf3cf` (2026-10-19):
+
+| Command | Observed |
+| --- | --- |
+| `gh api repos/RandomGenericUsername/contracts --jq .private` | `false`, exit 0 — public pin channel |
+| `uv run pytest -q` | `49 passed`, exit 0 |
+| `uv build` | `Successfully built` sdist + wheel, exit 0; `unzip -l dist/cli_invocation_contract-0.1.0-py3-none-any.whl` lists `cli_invocation_contract/invocation-contract.json` |
+| `openspec validate cli-invocation-contract --strict` | `Change 'cli-invocation-contract' is valid`, exit 0 |
+| `git ls-remote --tags --refs origin 'refs/tags/v0.1.0'` | exactly one line, `6ea43dcb…\trefs/tags/v0.1.0`, exit 0 |
+| `git rev-parse 'v0.1.0^{}'` | `48cf3cfed4b192b241505789409c4f282921c896` (annotated tag → commit) |
+| `GIT_TERMINAL_PROMPT=0 git -c credential.helper= ls-remote https://github.com/RandomGenericUsername/contracts 'refs/tags/v0.1.0'` | `6ea43dcb…\trefs/tags/v0.1.0`, exit 0 — anonymous, no credential helper |
+| `gh run list --workflow=drift.yml --limit 3` | latest `contract-drift` run `success` on `v0.1.0` |
+| `uv run python -c "…CONTRACT_VERSION, DATA_VERSION, load()…"` | `0.1.0 1` — `CONTRACT_VERSION = "0.1.0"`, `DATA_VERSION = 1` |
+| `make contracts-drift && make check-symmetry` | exit 0, `[drift] symmetric: contract and generated/ agree` |
+
+`48cf3cf` carries `pyproject.toml`, `src/cli_invocation_contract/{__init__,testkit}.py`,
+`invocation-contract.json`, `CONTRACT.md`, five test files under `tests/`,
+`uv.lock`, the Makefile verbs, the README/AGENTS charter update and the
+`.github/workflows/drift.yml` uv step. Contract literals were cross-checked
+against the runtime source — `csg_adapter.py:278-302,352-370`,
+`weg_adapter.py:344-352`, `itr_adapter.py:406-422` — and match
+`invocation-contract.json` (argv, the 8 csg artifacts, env keys, timeout).
+
+Recorded deviation: `CONTRACT_VERSION` is the release semver string `"0.1.0"`
+while `DATA_VERSION` is the JSON-shape integer `1` (not a second semver);
+`contracts/openspec/changes/cli-invocation-contract/design.md` records why.
+
 ## 0. Execution contract (applies to every task below)
 
 **Per-target loop (AD-13), in this order, in one slice:**
@@ -115,52 +166,75 @@ the new repo with `MU=/home/inumaki/Development/mu`,
 
 ## 1. S0a — invocation contract in `contracts` + first tag `v0.1.0`
 
-- [ ] 1.1 Create the worktree, branch and ticket in the `contracts` repo, and open
+- [x] 1.1 Create the worktree, branch and ticket in the `contracts` repo, and open
   its OpenSpec change for the contract package.
   Gate: `cd "$CONTRACTS" && bash scripts/worktree-guard.sh check-clean`
   Expect: exit 0 on clean `main`; `git branch --show-current` is the new
   `ticket/<id>-cli-invocation-contract`, not `main`.
+  Done: worktree `.worktrees/req-006` on
+  `ticket/req-006-cli-invocation-contract`; `tickets/REQ-006-cli-invocation-contract/ticket.md`
+  and `openspec/changes/cli-invocation-contract/` exist;
+  `bash scripts/worktree-guard.sh check-clean` → exit 0.
 
-- [ ] 1.2 Add the package skeleton: root `pyproject.toml` (hatchling,
+- [x] 1.2 Add the package skeleton: root `pyproject.toml` (hatchling,
   `requires-python >=3.12`, version `0.1.0`), `src/cli_invocation_contract/`,
   `tests/`, committed `uv.lock`; the loader is stdlib-only and `pytest` is the
   only dev dependency.
   Gate: `cd "$CONTRACTS" && uv sync && uv run pytest -q && uv build`
   Expect: exit 0; `dist/cli_invocation_contract-0.1.0-*.whl` and `.tar.gz` exist.
+  Done: `uv build` → `dist/cli_invocation_contract-0.1.0-py3-none-any.whl` +
+  `.tar.gz`, exit 0; `unzip -l` lists `cli_invocation_contract/invocation-contract.json`
+  inside the wheel.
 
-- [ ] 1.3 Add `invocation-contract.json` with one entry per CLI (`csg`, `weg`,
+- [x] 1.3 Add `invocation-contract.json` with one entry per CLI (`csg`, `weg`,
   `itr`) carrying exactly argv template, required env keys, required artifact
   names/suffixes, exit-code semantics and default timeout, copied from S1
   §1.3–1.5 and §2.2 — not re-derived.
   Gate:
   `uv run python -c "from cli_invocation_contract import CONTRACT_VERSION, load; c = load(); assert sorted(c) == ['csg','itr','weg'], sorted(c); assert all({'argv','env','artifacts','exit_codes','timeout'} <= set(v) for v in c.values()); print(CONTRACT_VERSION)"`
   Expect: `0.1.0`.
+  Done: gate printed `0.1.0` (with `DATA_VERSION` → `1`); record shape
+  `{"contract_version", "timeout_unit", "clis"}` with one entry per CLI.
 
-- [ ] 1.4 Add `src/cli_invocation_contract/testkit.py` with the two AD-4
-  assertions (`assert_consumer_invocation`, `assert_cli_conformance`, runner
-  injected) and tests: record completeness, loader round-trip, testkit
-  accept/reject against a fake CLI. No test shells out to a real CLI.
+- [x] 1.4 Add `src/cli_invocation_contract/testkit.py` with the two AD-4
+  assertions (`assert_consumer_invocation`, `assert_cli_writes_artifacts`) and
+  tests: record completeness, loader round-trip, testkit accept/reject against a
+  fake CLI. No test shells out to a real CLI.
   Gate: `cd "$CONTRACTS" && uv run pytest -q`
   Expect: exit 0; the new testkit tests are collected and pass.
+  Done: `uv run pytest -q` → `49 passed`; the kit files alone →
+  `22 passed`. The shipped name of the second assertion is
+  `assert_cli_writes_artifacts` (`testkit.py:201`); the planning-time
+  `assert_cli_conformance` was a placeholder and is not the API.
 
-- [ ] 1.5 Update `contracts/README.md` and `contracts/AGENTS.md` §2 so the charter
-  names both seams; move `openspec/specs/interface-contract-test` and
-  `openspec/specs/container-adapter-env-contract` into `contracts/openspec/specs/`
-  (their dotfiles copies are deleted in S0b).
+- [x] 1.5 Update `contracts/README.md` and `contracts/AGENTS.md` §2 so the charter
+  names both seams. (The relocation of the two boundary specs is split out to
+  2.7 and deferred to S0b.)
   Gate: `cd "$CONTRACTS" && make contracts-drift && make check-symmetry`
   Expect: exit 0 (the existing AGS event machinery is unchanged).
+  Done: `make contracts-drift` and `make check-symmetry` → exit 0,
+  `[drift] symmetric: contract and generated/ agree`; the README lists both
+  contracts and AGENTS §2 names the invocation seam and the same-tag pin.
 
-- [ ] 1.6 Release: version `0.1.0` in `pyproject.toml` + `CHANGELOG.md`,
-  annotated tag `v0.1.0`, CI attaches sdist + wheel to the GitHub Release. This
-  is the repo's first tag.
+- [x] 1.6 Release: version `0.1.0` in `pyproject.toml`, annotated tag `v0.1.0`,
+  pushed. (No `CHANGELOG.md` was added and the GitHub Release asset attachment
+  was not done; both are split out to 2.8 and deferred to S0b.)
   Gate: `git ls-remote --tags --refs origin 'refs/tags/v0.1.0'`
   Expect: exactly one line — the annotated tag ref (`--refs` drops the peeled
   `^{}` line).
   Gate: `git ls-remote origin 'refs/tags/v0.1.0^{}'`
   Expect: a single peeled entry (`refs/tags/v0.1.0^{}`) naming the commit the
   tag resolves to; this is the `<repo>^{}` query, not a ref-count check.
+  Done: `pyproject.toml:7` is `version = "0.1.0"`; tag object `6ea43dcb…`;
+  peeled `48cf3cfed4b192b241505789409c4f282921c896`; anonymous `ls-remote` exits
+  0 with one line; `contract-drift` CI run on `v0.1.0` is `success`.
 
 ## 2. S0b — dotfiles prerequisites (no extraction, no tag)
+
+Two S0a lines were only partly evidenced and are carried here; do them before
+2.9's merge gate. They are cross-repo edits (a `contracts` change plus the
+dotfiles deletion that follows it), so they could not close inside S0a's
+contracts-only scope.
 
 - [ ] 2.1 Add an autouse `tests/conftest.py` fixture to each of the six packages
   (`HOME` + four XDG vars to per-test temp dirs, `chdir` to a temp dir), one
@@ -220,7 +294,39 @@ the new repo with `MU=/home/inumaki/Development/mu`,
   Gate: `make gates-ci && make deploy-coverage`
   Expect: exit 0, five gates, `deploy-coverage: PASS`.
 
-- [ ] 2.7 Merge S0b to `master` before starting S1.
+- [ ] 2.7 **Deferred from S0a — cross-repo edit.** Move
+  `openspec/specs/interface-contract-test` and
+  `openspec/specs/container-adapter-env-contract` into
+  `contracts/openspec/specs/` (the half of former 1.5 that did not land; the
+  charter half shipped at `48cf3cf`). This must precede 2.5's deletion and has
+  to be paired with it: deleting the dotfiles copies without landing the
+  contracts copies would leave both specs owned by no repo.
+  Evidence that it is still open: `ls contracts/openspec/specs` → `task-router
+  ticket-system worktree-discipline` (neither boundary spec);
+  `git ls-files openspec/specs/interface-contract-test
+  openspec/specs/container-adapter-env-contract` in dotfiles-v3 → both
+  `spec.md` files still tracked here.
+  Gate: `ls "$CONTRACTS/openspec/specs/interface-contract-test/spec.md"
+  "$CONTRACTS/openspec/specs/container-adapter-env-contract/spec.md"`
+  Expect: exit 0, both paths exist in `contracts`; then 2.5's deletion gate,
+  `git ls-files openspec/specs/interface-contract-test
+  openspec/specs/container-adapter-env-contract`, is empty here.
+
+- [ ] 2.8 **Deferred from S0a — cross-repo edit.** Complete the `contracts`
+  `v0.1.0` release at `48cf3cf`: add the missing `CHANGELOG.md` (design D3's
+  release ritual names it) and publish the GitHub Release with the sdist and
+  wheel attached. The annotated tag is pushed and CI is green, but there is no
+  changelog and no Release, so D3's ritual is not yet satisfied.
+  Evidence that it is still open: `gh release view v0.1.0` → `release not found`,
+  exit 1; `gh release list` → empty; `ls contracts/CHANGELOG.md` → no such file.
+  Gate: `gh release view v0.1.0 --json tagName,assets --jq '[.tagName, (.assets[].name)] | @tsv'`
+  Expect: exit 0, `v0.1.0` plus both
+  `cli_invocation_contract-0.1.0-py3-none-any.whl` and
+  `cli_invocation_contract-0.1.0.tar.gz`.
+  Gate: `test -s "$CONTRACTS/CHANGELOG.md" && rg -n '0\.1\.0' "$CONTRACTS/CHANGELOG.md"`
+  Expect: exit 0 with a `0.1.0` entry.
+
+- [ ] 2.9 Merge S0b to `master` before starting S1.
   Gate: `make gates-ci && make deploy-coverage` on the merged `master`
   Expect: exit 0, five gates, `deploy-coverage: PASS`.
 
