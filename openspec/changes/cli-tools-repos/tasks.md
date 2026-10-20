@@ -5,12 +5,12 @@ starts before its predecessor is merged on `master`.
 
 ## Status
 
-Last updated: 2026-10-19, after S0b landed in the worktree (2.9 merge pending).
+Last updated: 2026-10-19, after S0b merged to `master` at `56d7d85e`.
 
 | Slice | State | Evidence anchor |
 | --- | --- | --- |
 | S0a — `contracts` invocation contract + first tag | done | `contracts` tag `v0.1.0` → commit `48cf3cf` (tag object `6ea43dcb`); `uv run pytest -q` → 49 passed; `openspec validate … --strict` → valid; public repo + anonymous `ls-remote` proven |
-| S0b — dotfiles prerequisites | done in worktree (2.1–2.8 green; 2.9 merge pending) | `make hermetic` → exit 0 (63 / 163 / 1095+2skip / 288 / 346 / 638); boundary specs deleted here and tracked in `contracts` `55ad61b`; see the S0b verification log below |
+| S0b — dotfiles prerequisites | done (merged to `master` at `56d7d85e`) | `make hermetic` → exit 0 (63 / 163 / 1095+2skip / 288 / 346 / 638); boundary specs deleted here and tracked in `contracts` `55ad61b`; ff-merge `f4f16f11..56d7d85e`, `make gates-ci` exit 0 at HEAD pre-merge; see the S0b verification log below |
 | S1 — `cli-output` repo + `v0.1.0` | pending | — |
 | S2 — `config-assembler-engine` repo + `v0.1.0` | pending | — |
 | S3 — `oci-runtime` repo + `v0.5.0` | pending | — |
@@ -24,7 +24,8 @@ carried into S0b as 2.7 (boundary-spec relocation) and 2.8 (missing
 `CHANGELOG.md` + GitHub Release assets) are both closed: the specs are tracked in
 `contracts` at `55ad61b` and gone from this repo, and `contracts` `v0.1.0` now
 has a `CHANGELOG.md` entry and a Release with the wheel and sdist attached. S0b's
-own merge (2.9) has not happened yet — it is the only open line in the slice.
+own merge (2.9) landed as the fast-forward `f4f16f11..56d7d85e`, pushed to
+`origin/master` (`origin/master == 56d7d85e`); S0b is closed and S1 is unblocked.
 
 ### S0a verification log
 
@@ -375,10 +376,13 @@ contracts-only scope.
   `CHANGELOG.md` is tracked at `contracts` HEAD (`5e03075`, entry added in
   `fcba526`) with `## [0.1.0] - 2026-10-19` at line 16.
 
-- [ ] 2.9 Merge S0b to `master` before starting S1.
+- [x] 2.9 Merge S0b to `master` before starting S1.
   Gate: `make gates-ci && make deploy-coverage` on the merged `master`
   Expect: exit 0, five gates, `deploy-coverage: PASS`.
-  Open: the slice is green in the worktree; no merge has been performed.
+  Done: fast-forward merge `f4f16f11..56d7d85e` onto `master`, then pushed
+  (`origin/master == 56d7d85e`); `make gates-ci` → exit 0 at HEAD `56d7d85e`
+  before the merge, five gates with `deploy-coverage: PASS` and
+  `ci-gates-parity: PASS`. S1 is now unblocked.
 
 ## 3. S1 — `cli-output` repo + `v0.1.0`
 
