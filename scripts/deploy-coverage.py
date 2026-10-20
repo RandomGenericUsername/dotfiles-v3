@@ -70,6 +70,9 @@ required):
       package `src/shared/cli-output/` is gone and no package under `src/`
       pins it by `path` — either would make a local copy the source of truth
       while the tag is what every lock records.
+  (l) asserts the same for `config-assembler-engine` (S2): the in-tree package
+      `src/shared/config-assembler-engine/` is gone and no package under `src/`
+      pins it by `path` — csg/weg/itr consume the pinned repo tag instead.
 
 The relative-import closure of `dotfiles/config/ags/app.tsx` is still computed
 when that dev/typecheck/test bridge is PRESENT (a developer checkout, or the
@@ -276,6 +279,14 @@ RETIRED_GUI_TOOLS_DIR = "src/gui-tools"
 # truth — exactly the drift the pin exists to prevent.
 CLI_OUTPUT_PACKAGE = "cli-output"
 RETIRED_CLI_OUTPUT_DIR = "src/shared/cli-output"
+
+# `config-assembler-engine` left the repo (cli-tools-repos S2): csg, weg and itr
+# consume it from its pinned repo (`git = …/config-assembler-engine, tag =
+# "v0.1.0"`). The in-tree package is retired, and a `path =` source would
+# silently resurrect the local copy as the source of truth — exactly the drift
+# the pin exists to prevent. Same two-half shape as `cli-output` above.
+CONFIG_ASSEMBLER_ENGINE_PACKAGE = "config-assembler-engine"
+RETIRED_CONFIG_ASSEMBLER_ENGINE_DIR = "src/shared/config-assembler-engine"
 
 # Files that participate in `ags bundle` and are therefore a missing-module
 # hazard. `.d.ts` ends in `.ts`, so it is covered by the `.ts` suffix.
@@ -1345,6 +1356,53 @@ def assert_no_in_tree_cli_output(root: Path) -> None:
             )
 
 
+def assert_no_in_tree_config_assembler_engine(root: Path) -> None:
+    """`config-assembler-engine` is consumed from its pinned repo: no local copy.
+
+    cli-tools-repos S2 moved the package out of this repo (tag `v0.1.0`) and
+    deleted `src/shared/config-assembler-engine/`. Both halves are asserted so
+    neither can quietly come back:
+      (a) the in-tree package dir must not exist — a surviving copy would be a
+          second source of truth that csg/weg/itr do not install; and
+      (b) no package under `src/` may carry a `[tool.uv.sources]` entry that
+          pins `config-assembler-engine` by `path` — that would resolve the
+          local checkout instead of the tag while still passing an import.
+    """
+    retired = root / RETIRED_CONFIG_ASSEMBLER_ENGINE_DIR
+    if retired.exists():
+        raise ValueError(
+            f"the retired in-tree {CONFIG_ASSEMBLER_ENGINE_PACKAGE!r} package "
+            f"still exists at {RETIRED_CONFIG_ASSEMBLER_ENGINE_DIR}/ — it is "
+            f"consumed from its pinned repo tag v0.1.0; delete the directory"
+        )
+
+    src = root / "src"
+    if not src.is_dir():
+        raise ValueError(
+            f"{src} is missing — cannot check "
+            f"{CONFIG_ASSEMBLER_ENGINE_PACKAGE!r} pins"
+        )
+    for pyproject in sorted(src.rglob("pyproject.toml")):
+        # Skip virtualenvs and any other hidden tree (e.g. .venv): only the
+        # authored package manifests participate in the pin.
+        if any(part.startswith(".") for part in pyproject.relative_to(root).parts):
+            continue
+        data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+        source = (
+            data.get("tool", {})
+            .get("uv", {})
+            .get("sources", {})
+            .get(CONFIG_ASSEMBLER_ENGINE_PACKAGE)
+        )
+        if isinstance(source, dict) and "path" in source:
+            raise ValueError(
+                f"{pyproject.relative_to(root)} still pins "
+                f"{CONFIG_ASSEMBLER_ENGINE_PACKAGE!r} by path "
+                f"({source['path']!r}) — consume the pinned repo tag "
+                f"(git = …, tag = v0.1.0) instead"
+            )
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         description="the external bar + platform units are provisioned"
@@ -1421,6 +1479,9 @@ def main() -> int:
         # The in-tree package AND every `path =` source for it are retired, so
         # neither a leftover copy nor a re-pointed pin can slip back in.
         assert_no_in_tree_cli_output(root)
+        # cli-tools-repos S2: same shape for `config-assembler-engine` (csg,
+        # weg, itr consume the v0.1.0 tag; the in-tree tree is retired).
+        assert_no_in_tree_config_assembler_engine(root)
     except (RuntimeError, ValueError, FileNotFoundError) as exc:
         print(f"FAIL: {exc}")
         return 1
@@ -1486,6 +1547,10 @@ def main() -> int:
     print(
         f"deploy-coverage: {CLI_OUTPUT_PACKAGE!r} is consumed from its pinned "
         f"repo — no in-tree package and no path source"
+    )
+    print(
+        f"deploy-coverage: {CONFIG_ASSEMBLER_ENGINE_PACKAGE!r} is consumed from "
+        f"its pinned repo — no in-tree package and no path source"
     )
     return 0
 

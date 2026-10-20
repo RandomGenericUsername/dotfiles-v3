@@ -1051,6 +1051,7 @@ class TestDeployCoverageGate:
     _AGS = "dotfiles/config/ags"
     _RETIRED_CAPTURE_DIR = "src/gui-tools/capture-tool"
     _RETIRED_CLI_OUTPUT = "src/shared/cli-output"
+    _RETIRED_CONFIG_ASSEMBLER_ENGINE = "src/shared/config-assembler-engine"
     _APPS_VARS = "src/provisioning/ansible/roles/ags_apps/vars/main.yml"
 
     def _run(self, root: Path) -> subprocess.CompletedProcess[str]:
@@ -1096,6 +1097,13 @@ class TestDeployCoverageGate:
         assert "'cli-output' is consumed from its pinned repo" in result.stdout, (
             "the gate must report the retired in-tree cli-output package; recap:\n"
             + result.stdout
+        )
+        assert (
+            "'config-assembler-engine' is consumed from its pinned repo"
+            in result.stdout
+        ), (
+            "the gate must report the retired in-tree config-assembler-engine "
+            "package; recap:\n" + result.stdout
         )
 
     def test_gate_fails_when_the_retired_cli_output_tree_returns(self) -> None:
@@ -1151,6 +1159,65 @@ class TestDeployCoverageGate:
             assert "path" in result.stdout and "cli-output" in result.stdout, (
                 "the failure must name the path pin; recap:\n" + result.stdout
             )
+
+    def test_gate_fails_when_the_retired_config_assembler_engine_tree_returns(
+        self,
+    ) -> None:
+        """cli-tools-repos S2: `config-assembler-engine` is consumed from its
+        pinned repo (v0.1.0), so the in-tree package is retired. A surviving
+        copy is a second source of truth that csg/weg/itr do not install — it
+        must FAIL even when every pin still resolves the tag."""
+        repo_root = _ANSIBLE_DIR.parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._seed_root(root, repo_root)
+            stray = root / self._RETIRED_CONFIG_ASSEMBLER_ENGINE
+            stray.mkdir(parents=True)
+            (stray / "pyproject.toml").write_text(
+                '[project]\nname = "config-assembler-engine"\nversion = "0.1.0"\n'
+            )
+            result = self._run(root)
+            assert result.returncode != 0, (
+                "the gate must FAIL when the retired in-tree "
+                "config-assembler-engine package returns; recap:\n" + result.stdout
+            )
+            assert "src/shared/config-assembler-engine" in result.stdout, (
+                "the failure must name the retired in-tree "
+                "config-assembler-engine dir; recap:\n" + result.stdout
+            )
+
+    def test_gate_fails_when_a_pyproject_pins_config_assembler_engine_by_path(
+        self,
+    ) -> None:
+        """A `path =` source would resolve the local checkout instead of the
+        tag while still importing fine, silently undoing S2. The gate reads
+        every authored `pyproject.toml` under `src/`, so the pin cannot drift
+        back one package at a time."""
+        repo_root = _ANSIBLE_DIR.parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._seed_root(root, repo_root)
+            pyproject = root / "src" / "cli-tools" / "example" / "pyproject.toml"
+            pyproject.parent.mkdir(parents=True)
+            pyproject.write_text(
+                '[project]\nname = "example"\n'
+                'dependencies = ["config-assembler-engine"]\n\n'
+                "[tool.uv.sources]\n"
+                'config-assembler-engine = { path = "../../shared/config-assembler-engine", '
+                "editable = true }\n"
+            )
+            result = self._run(root)
+            assert result.returncode != 0, (
+                "the gate must FAIL when a pyproject pins config-assembler-engine "
+                f"by path; recap:\n{result.stdout}"
+            )
+            assert "src/cli-tools/example/pyproject.toml" in result.stdout, (
+                "the failure must name the offending pyproject; recap:\n"
+                + result.stdout
+            )
+            assert "path" in result.stdout and "config-assembler-engine" in (
+                result.stdout
+            ), "the failure must name the path pin; recap:\n" + result.stdout
 
     def test_gate_passes_when_the_in_repo_bridge_is_absent(self) -> None:
         """Slice 1: the gate asserts the provisioning SHAPE, so it must exit 0
