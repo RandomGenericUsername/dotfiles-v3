@@ -5,12 +5,12 @@ starts before its predecessor is merged on `master`.
 
 ## Status
 
-Last updated: 2026-10-19, after S0a landed.
+Last updated: 2026-10-19, after S0b landed in the worktree (2.9 merge pending).
 
 | Slice | State | Evidence anchor |
 | --- | --- | --- |
 | S0a — `contracts` invocation contract + first tag | done | `contracts` tag `v0.1.0` → commit `48cf3cf` (tag object `6ea43dcb`); `uv run pytest -q` → 49 passed; `openspec validate … --strict` → valid; public repo + anonymous `ls-remote` proven |
-| S0b — dotfiles prerequisites | pending (two items deferred from S0a: 2.7, 2.8) | consumes `contracts v0.1.0` |
+| S0b — dotfiles prerequisites | done in worktree (2.1–2.8 green; 2.9 merge pending) | `make hermetic` → exit 0 (63 / 163 / 1095+2skip / 288 / 346 / 638); boundary specs deleted here and tracked in `contracts` `55ad61b`; see the S0b verification log below |
 | S1 — `cli-output` repo + `v0.1.0` | pending | — |
 | S2 — `config-assembler-engine` repo + `v0.1.0` | pending | — |
 | S3 — `oci-runtime` repo + `v0.5.0` | pending | — |
@@ -19,11 +19,12 @@ Last updated: 2026-10-19, after S0a landed.
 | S6 — `color-scheme-generator` repo + `v0.1.0`, both trees deleted | pending | — |
 | Post-migration verification | pending | — |
 
-Only S0a is done; nothing in S0b or later is ticked. Two S0a lines were only
-partly evidenced and are carried into S0b as 2.7 (boundary-spec relocation) and
-2.8 (missing `CHANGELOG.md` + GitHub Release assets) — the tag itself shipped,
-so 1.6 is ticked for the published tag and 2.8 holds the rest of the release
-ritual.
+S0a and S0b are done; nothing in S1 or later is ticked. The two S0a lines
+carried into S0b as 2.7 (boundary-spec relocation) and 2.8 (missing
+`CHANGELOG.md` + GitHub Release assets) are both closed: the specs are tracked in
+`contracts` at `55ad61b` and gone from this repo, and `contracts` `v0.1.0` now
+has a `CHANGELOG.md` entry and a Release with the wheel and sdist attached. S0b's
+own merge (2.9) has not happened yet — it is the only open line in the slice.
 
 ### S0a verification log
 
@@ -53,6 +54,35 @@ against the runtime source — `csg_adapter.py:278-302,352-370`,
 Recorded deviation: `CONTRACT_VERSION` is the release semver string `"0.1.0"`
 while `DATA_VERSION` is the JSON-shape integer `1` (not a second semver);
 `contracts/openspec/changes/cli-invocation-contract/design.md` records why.
+
+### S0b verification log
+
+Run in the dotfiles worktree `ticket/clitools-s0b-pin-contract-and-hermetic` and
+in `/home/inumaki/Development/contracts` (2026-10-19):
+
+| Command | Observed |
+| --- | --- |
+| `git ls-files openspec/specs/{interface-contract-test,container-adapter-env-contract}` (here) | empty, exit 0 — both deleted in this slice |
+| `git -C contracts ls-files openspec/specs/{interface-contract-test,container-adapter-env-contract}` | both `spec.md`, exit 0 (main `55ad61b`; HEAD `5e03075`) |
+| `openspec validate --all` (contracts) | `10 passed, 0 failed`, exit 0 |
+| `openspec validate --all` (here) | 100 passed, 27 failed, exit 1 — the failing set is byte-identical to the pre-deletion run (102 passed / the same 27 pre-existing delta-less legacy changes); neither boundary spec is referenced by a live change |
+| `openspec validate cli-tools-repos --type change` | `Change 'cli-tools-repos' is valid`, exit 0 |
+| `make hermetic` | exit 0 — six suites: 63 / 163 / 1095+2 skipped / 288 / 346 / 638 passed |
+| `make gates-ci` | exit 0 — five gates (`contracts-check`, `ansible-embedded-template-lint`, `deploy-coverage`, `ci-gates-parity`, `per-app-drift-symbol-suites`); `ci-gates-parity: PASS`, `deploy-coverage: PASS` |
+| `make deploy-coverage` | exit 0, `deploy-coverage: PASS -- …the external units are provisioned` |
+| `env HOME=/tmp/opencode/fakehome XDG_CONFIG_HOME=/tmp/opencode/emptyxdg-csg uv run --directory src/cli-tools/color-scheme-generator pytest -q tests/unit/adapters/test_template_dir_resolver.py` | `4 passed`, exit 0 |
+| itr equivalent (`tests/unit/adapters/test_assembled_config_resolver.py`, empty `XDG_CONFIG_HOME`) | `6 passed`, exit 0 |
+| `for b in itr weg csg; do uv run --directory src/cli-tools/<pkg> "$b" --version; done` | three lines `0.1.0 contract 0.1.0`, exit 0. Note: the bare binaries on this host's `PATH` (`~/.local/bin/{csg,weg,itr}`) are a pre-S0b install and still reject `--version`; the gate is proven against the in-tree entry points |
+| `rg -n 'cli-invocation-contract = .*contracts", tag = "v0\.1\.0"' src --glob 'pyproject.toml'` | 4 matches — runtime, itr, weg, csg |
+| `rg -n 'def test_(csg\|weg\|itr)_(generate\|render)_env_override_writes_to_output_dir' src/runtime/tests` | no matches, exit 1 — the duplicated literal assertions are gone |
+| `uv run --directory src/runtime pytest tests/unit/test_cli_invocation_contract.py tests/unit/test_csg_adapter.py tests/unit/test_weg_adapter.py tests/unit/test_itr_adapter.py -q` | `36 passed`, exit 0 |
+| `uv run --directory src/runtime python -c "…CONTRACT_VERSION…"` | `0.1.0` |
+| `gh release view v0.1.0 --repo RandomGenericUsername/contracts --json tagName,assets` | `tagName: v0.1.0` + `cli_invocation_contract-0.1.0-py3-none-any.whl` and `…tar.gz`, exit 0 |
+| `test -s contracts/CHANGELOG.md && rg -n '0\.1\.0' contracts/CHANGELOG.md` | tracked at HEAD, `## [0.1.0] - 2026-10-19` at line 16 |
+
+`make hermetic` is the gate even though the task writes it through an outer
+`env` wrapper: the target scrubs `HOME`, the four XDG vars and the three
+per-tool config vars itself (`Makefile:107-127`).
 
 ## 0. Execution contract (applies to every task below)
 
@@ -236,7 +266,7 @@ Two S0a lines were only partly evidenced and are carried here; do them before
 dotfiles deletion that follows it), so they could not close inside S0a's
 contracts-only scope.
 
-- [ ] 2.1 Add an autouse `tests/conftest.py` fixture to each of the six packages
+- [x] 2.1 Add an autouse `tests/conftest.py` fixture to each of the six packages
   (`HOME` + four XDG vars to per-test temp dirs, `chdir` to a temp dir), one
   canary test per package, and `pytest`/`pytest-cov` dev deps to `cli-output` and
   `config-assembler-engine`.
@@ -245,8 +275,11 @@ contracts-only scope.
   src/cli-tools/wallpaper-effects-generator src/cli-tools/color-scheme-generator`,
   run `uv run --directory "$p" pytest -q`
   Expect: exit 0 for all six; record `<N> passed` per package.
+  Done: `make hermetic` → exit 0, 63 / 163 / 1095+2 skipped / 288 / 346 / 638
+  passed. All six carry `tests/conftest.py` + `tests/test_hermetic_canary.py`;
+  `pytest-cov>=7.0` in `cli-output` and `config-assembler-engine` dev deps.
 
-- [ ] 2.2 Fix the two known environment-dependent tests **in the tests**, not the
+- [x] 2.2 Fix the two known environment-dependent tests **in the tests**, not the
   resolvers: csg `test_resolve_falls_back_to_package_defaults` and itr
   `test_resolves_bundled_default`.
   Gate: `env HOME=/tmp/opencode/fakehome XDG_CONFIG_HOME=/tmp/opencode/emptyxdg-csg
@@ -254,14 +287,20 @@ contracts-only scope.
   tests/unit/adapters/test_template_dir_resolver.py` and the itr equivalent
   `test_assembled_config_resolver.py` with an empty `XDG_CONFIG_HOME`.
   Expect: exit 0 (4 passed / 6 passed respectively, per S3 §5.1).
+  Done: `4 passed` and `6 passed`, both exit 0.
 
-- [ ] 2.3 Add `--version` to `csg`, `weg`, `itr`: prints
+- [x] 2.3 Add `--version` to `csg`, `weg`, `itr`: prints
   `<package-version> contract <contract-version>` from
   `cli_invocation_contract.CONTRACT_VERSION`, never from `cli-output`.
   Gate: `for b in itr weg csg; do "$b" --version; done`
   Expect: three lines `0.1.0 contract 0.1.0`.
+  Done: three lines `0.1.0 contract 0.1.0` via the in-tree entry points
+  (`uv run --directory <pkg> <bin> --version`). Narrower than the literal gate:
+  the `~/.local/bin` binaries on this host link to an `uv tool` install from
+  16:53 whose `cli/main.py` has no `--version`, so those stale copies were not
+  rebuilt or re-tested here.
 
-- [ ] 2.4 Pin `contracts v0.1.0` in `src/runtime/pyproject.toml` and the three
+- [x] 2.4 Pin `contracts v0.1.0` in `src/runtime/pyproject.toml` and the three
   in-tree CLIs; regenerate the four locks; replace the runtime adapter contract
   literals with kit calls.
   Gate: `rg -n 'cli-invocation-contract = .*contracts", tag = "v0\.1\.0"' src --glob 'pyproject.toml'`
@@ -283,52 +322,63 @@ contracts-only scope.
   Gate: `uv run --directory src/runtime python -c
   "from cli_invocation_contract import CONTRACT_VERSION; print(CONTRACT_VERSION)"`
   Expect: `0.1.0`.
+  Done: 4 pin matches; duplicated-literal `rg` → exit 1 (no matches);
+  contract version `0.1.0`; the record file plus the three adapter suites →
+  `36 passed`, exit 0.
 
-- [ ] 2.5 Remove the two boundary specs now owned by `contracts`; keep
+- [x] 2.5 Remove the two boundary specs now owned by `contracts`; keep
   `openspec/changes/archive/**` untouched. Add developer target `make hermetic`
   (runs the six suites under a scrubbed env; not added to `GATES`).
   Gate: `env -u XDG_CONFIG_HOME HOME="$(mktemp -d)" TMPDIR=/tmp make hermetic`
   Expect: exit 0; canary tests present in every package.
+  Done: `git rm -r openspec/specs/interface-contract-test
+  openspec/specs/container-adapter-env-contract` → both `spec.md` removed;
+  `make hermetic` → exit 0 with the six counts above (the target scrubs the env
+  itself, `Makefile:107-127`). Archive untouched.
 
-- [ ] 2.6 Prove the repo gate set is unchanged.
+- [x] 2.6 Prove the repo gate set is unchanged.
   Gate: `make gates-ci && make deploy-coverage`
   Expect: exit 0, five gates, `deploy-coverage: PASS`.
+  Done: `make gates-ci` → exit 0, five gates, `deploy-coverage: PASS` and
+  `ci-gates-parity: PASS`; `make deploy-coverage` alone → exit 0,
+  `deploy-coverage: PASS`.
 
-- [ ] 2.7 **Deferred from S0a — cross-repo edit.** Move
+- [x] 2.7 **Deferred from S0a — cross-repo edit.** Move
   `openspec/specs/interface-contract-test` and
   `openspec/specs/container-adapter-env-contract` into
   `contracts/openspec/specs/` (the half of former 1.5 that did not land; the
   charter half shipped at `48cf3cf`). This must precede 2.5's deletion and has
   to be paired with it: deleting the dotfiles copies without landing the
   contracts copies would leave both specs owned by no repo.
-  Evidence that it is still open: `ls contracts/openspec/specs` → `task-router
-  ticket-system worktree-discipline` (neither boundary spec);
-  `git ls-files openspec/specs/interface-contract-test
-  openspec/specs/container-adapter-env-contract` in dotfiles-v3 → both
-  `spec.md` files still tracked here.
   Gate: `ls "$CONTRACTS/openspec/specs/interface-contract-test/spec.md"
   "$CONTRACTS/openspec/specs/container-adapter-env-contract/spec.md"`
   Expect: exit 0, both paths exist in `contracts`; then 2.5's deletion gate,
   `git ls-files openspec/specs/interface-contract-test
   openspec/specs/container-adapter-env-contract`, is empty here.
+  Done: `contracts` main `55ad61b` tracks both `spec.md` files
+  (`git -C contracts ls-files` → two paths) and `openspec validate --all` there
+  → `10 passed, 0 failed`, exit 0. Here `git ls-files` for both paths → empty,
+  exit 0. The dotfiles copies were deleted **after** the contracts copies
+  landed, so neither spec was ever unowned.
 
-- [ ] 2.8 **Deferred from S0a — cross-repo edit.** Complete the `contracts`
+- [x] 2.8 **Deferred from S0a — cross-repo edit.** Complete the `contracts`
   `v0.1.0` release at `48cf3cf`: add the missing `CHANGELOG.md` (design D3's
   release ritual names it) and publish the GitHub Release with the sdist and
-  wheel attached. The annotated tag is pushed and CI is green, but there is no
-  changelog and no Release, so D3's ritual is not yet satisfied.
-  Evidence that it is still open: `gh release view v0.1.0` → `release not found`,
-  exit 1; `gh release list` → empty; `ls contracts/CHANGELOG.md` → no such file.
+  wheel attached.
   Gate: `gh release view v0.1.0 --json tagName,assets --jq '[.tagName, (.assets[].name)] | @tsv'`
   Expect: exit 0, `v0.1.0` plus both
   `cli_invocation_contract-0.1.0-py3-none-any.whl` and
   `cli_invocation_contract-0.1.0.tar.gz`.
   Gate: `test -s "$CONTRACTS/CHANGELOG.md" && rg -n '0\.1\.0' "$CONTRACTS/CHANGELOG.md"`
   Expect: exit 0 with a `0.1.0` entry.
+  Done: `gh release view v0.1.0` → `tagName: v0.1.0` with both assets, exit 0;
+  `CHANGELOG.md` is tracked at `contracts` HEAD (`5e03075`, entry added in
+  `fcba526`) with `## [0.1.0] - 2026-10-19` at line 16.
 
 - [ ] 2.9 Merge S0b to `master` before starting S1.
   Gate: `make gates-ci && make deploy-coverage` on the merged `master`
   Expect: exit 0, five gates, `deploy-coverage: PASS`.
+  Open: the slice is green in the worktree; no merge has been performed.
 
 ## 3. S1 — `cli-output` repo + `v0.1.0`
 
