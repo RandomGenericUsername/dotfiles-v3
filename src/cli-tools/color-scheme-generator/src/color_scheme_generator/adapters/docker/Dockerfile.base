@@ -1,15 +1,16 @@
 FROM python:3.14-slim
 WORKDIR /app
-# cli-output is consumed from its pinned repo tag (S1): it is no longer an
-# in-repo path, so the build needs git + CA certificates to fetch it.
+# cli-output and config-assembler-engine are consumed from their pinned repo
+# tags (S1/S2): neither is an in-repo path, so the build needs git + CA
+# certificates to fetch them.
 RUN apt-get update && \
     apt-get install -y --no-install-recommends git ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 COPY src/cli-tools/color-scheme-generator /app/csg
-COPY src/shared/config-assembler-engine /app/config-assembler-engine
 COPY src/shared/oci-runtime /app/oci-runtime
-RUN pip install --no-cache-dir /app/config-assembler-engine /app/oci-runtime \
+RUN pip install --no-cache-dir /app/oci-runtime \
     "cli-output @ git+https://github.com/RandomGenericUsername/cli-output@v0.1.0" \
+    "config-assembler-engine @ git+https://github.com/RandomGenericUsername/config-assembler-engine@v0.1.0" \
     /app/csg && \
     mkdir -p /home/csguser && chmod 777 /home/csguser
 ENV HOME=/home/csguser

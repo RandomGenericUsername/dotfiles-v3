@@ -656,9 +656,8 @@ dotfiles-repo-v3/
 │   │   ├── wallpaper-effects-generator/ (weg)
 │   │   └── icon-templates-renderer/   (itr)
 │   │
-│   └── shared/                  ← Shared libraries (IMPLEMENTED)
-│       ├── config-assembler-engine/
-│       └── oci-runtime/
+│   └── shared/                  ← Remaining in-repo shared library (oci-runtime;
+│       └── oci-runtime/            config-assembler-engine is consumed from its pinned repo)
 │
 ├── dotfiles/                    ← declarative manifests + config + assets sources
 ├── docs/

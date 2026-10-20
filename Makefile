@@ -97,8 +97,7 @@ ci-gates-parity:
 # cannot change the result. It is deliberately NOT part of GATES: it is the
 # reproduction command for "the suite is green because the code is green", not a
 # CI runner gate.
-HERMETIC_PACKAGES := src/shared/config-assembler-engine \
-                     src/shared/oci-runtime \
+HERMETIC_PACKAGES := src/shared/oci-runtime \
                      src/cli-tools/icon-templates-renderer \
                      src/cli-tools/wallpaper-effects-generator \
                      src/cli-tools/color-scheme-generator

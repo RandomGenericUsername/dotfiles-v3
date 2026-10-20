@@ -1,7 +1,8 @@
 FROM python:3.14-alpine AS base
 
-# cli-output is consumed from its pinned repo tag (S1): the build needs git +
-# CA certificates to fetch it (it is no longer an in-repo path).
+# cli-output and config-assembler-engine are consumed from their pinned repo
+# tags (S1/S2): the build needs git + CA certificates to fetch them (neither is
+# an in-repo path).
 RUN apk add --no-cache imagemagick imagemagick-jpeg imagemagick-webp \
     git ca-certificates
 
@@ -9,15 +10,14 @@ RUN adduser -D -u 1000 wallpaper
 
 WORKDIR /app
 
-COPY src/shared/config-assembler-engine /app/shared/config-assembler-engine
 COPY src/shared/oci-runtime /app/shared/oci-runtime
 COPY src/cli-tools/wallpaper-effects-generator /app/wallpaper-effects-generator
 
 RUN pip install --no-cache-dir \
     typer pyyaml rich pydantic \
-    /app/shared/config-assembler-engine \
     /app/shared/oci-runtime \
     "cli-output @ git+https://github.com/RandomGenericUsername/cli-output@v0.1.0" \
+    "config-assembler-engine @ git+https://github.com/RandomGenericUsername/config-assembler-engine@v0.1.0" \
     /app/wallpaper-effects-generator
 
 RUN mkdir -p /input /output && \
