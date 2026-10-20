@@ -5,13 +5,13 @@ starts before its predecessor is merged on `master`.
 
 ## Status
 
-Last updated: 2026-10-19, after S0b merged to `master` at `56d7d85e`.
+Last updated: 2026-10-19, after S1 merged to `master` at `843b50d0`.
 
 | Slice | State | Evidence anchor |
 | --- | --- | --- |
 | S0a — `contracts` invocation contract + first tag | done | `contracts` tag `v0.1.0` → commit `48cf3cf` (tag object `6ea43dcb`); `uv run pytest -q` → 49 passed; `openspec validate … --strict` → valid; public repo + anonymous `ls-remote` proven |
 | S0b — dotfiles prerequisites | done (merged to `master` at `56d7d85e`) | `make hermetic` → exit 0 (63 / 163 / 1095+2skip / 288 / 346 / 638); boundary specs deleted here and tracked in `contracts` `55ad61b`; ff-merge `f4f16f11..56d7d85e`, `make gates-ci` exit 0 at HEAD pre-merge; see the S0b verification log below |
-| S1 — `cli-output` repo + `v0.1.0` | done-in-worktree (merge pending) | repo `v0.1.0` (tag object `91489b73`, peeled `ddae3727`) consumed by all five locks; scoped stale-path gate exit 1; tree deleted (25 files, 1330 lines); `deploy-coverage` guard + tests green; see the S1 verification log below |
+| S1 — `cli-output` repo + `v0.1.0` | done (merged to `master` at `843b50d0`) | repo `v0.1.0` (tag object `91489b73`, peeled `ddae3727`) consumed by all five locks; scoped stale-path gate exit 1; tree deleted (25 files, 1330 lines); `deploy-coverage` guard + tests green; ff-merge `96c4a0f4..843b50d0`, `make hermetic` / `make gates-ci` / `make deploy-coverage` exit 0 at HEAD pre-merge; see the S1 verification log below |
 | S2 — `config-assembler-engine` repo + `v0.1.0` | pending | — |
 | S3 — `oci-runtime` repo + `v0.5.0` | pending | — |
 | S4 — `icon-templates-renderer` repo + `v0.1.0` | pending | — |
@@ -19,14 +19,15 @@ Last updated: 2026-10-19, after S0b merged to `master` at `56d7d85e`.
 | S6 — `color-scheme-generator` repo + `v0.1.0`, both trees deleted | pending | — |
 | Post-migration verification | pending | — |
 
-S0a and S0b are done; S1 is done in its worktree with the merge (3.5) still
-pending. Nothing in S2 or later is ticked. The two S0a lines
-carried into S0b as 2.7 (boundary-spec relocation) and 2.8 (missing
+S0a, S0b and S1 are done. S1's merge (3.5) landed as the fast-forward
+`96c4a0f4..843b50d0`, pushed to `origin/master` (`origin/master == 843b50d0`);
+S1 is closed and S2 is unblocked. Nothing in S2 or later is ticked. The two S0a
+lines carried into S0b as 2.7 (boundary-spec relocation) and 2.8 (missing
 `CHANGELOG.md` + GitHub Release assets) are both closed: the specs are tracked in
 `contracts` at `55ad61b` and gone from this repo, and `contracts` `v0.1.0` now
 has a `CHANGELOG.md` entry and a Release with the wheel and sdist attached. S0b's
 own merge (2.9) landed as the fast-forward `f4f16f11..56d7d85e`, pushed to
-`origin/master` (`origin/master == 56d7d85e`); S0b is closed and S1 is unblocked.
+`origin/master` (`origin/master == 56d7d85e`).
 
 ### S0a verification log
 
@@ -501,9 +502,19 @@ contracts-only scope.
   the pre-existing recording-indicator test. Provisioning suite: `928 passed,
   6 skipped`, exit 0.
 
-- [ ] 3.5 Merge S1 to `master`; only then start S2.
+- [x] 3.5 Merge S1 to `master`; only then start S2.
   Gate: `make gates-ci && make deploy-coverage` on the merged `master`
   Expect: exit 0; no gate points at the deleted tree.
+  Done: fast-forward merge `96c4a0f4..843b50d0` onto `master`, then pushed
+  (`origin/master == 843b50d0`). At HEAD before the merge: `make hermetic` exit
+  0, `make gates-ci` exit 0 (five gates, `deploy-coverage: PASS` incl. the
+  `'cli-output' is consumed from its pinned repo` line, `ci-gates-parity: PASS`)
+  and `make deploy-coverage` exit 0 — no gate points at the deleted tree.
+  Post-merge re-checks at `843b50d0`: five locks (runtime, provisioning, csg,
+  weg, itr) record `ddae372786fd6053730133e82cf542a17e9a5ae5`, `rg -n
+  'cli-output = \{ path|\./shared/cli-output' src --glob 'pyproject.toml'` → exit
+  1 (zero path pins), and `test ! -e src/shared/cli-output` → `ABSENT`. S1 is
+  closed; S2 is unblocked.
 
 ## 4. S2 — `config-assembler-engine` repo + `v0.1.0`
 
