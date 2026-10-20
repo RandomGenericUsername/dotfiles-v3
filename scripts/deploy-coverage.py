@@ -73,6 +73,10 @@ required):
   (l) asserts the same for `config-assembler-engine` (S2): the in-tree package
       `src/shared/config-assembler-engine/` is gone and no package under `src/`
       pins it by `path` — csg/weg/itr consume the pinned repo tag instead.
+  (m) asserts the same for `oci-runtime` (S3): the in-tree package
+      `src/shared/oci-runtime/` is gone, the now-empty `src/shared/` root is
+      gone, and no package under `src/` pins it by `path` — csg/weg consume the
+      pinned `v0.5.0` repo tag and build images from their own package root.
 
 The relative-import closure of `dotfiles/config/ags/app.tsx` is still computed
 when that dev/typecheck/test bridge is PRESENT (a developer checkout, or the
@@ -287,6 +291,16 @@ RETIRED_CLI_OUTPUT_DIR = "src/shared/cli-output"
 # the pin exists to prevent. Same two-half shape as `cli-output` above.
 CONFIG_ASSEMBLER_ENGINE_PACKAGE = "config-assembler-engine"
 RETIRED_CONFIG_ASSEMBLER_ENGINE_DIR = "src/shared/config-assembler-engine"
+
+# `oci-runtime` left the repo (cli-tools-repos S3): csg and weg consume it from
+# its pinned repo (`git = …/oci-runtime, tag = "v0.5.0"`). It was the LAST
+# in-repo shared library, so the parent `src/shared/` root is retired too —
+# leaving it behind (even empty) would be an obvious home for a vendored copy
+# that no consumer installs. Same two-half shape as S1/S2: the tree is gone and
+# no package under `src/` may pin it by `path`.
+OCI_RUNTIME_PACKAGE = "oci-runtime"
+RETIRED_OCI_RUNTIME_DIR = "src/shared/oci-runtime"
+RETIRED_SHARED_LIBS_DIR = "src/shared"
 
 # Files that participate in `ags bundle` and are therefore a missing-module
 # hazard. `.d.ts` ends in `.ts`, so it is covered by the `.ts` suffix.
@@ -1403,6 +1417,58 @@ def assert_no_in_tree_config_assembler_engine(root: Path) -> None:
             )
 
 
+def assert_no_in_tree_oci_runtime(root: Path) -> None:
+    """`oci-runtime` is consumed from its pinned repo: no local copy, no path pin.
+
+    cli-tools-repos S3 moved the package out of this repo (tag `v0.5.0`) and
+    deleted `src/shared/oci-runtime/`. Three halves are asserted so none can
+    quietly come back:
+      (a) the in-tree package dir must not exist — a surviving copy would be a
+          second source of truth that csg/weg do not install;
+      (b) the parent `src/shared/` root must not exist — it was the last
+          shared library, so an empty leftover must not become a new home for
+          a vendored copy; and
+      (c) no package under `src/` may carry a `[tool.uv.sources]` entry that
+          pins `oci-runtime` by `path` — that would resolve the local checkout
+          instead of the tag while still passing an import.
+    """
+    retired = root / RETIRED_OCI_RUNTIME_DIR
+    if retired.exists():
+        raise ValueError(
+            f"the retired in-tree {OCI_RUNTIME_PACKAGE!r} package still exists at "
+            f"{RETIRED_OCI_RUNTIME_DIR}/ — it is consumed from its pinned repo "
+            f"tag v0.5.0; delete the directory"
+        )
+
+    shared = root / RETIRED_SHARED_LIBS_DIR
+    if shared.exists():
+        raise ValueError(
+            f"the retired shared-library root {RETIRED_SHARED_LIBS_DIR}/ still "
+            f"exists — every shared library is consumed from its pinned repo; "
+            f"delete the directory (an empty leftover must not become a new "
+            f"home for a vendored copy)"
+        )
+
+    src = root / "src"
+    if not src.is_dir():
+        raise ValueError(f"{src} is missing — cannot check {OCI_RUNTIME_PACKAGE!r} pins")
+    for pyproject in sorted(src.rglob("pyproject.toml")):
+        # Skip virtualenvs and any other hidden tree (e.g. .venv): only the
+        # authored package manifests participate in the pin.
+        if any(part.startswith(".") for part in pyproject.relative_to(root).parts):
+            continue
+        data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+        source = (
+            data.get("tool", {}).get("uv", {}).get("sources", {}).get(OCI_RUNTIME_PACKAGE)
+        )
+        if isinstance(source, dict) and "path" in source:
+            raise ValueError(
+                f"{pyproject.relative_to(root)} still pins {OCI_RUNTIME_PACKAGE!r} "
+                f"by path ({source['path']!r}) — consume the pinned repo tag "
+                f"(git = …, tag = v0.5.0) instead"
+            )
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         description="the external bar + platform units are provisioned"
@@ -1482,6 +1548,9 @@ def main() -> int:
         # cli-tools-repos S2: same shape for `config-assembler-engine` (csg,
         # weg, itr consume the v0.1.0 tag; the in-tree tree is retired).
         assert_no_in_tree_config_assembler_engine(root)
+        # cli-tools-repos S3: `oci-runtime` (v0.5.0) was the last shared
+        # library, so the package AND the `src/shared/` root are retired.
+        assert_no_in_tree_oci_runtime(root)
     except (RuntimeError, ValueError, FileNotFoundError) as exc:
         print(f"FAIL: {exc}")
         return 1
@@ -1551,6 +1620,11 @@ def main() -> int:
     print(
         f"deploy-coverage: {CONFIG_ASSEMBLER_ENGINE_PACKAGE!r} is consumed from "
         f"its pinned repo — no in-tree package and no path source"
+    )
+    print(
+        f"deploy-coverage: {OCI_RUNTIME_PACKAGE!r} is consumed from its pinned "
+        f"repo — no in-tree package, no {RETIRED_SHARED_LIBS_DIR}/ root and no "
+        f"path source"
     )
     return 0
 

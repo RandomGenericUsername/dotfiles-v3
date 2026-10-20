@@ -651,13 +651,14 @@ dotfiles-repo-v3/
 │   │   ├── tests/               ←   unit + architecture-layering tests
 │   │   └── pyproject.toml       ←   uv package `dotfiles-provision`
 │   │
-│   ├── cli-tools/               ← Standalone compute providers (IMPLEMENTED)
-│   │   ├── color-scheme-generator/    (csg)
-│   │   ├── wallpaper-effects-generator/ (weg)
-│   │   └── icon-templates-renderer/   (itr)
-│   │
-│   └── shared/                  ← Remaining in-repo shared library (oci-runtime;
-│       └── oci-runtime/            config-assembler-engine is consumed from its pinned repo)
+│   └── cli-tools/               ← Standalone compute providers (IMPLEMENTED,
+│       │                          being extracted to pinned repos one slice at a time)
+│       ├── color-scheme-generator/    (csg)
+│       ├── wallpaper-effects-generator/ (weg)
+│       └── icon-templates-renderer/   (itr)
+│
+│   (no shared/ layer: cli-output, config-assembler-engine, cli-invocation-contract
+│    and oci-runtime are consumed from their pinned repo tags)
 │
 ├── dotfiles/                    ← declarative manifests + config + assets sources
 ├── docs/
@@ -668,7 +669,8 @@ dotfiles-repo-v3/
 > and a flat `provisioning/{packages,assets,filesystem,bootstrap}`. The
 > implemented provisioning domain is a **hexagonal Python package driving
 > Ansible** (the hexagon lives in provisioning, not runtime); `cli-tools` uses
-> the actual tool names; a `shared/` layer exists for cross-tool libraries.
+> the actual tool names; cross-tool libraries are consumed as pinned git tags,
+> so no `shared/` layer remains in-repo.
 > `src/core/` and `src/infrastructure/` (runtime) remain future work.
 
 ---
