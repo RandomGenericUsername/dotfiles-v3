@@ -1,4 +1,4 @@
-.PHONY: bootstrap contracts-check contract-pin-check gates gates-ci ci-gates-parity ags-platform-dev dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-verify vm-help per-app-drift-symbol-suites
+.PHONY: bootstrap contracts-check contract-pin-check gates gates-ci ci-gates-parity hermetic ags-platform-dev dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-verify vm-help per-app-drift-symbol-suites
 
 # Bootstrap the host machine (full provisioning).
 # Pass become/check flags through, e.g. `make bootstrap ARGS="--ask-become-pass"`.
@@ -66,7 +66,6 @@ gates: $(GATES)
 gates-ci: $(GATES)
 
 # CI<->gate-list parity: the workflow's job set must equal `gates-ci`.
-#
 # WHY THIS EXISTS. `.github/workflows/gates.yml` used to OPEN by claiming it was
 # "the place a future change cannot quietly drop one" of the gates. No code
 # backed that, and the claim was measurably false: `bluetooth-mock-parity` sat in
@@ -92,6 +91,42 @@ gates-ci: $(GATES)
 # written, and the script reads `GATES` + the `gates-ci` filter out of it.
 ci-gates-parity:
 	uv run --directory src/provisioning python ../../scripts/ci-gates-parity.py
+
+# Hermetic developer target (S0b): every package suite runs with HOME and the
+# XDG dirs scrubbed into a throwaway tree, so a provisioned spine on the host
+# cannot change the result. It is deliberately NOT part of GATES: it is the
+# reproduction command for "the suite is green because the code is green", not a
+# CI runner gate.
+HERMETIC_PACKAGES := src/shared/cli-output \
+                     src/shared/config-assembler-engine \
+                     src/shared/oci-runtime \
+                     src/cli-tools/icon-templates-renderer \
+                     src/cli-tools/wallpaper-effects-generator \
+                     src/cli-tools/color-scheme-generator
+
+hermetic:
+	@set -eu; \
+	root="$$(mktemp -d)"; \
+	cleanup() { \
+		if command -v podman >/dev/null 2>&1; then \
+			podman unshare rm -rf "$$root" >/dev/null 2>&1 \
+				|| rm -rf "$$root" >/dev/null 2>&1 || true; \
+		else \
+			rm -rf "$$root" >/dev/null 2>&1 || true; \
+		fi; \
+	}; \
+	trap cleanup EXIT; \
+	mkdir -p "$$root/home" "$$root/tmp"; \
+	for p in $(HERMETIC_PACKAGES); do \
+		echo "== hermetic: $$p"; \
+		env -u XDG_CONFIG_HOME -u XDG_CACHE_HOME -u XDG_DATA_HOME \
+			-u XDG_STATE_HOME -u DOTFILES_INSTALL_SPINE \
+			-u COLORSCHEME_CONFIG_FILE_PATH -u WALLPAPER_CONFIG_FILE_PATH \
+			-u ICON_RENDERER_CONFIG_FILE_PATH \
+			HOME="$$root/home" TMPDIR="$$root/tmp" \
+			uv run --directory "$$p" pytest -q || exit 1; \
+	done; \
+	echo "hermetic: PASS"
 
 # The capture-tool GUI gates (capture-types / capture-typecheck / capture-test /
 # capture-test-deps / capture-hexagonal-gate) were RETIRED with the in-repo GUI

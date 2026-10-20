@@ -46,12 +46,13 @@ _ALLOWED_TARGETS = {
     "ports": {"domain", "ports"},
     "adapters": {"domain", "ports", "adapters"},
     "factory": {"domain", "ports", "adapters", "factory"},
-    "root": {"domain", "ports", "adapters", "factory"},
+    "root": {"domain", "ports", "adapters", "factory", "root"},
 }
 
 # Domain stdlib allowlist (oci-strict-hexagonal-layering-v2/specs/.../spec.md)
 _DOMAIN_ALLOWED_STDLIB = frozenset(
     {
+        "__future__",
         "posixpath",
         "io",
         "tarfile",

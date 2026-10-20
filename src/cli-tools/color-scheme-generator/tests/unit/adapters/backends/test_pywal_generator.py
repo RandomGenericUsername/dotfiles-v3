@@ -67,7 +67,7 @@ class TestPywalGenerator:
                 mock_result.stdout = b"#1a1b26\n#a9b1d6\n"
                 mock_result.stderr = b""
                 mock_run.return_value = mock_result
-                with patch.object(gen, "_parse_stdout", return_value=_16_colors):
+                with patch.object(gen, "_parse_cache_file", return_value=(_16_colors, {})):
                     gen.generate(Path("/tmp/test.png"), _config)
 
         mock_run.assert_called_once()
@@ -148,7 +148,7 @@ class TestPywalGenerator:
                 mock_result.stdout = b"#1a1b26\n#a9b1d6\n"
                 mock_result.stderr = b""
                 mock_run.return_value = mock_result
-                with patch.object(gen, "_parse_stdout", return_value=_16_colors):
+                with patch.object(gen, "_parse_cache_file", return_value=(_16_colors, {})):
                     cfg = GeneratorConfig(
                         backend=Backend.PYWAL,
                         params={"saturation": 0.5, "algorithm": "wal"},
@@ -239,7 +239,7 @@ class TestPywalGenerator:
                 mock_result.stdout = b"#1a1b26\n#a9b1d6\n"
                 mock_result.stderr = b""
                 mock_run.return_value = mock_result
-                with patch.object(gen, "_parse_stdout", return_value=_16_colors):
+                with patch.object(gen, "_parse_cache_file", return_value=(_16_colors, {})):
                     cfg = GeneratorConfig(
                         backend=Backend.PYWAL,
                         params={"timeout": float("nan"), "algorithm": "wal"},
@@ -264,7 +264,7 @@ class TestPywalGenerator:
                 mock_result.stdout = b"#1a1b26\n#a9b1d6\n"
                 mock_result.stderr = b""
                 mock_run.return_value = mock_result
-                with patch.object(gen, "_parse_stdout", return_value=_16_colors):
+                with patch.object(gen, "_parse_cache_file", return_value=(_16_colors, {})):
                     cfg = GeneratorConfig(
                         backend=Backend.PYWAL,
                         params={"timeout": float("inf"), "algorithm": "wal"},
