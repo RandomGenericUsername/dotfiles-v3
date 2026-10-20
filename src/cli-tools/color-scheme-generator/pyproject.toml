@@ -41,7 +41,7 @@ addopts = ["--strict-markers", "-rxX"]
 cli-invocation-contract = { git = "https://github.com/RandomGenericUsername/contracts", tag = "v0.1.0" }
 cli-output = { git = "https://github.com/RandomGenericUsername/cli-output", tag = "v0.1.0" }
 config-assembler-engine = { git = "https://github.com/RandomGenericUsername/config-assembler-engine", tag = "v0.1.0" }
-oci-runtime = { path = "../../shared/oci-runtime", editable = true }
+oci-runtime = { git = "https://github.com/RandomGenericUsername/oci-runtime", tag = "v0.5.0" }
 
 [tool.ruff]
 target-version = "py314"

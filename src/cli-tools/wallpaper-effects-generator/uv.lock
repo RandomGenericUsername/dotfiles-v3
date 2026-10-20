@@ -152,17 +152,8 @@ wheels = [
 
 [[package]]
 name = "oci-runtime"
-version = "0.4.0"
-source = { editable = "../../shared/oci-runtime" }
-
-[package.metadata]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "pytest", specifier = ">=8.0" },
-    { name = "pytest-cov", specifier = ">=7.0" },
-    { name = "ruff", specifier = ">=0.15" },
-]
+version = "0.5.0"
+source = { git = "https://github.com/RandomGenericUsername/oci-runtime?tag=v0.5.0#b631dfa511f5710d6e171d2ac3f0cdf58bc738af" }
 
 [[package]]
 name = "packaging"
@@ -467,7 +458,7 @@ requires-dist = [
     { name = "cli-invocation-contract", git = "https://github.com/RandomGenericUsername/contracts?tag=v0.1.0" },
     { name = "cli-output", git = "https://github.com/RandomGenericUsername/cli-output?tag=v0.1.0" },
     { name = "config-assembler-engine", git = "https://github.com/RandomGenericUsername/config-assembler-engine?tag=v0.1.0" },
-    { name = "oci-runtime", editable = "../../shared/oci-runtime" },
+    { name = "oci-runtime", git = "https://github.com/RandomGenericUsername/oci-runtime?tag=v0.5.0" },
     { name = "pydantic", specifier = ">=2.0" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "rich", specifier = ">=13.0" },
