@@ -4,7 +4,7 @@ import os
 from importlib.resources import files as resource_files
 from pathlib import Path
 
-from oci_runtime import BuildContext, engine_qualified_image, resolve_source_root
+from oci_runtime import BuildContext, engine_qualified_image, resolve_build_context
 from oci_runtime.domain.exceptions import SourceRootNotFoundError
 
 from wallpaper_effects_generator.constants import CONFIG_XDG_SUBDIR
@@ -28,7 +28,7 @@ def install_command(
     dump_config: bool = False,
     dump_effects: bool = False,
     container_engine: ContainerEngine | None = None,
-    source_root: str | None = None,
+    build_context: str | None = None,
 ) -> None:
     settings = config_resolver.resolve(explicit_path=Path(config_path) if config_path else None)
     if container_engine is not None:
@@ -53,12 +53,13 @@ def install_command(
     if not engine.is_available():
         raise ContainerRuntimeUnavailableError(runtime=settings.container.engine)
 
-    # The build context is the source repo. Resolve it up front so a missing
-    # context fails loudly instead of building against a wrong directory.
+    # The build context is this CLI package's repo root (AD-5). Resolve it up
+    # front so a missing context fails loudly instead of building against a
+    # wrong directory.
     try:
-        repo_root = resolve_source_root(
+        repo_root = resolve_build_context(
             package="wallpaper_effects_generator",
-            override=Path(source_root) if source_root else None,
+            override=Path(build_context) if build_context else None,
             env_var=_SOURCE_ROOT_ENV,
         ).root
     except SourceRootNotFoundError as exc:

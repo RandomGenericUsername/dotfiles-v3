@@ -1,24 +1,27 @@
 FROM python:3.14-alpine AS base
 
-# cli-output and config-assembler-engine are consumed from their pinned repo
-# tags (S1/S2): the build needs git + CA certificates to fetch them (neither is
-# an in-repo path).
+# The build context is this package's repo root (AD-5): every COPY path below
+# is relative to it, and no sibling checkout is referenced. Shared libraries
+# enter from the git tags uv.lock pins, so the stage needs uv + git + CA
+# certificates; an unreachable pin fails the build closed.
 RUN apk add --no-cache imagemagick imagemagick-jpeg imagemagick-webp \
-    git ca-certificates
+    git ca-certificates && \
+    pip install --no-cache-dir "uv==0.9.22"
 
 RUN adduser -D -u 1000 wallpaper
 
 WORKDIR /app
 
-COPY src/shared/oci-runtime /app/shared/oci-runtime
-COPY src/cli-tools/wallpaper-effects-generator /app/wallpaper-effects-generator
+ENV UV_PROJECT_ENVIRONMENT=/opt/venv \
+    UV_LINK_MODE=copy \
+    UV_PYTHON_DOWNLOADS=never
 
-RUN pip install --no-cache-dir \
-    typer pyyaml rich pydantic \
-    /app/shared/oci-runtime \
-    "cli-output @ git+https://github.com/RandomGenericUsername/cli-output@v0.1.0" \
-    "config-assembler-engine @ git+https://github.com/RandomGenericUsername/config-assembler-engine@v0.1.0" \
-    /app/wallpaper-effects-generator
+COPY pyproject.toml uv.lock ./
+COPY src ./src
+
+RUN uv sync --frozen --no-dev --no-editable
+
+ENV PATH="/opt/venv/bin:$PATH"
 
 RUN mkdir -p /input /output && \
     chown -R wallpaper:wallpaper /input /output

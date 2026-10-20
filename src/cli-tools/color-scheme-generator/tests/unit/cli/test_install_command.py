@@ -46,6 +46,18 @@ def mock_container_engine() -> MagicMock:
     return MagicMock()
 
 
+def _make_build_context_root(tmp_path: Path) -> Path:
+    """A single-package repo root: `pyproject.toml` + `src/<import_name>`.
+
+    This is the post-split build-context marker (AD-5/AD-6); the legacy
+    monorepo `src/cli-tools` + `src/shared` layout must no longer resolve.
+    """
+    root = tmp_path / "repo"
+    (root / "src" / "color_scheme_generator").mkdir(parents=True)
+    (root / "pyproject.toml").write_text('[project]\nname = "color-scheme-generator"\n')
+    return root
+
+
 @pytest.fixture
 def mock_deps(
     mock_config_resolver: MagicMock,
@@ -274,9 +286,10 @@ class TestInstallCommand:
         result = runner.invoke(app, ["install", "--help"])
         assert result.exit_code == 0
         assert "Usage:" in result.stdout
-        assert "--source-root" in result.stdout
+        assert "--context" in result.stdout
+        assert "--source-root" in result.stdout, "the pre-0.5.0 flag stays an alias"
 
-    def test_install_fails_loudly_when_no_source_root(
+    def test_install_fails_loudly_when_no_build_context(
         self,
         runner: CliRunner,
         mock_deps: CliDependencies,
@@ -288,7 +301,7 @@ class TestInstallCommand:
         no-op (the pre-fix behavior that produced stale images)."""
         monkeypatch.setattr("color_scheme_generator.cli.main.build_deps", lambda: mock_deps)
         monkeypatch.setattr(
-            "color_scheme_generator.cli.install_cmd.resolve_source_root",
+            "color_scheme_generator.cli.install_cmd.resolve_build_context",
             lambda **_: (_ for _ in ()).throw(
                 __import__("oci_runtime").SourceRootNotFoundError(package="color_scheme_generator")
             ),
@@ -301,7 +314,7 @@ class TestInstallCommand:
         assert '"status": "built"' not in output
         assert "source repo" in output
 
-    def test_install_uses_source_root_override(
+    def test_install_uses_context_override(
         self,
         runner: CliRunner,
         mock_deps: CliDependencies,
@@ -309,9 +322,35 @@ class TestInstallCommand:
         monkeypatch: pytest.MonkeyPatch,
         tmp_path: Path,
     ) -> None:
-        root = tmp_path / "repo"
-        (root / "src" / "cli-tools").mkdir(parents=True)
-        (root / "src" / "shared").mkdir(parents=True)
+        root = _make_build_context_root(tmp_path)
+        monkeypatch.setattr("color_scheme_generator.cli.main.build_deps", lambda: mock_deps)
+        monkeypatch.setattr(
+            "color_scheme_generator.cli.install_cmd.create_container_engine",
+            lambda engine: mock_container_engine,
+        )
+        from color_scheme_generator.cli.main import app
+
+        result = runner.invoke(app, [
+            "--output-format", "json", "install",
+            "--container-engine", "podman",
+            "--context", str(root),
+        ])
+        assert result.exit_code == 0, f"stderr={result.stderr}"
+        assert mock_container_engine.build_image.call_count == 4
+        for call in mock_container_engine.build_image.call_args_list:
+            context = call[0][0]
+            assert context.context_path == root
+
+    def test_install_accepts_deprecated_source_root_alias(
+        self,
+        runner: CliRunner,
+        mock_deps: CliDependencies,
+        mock_container_engine: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+    ) -> None:
+        """AD-6: `--source-root` remains an alias of `--context` for one minor."""
+        root = _make_build_context_root(tmp_path)
         monkeypatch.setattr("color_scheme_generator.cli.main.build_deps", lambda: mock_deps)
         monkeypatch.setattr(
             "color_scheme_generator.cli.install_cmd.create_container_engine",
@@ -325,12 +364,10 @@ class TestInstallCommand:
             "--source-root", str(root),
         ])
         assert result.exit_code == 0, f"stderr={result.stderr}"
-        assert mock_container_engine.build_image.call_count == 4
         for call in mock_container_engine.build_image.call_args_list:
-            context = call[0][0]
-            assert context.context_path == root
+            assert call[0][0].context_path == root
 
-    def test_install_uses_source_root_env_var(
+    def test_install_uses_context_env_var(
         self,
         runner: CliRunner,
         mock_deps: CliDependencies,
@@ -338,9 +375,7 @@ class TestInstallCommand:
         monkeypatch: pytest.MonkeyPatch,
         tmp_path: Path,
     ) -> None:
-        root = tmp_path / "repo"
-        (root / "src" / "cli-tools").mkdir(parents=True)
-        (root / "src" / "shared").mkdir(parents=True)
+        root = _make_build_context_root(tmp_path)
         monkeypatch.setattr("color_scheme_generator.cli.main.build_deps", lambda: mock_deps)
         monkeypatch.setattr(
             "color_scheme_generator.cli.install_cmd.create_container_engine",

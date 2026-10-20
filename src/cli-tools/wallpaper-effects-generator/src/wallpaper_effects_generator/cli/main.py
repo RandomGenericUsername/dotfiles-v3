@@ -17,7 +17,7 @@ from wallpaper_effects_generator.cli.options import (
     CONFIG_OPT,
     EFFECTS_OPT,
     ENGINE_OPT,
-    SOURCE_ROOT_OPT,
+    CONTEXT_OPT,
 )
 from wallpaper_effects_generator.cli.process import process_app
 from wallpaper_effects_generator.cli.show import show_app
@@ -197,7 +197,7 @@ def install(
     container_engine: ContainerEngine | None = ENGINE_OPT,
     dump_config: bool = typer.Option(False, "--dump-config", help="Write default settings.toml"),
     dump_effects: bool = typer.Option(False, "--dump-effects", help="Write default effects.yaml"),
-    source_root: Path | None = SOURCE_ROOT_OPT,
+    context: Path | None = CONTEXT_OPT,
 ) -> None:
     deps = ctx.obj["deps"]
     try:
@@ -208,7 +208,7 @@ def install(
             dump_config=dump_config,
             dump_effects=dump_effects,
             container_engine=container_engine,
-            source_root=str(source_root) if source_root else None,
+            build_context=str(context) if context else None,
         )
     except WallpaperEffectsError as exc:
         raise typer.BadParameter(str(exc)) from exc

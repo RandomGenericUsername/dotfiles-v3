@@ -7,12 +7,12 @@ from pathlib import Path
 import typer
 from oci_runtime import (
     engine_qualified_image,
-    resolve_source_root,
+    resolve_build_context,
 )
 from oci_runtime.domain.exceptions import SourceRootNotFoundError
 
 from color_scheme_generator.cli._helpers import build_image_name
-from color_scheme_generator.cli.options import CONFIG_OPT, ENGINE_OPT, SOURCE_ROOT_OPT
+from color_scheme_generator.cli.options import CONFIG_OPT, CONTEXT_OPT, ENGINE_OPT
 from color_scheme_generator.domain.enums import Backend, ContainerEngine
 from color_scheme_generator.domain.exceptions import ColorSchemeError
 from color_scheme_generator.factory import CliDependencies, create_container_engine
@@ -38,7 +38,7 @@ def install(
     container_engine: ContainerEngine | None = ENGINE_OPT,
     backend: list[Backend] = typer.Option([], "--backend", help="Backends to build"),
     dry_run: bool = typer.Option(False, "--dry-run", "-n", help="Preview without building"),
-    source_root: Path | None = SOURCE_ROOT_OPT,
+    context: Path | None = CONTEXT_OPT,
 ) -> None:
     deps: CliDependencies = ctx.obj["deps"]
     try:
@@ -54,15 +54,15 @@ def install(
             f"{prefix}-base", engine_value, settings.container.image_tag
         )
 
-        # The build context is the source repo. Resolve it up front so a
-        # missing context fails loudly instead of silently building a stale
-        # image (or skipping the base image entirely).
+        # The build context is this CLI package's repo root (AD-5). Resolve it
+        # up front so a missing context fails loudly instead of silently
+        # building a stale image (or skipping the base image entirely).
         project_root: Path | None = None
         if not dry_run:
             try:
-                project_root = resolve_source_root(
+                project_root = resolve_build_context(
                     package="color_scheme_generator",
-                    override=source_root,
+                    override=context,
                     env_var=_SOURCE_ROOT_ENV,
                 ).root
             except SourceRootNotFoundError as exc:

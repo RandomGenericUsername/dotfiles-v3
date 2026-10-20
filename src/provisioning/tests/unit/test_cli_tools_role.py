@@ -438,14 +438,18 @@ class TestCliToolsImageBuildTasks:
             "shared with the rendered settings"
         )
 
-    def test_image_build_task_passes_source_root(self) -> None:
+    def test_image_build_task_passes_package_context(self) -> None:
+        """AD-5/AD-7: the build context is the CLI's own package dir, not the
+        dotfiles repo root."""
         tasks = _image_build_tasks()
         assert tasks, "expected an image-build task"
         argv = _argv_of(tasks[0])
-        assert "--source-root" in argv
-        assert argv[argv.index("--source-root") + 1] == "{{ cli_tools_repo_root }}", (
-            "image-build task must pass --source-root = cli_tools_repo_root "
-            "(deterministic build context on the provisioning path)"
+        assert "--context" in argv, "the build verb now takes --context"
+        assert argv[argv.index("--context") + 1] == (
+            "{{ cli_tools_repo_root }}/{{ item.source }}"
+        ), "image-build task must pass the item's package dir as the context"
+        assert "--source-root" not in argv, (
+            "--source-root is now a deprecated alias; provisioning uses --context"
         )
 
     def test_image_build_task_is_check_mode_gated(self) -> None:
@@ -684,10 +688,12 @@ class TestCliToolsVars:
         itr has no container mode and must not be."""
         data = yaml.safe_load((_ROLES_DIR / "vars" / "main.yml").read_text())
         builds = [dict(item) for item in data["cli_tools_image_builds"]]
-        assert {"name": "csg"} in builds
-        assert {"name": "weg"} in builds
         names = {b["name"] for b in builds}
         assert names == {"csg", "weg"}, "image builds must be exactly the container-mode CLIs"
+        for build in builds:
+            assert build.get("source"), (
+                f"{build['name']}: image build must name its package dir as the build context"
+            )
 
     def test_cli_tools_parity_with_manifest(self) -> None:
         """Parity lock: the role var exactly mirrors the manifest by

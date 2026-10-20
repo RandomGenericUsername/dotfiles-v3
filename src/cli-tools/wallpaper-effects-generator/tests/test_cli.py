@@ -359,7 +359,15 @@ image_registry = "ghcr.io"
     assert result.exit_code != 0
 
 
-def test_install_command_uses_source_root_override(
+def _make_build_context_root(tmp_path: Path) -> Path:
+    """A single-package repo root: `pyproject.toml` + `src/<import_name>`."""
+    repo = tmp_path / "repo"
+    (repo / "src" / "wallpaper_effects_generator").mkdir(parents=True)
+    (repo / "pyproject.toml").write_text('[project]\nname = "wallpaper-effects-generator"\n')
+    return repo
+
+
+def test_install_command_uses_context_override(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
     config_file = tmp_path / "settings.toml"
@@ -368,9 +376,37 @@ version = "1.0"
 [container]
 engine = "docker"
 """)
-    repo = tmp_path / "repo"
-    (repo / "src" / "cli-tools").mkdir(parents=True)
-    (repo / "src" / "shared").mkdir(parents=True)
+    repo = _make_build_context_root(tmp_path)
+
+    from tests.conftest import FakeEngine
+
+    fake_engine = FakeEngine()
+    monkeypatch.setattr(
+        "wallpaper_effects_generator.cli.install.create_container_engine",
+        lambda settings: fake_engine,
+    )
+    result = runner.invoke(
+        app,
+        ["install", "--config", str(config_file), "--context", str(repo)],
+    )
+
+    assert result.exit_code == 0, f"exit_code={result.exit_code}, stderr={result.stderr}"
+    assert fake_engine.builds, "expected at least one build recorded"
+    _, context = fake_engine.builds[0]
+    assert str(context.context_path) == str(repo)
+
+
+def test_install_command_accepts_deprecated_source_root_alias(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """AD-6: `--source-root` remains an alias of `--context` for one minor."""
+    config_file = tmp_path / "settings.toml"
+    config_file.write_text("""
+version = "1.0"
+[container]
+engine = "docker"
+""")
+    repo = _make_build_context_root(tmp_path)
 
     from tests.conftest import FakeEngine
 
@@ -411,7 +447,7 @@ engine = "docker"
         lambda settings: fake_engine,
     )
     monkeypatch.setattr(
-        "wallpaper_effects_generator.cli.install.resolve_source_root",
+        "wallpaper_effects_generator.cli.install.resolve_build_context",
         lambda **_kwargs: (_ for _ in ()).throw(
             SourceRootNotFoundError(package="wallpaper_effects_generator")
         ),

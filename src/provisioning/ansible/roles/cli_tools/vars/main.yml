@@ -42,10 +42,12 @@ cli_tools_engine_smoke_image: "docker.io/library/alpine:3.20"
 #   container mode). `csg` and `weg` both run containerized at runtime
 #   (settings.toml renders runtime.mode = "container"); the assets role's
 #   `weg dump-effects` is separate and runs locally. Each entry maps to the
-#   CLI's `install` command.
+#   CLI's `install` command and names the PACKAGE dir passed as its build
+#   context (AD-5/AD-7): the context is the CLI's own repo root, never the
+#   dotfiles repo root.
 cli_tools_image_builds:
-  - { name: csg }
-  - { name: weg }
+  - { name: csg, source: src/cli-tools/color-scheme-generator }
+  - { name: weg, source: src/cli-tools/wallpaper-effects-generator }
 
 # cli_tools: install specs mirroring dotfiles/provisioning/cli-tools.yaml
 #   (csg/weg/itr -> repo source paths, plus dotfiles-runtime -> src/runtime).

@@ -191,10 +191,12 @@
 #   --check too); layers 2-4 use shell/command modules that never run under
 #   --check, so their probes AND asserts are gated `when: not
 #   ansible_check_mode`.
-# - `--source-root {{ cli_tools_repo_root }}` is passed EXPLICITLY so the build
-#   context does not depend on the CLI rediscovering its source via PEP 610
-#   metadata (deterministic on the provisioning path; direct_url discovery
-#   remains the fallback for ad-hoc/dev runs).
+# - `--context {{ cli_tools_repo_root }}/<package>` is passed EXPLICITLY so the
+#   build context is the CLI's own package repo root (AD-5), not the dotfiles
+#   repo root, and does not depend on the CLI rediscovering its source via
+#   PEP 610 metadata (deterministic on the provisioning path; direct_url
+#   discovery remains the fallback for ad-hoc/dev runs). `--source-root` is
+#   still accepted by the CLIs as a deprecated alias for one minor.
 # - NO `creates:` on these tasks: image EXISTENCE does not imply FRESHNESS.
 #   A stale image (built before the current CLI source) must be rebuilt, so the
 #   task runs every apply; the container engine's content-addressed cache makes
@@ -332,8 +334,8 @@
       - install
       - --container-engine
       - "{{ container_runtime_engine }}"
-      - --source-root
-      - "{{ cli_tools_repo_root }}"
+      - --context
+      - "{{ cli_tools_repo_root }}/{{ item.source }}"
   loop: "{{ cli_tools_image_builds }}"
   environment:
     PATH: "{{ cli_tools_bin_dir }}:{{ ansible_facts.env.PATH }}"
