@@ -12,7 +12,7 @@ Last updated: 2026-10-19, after S1 merged to `master` at `843b50d0`.
 | S0a — `contracts` invocation contract + first tag | done | `contracts` tag `v0.1.0` → commit `48cf3cf` (tag object `6ea43dcb`); `uv run pytest -q` → 49 passed; `openspec validate … --strict` → valid; public repo + anonymous `ls-remote` proven |
 | S0b — dotfiles prerequisites | done (merged to `master` at `56d7d85e`) | `make hermetic` → exit 0 (63 / 163 / 1095+2skip / 288 / 346 / 638); boundary specs deleted here and tracked in `contracts` `55ad61b`; ff-merge `f4f16f11..56d7d85e`, `make gates-ci` exit 0 at HEAD pre-merge; see the S0b verification log below |
 | S1 — `cli-output` repo + `v0.1.0` | done (merged to `master` at `843b50d0`) | repo `v0.1.0` (tag object `91489b73`, peeled `ddae3727`) consumed by all five locks; scoped stale-path gate exit 1; tree deleted (25 files, 1330 lines); `deploy-coverage` guard + tests green; ff-merge `96c4a0f4..843b50d0`, `make hermetic` / `make gates-ci` / `make deploy-coverage` exit 0 at HEAD pre-merge; see the S1 verification log below |
-| S2 — `config-assembler-engine` repo + `v0.1.0` | pending | — |
+| S2 — `config-assembler-engine` repo + `v0.1.0` | done in worktree (merge pending) | repo `v0.1.0` (tag object `5c5cc84e`, peeled `cad8a91c`) consumed by csg/weg/itr locks; scoped stale-path gate exit 1; tree deleted (66 files, 4769 lines); `deploy-coverage` guard + tests green; fresh-clone gate and `make hermetic` / `make gates-ci` / `make deploy-coverage` exit 0; see the S2 verification log below |
 | S3 — `oci-runtime` repo + `v0.5.0` | pending | — |
 | S4 — `icon-templates-renderer` repo + `v0.1.0` | pending | — |
 | S5 — `wallpaper-effects-generator` repo + `v0.1.0` | pending | — |
@@ -21,7 +21,9 @@ Last updated: 2026-10-19, after S1 merged to `master` at `843b50d0`.
 
 S0a, S0b and S1 are done. S1's merge (3.5) landed as the fast-forward
 `96c4a0f4..843b50d0`, pushed to `origin/master` (`origin/master == 843b50d0`);
-S1 is closed and S2 is unblocked. Nothing in S2 or later is ticked. The two S0a
+S1 is closed and S2 is unblocked. S2's implementation and its gate run are done
+in this worktree (`ticket/clitools-s2-consume-cae`); its merge (4.4) is still
+pending, so S3 has not started. The two S0a
 lines carried into S0b as 2.7 (boundary-spec relocation) and 2.8 (missing
 `CHANGELOG.md` + GitHub Release assets) are both closed: the specs are tracked in
 `contracts` at `55ad61b` and gone from this repo, and `contracts` `v0.1.0` now
@@ -135,6 +137,62 @@ Notes and deviations:
   SHALL live at `src/shared/cli-output/`); the capability now ships with the
   code as `openspec/specs/cli-output-presentation/spec.md` in the `cli-output`
   `v0.1.0` checkout (verified in the fresh clone).
+
+### S2 verification log
+
+Run in the dotfiles worktree `.worktrees/clitools-s2` on
+`ticket/clitools-s2-consume-cae` (base `b345bfb2`) and in a fresh
+`config-assembler-engine` clone at the tag (2026-10-19):
+
+| Command | Observed |
+| --- | --- |
+| `gh api repos/RandomGenericUsername/config-assembler-engine --jq .private` | `false`, exit 0 — public pin channel |
+| `GIT_TERMINAL_PROMPT=0 git -c credential.helper= ls-remote …/config-assembler-engine 'refs/tags/v0.1.0*'` | exit 0; `5c5cc84e… refs/tags/v0.1.0`, `cad8a91c… refs/tags/v0.1.0^{}` — anonymous |
+| fresh clone at `v0.1.0`: `make sync && make gates && make hermetic && uv lock --check` | exit 0; `git rev-parse HEAD` → `cad8a91c6bcbc4087209911bc36d82f8b6349f66`; `163 passed` |
+| live-reference inventory (`rg … src dotfiles scripts Makefile`, `.venv` excluded) | 3 pyproject path sources, 3 locks, `Makefile:100`, 2 Dockerfiles, `docs/99` tree; dependency declarations and the `weg_adapter` prose mention need no edit |
+| `rg -n 'config-assembler-engine = \{ path\|\./shared/config-assembler-engine' src --glob 'pyproject.toml'` | exit 1 — no path pin remains (scoped: the `oci-runtime` editable pin is S3's) |
+| `rg -n 'cad8a91c6bcbc4087209911bc36d82f8b6349f66' <pkg>/uv.lock` ×3 | 3 matches, each `source = { git = "…/config-assembler-engine?tag=v0.1.0#cad8a91c…" }` |
+| `uv lock --check --directory <pkg>` ×3 | exit 0 each |
+| pre-deletion: `uv run --directory src/shared/config-assembler-engine pytest -q` | `163 passed`, exit 0 |
+| pre-deletion: `make hermetic` | exit 0 — five packages: 1095+2 skipped / 288 / 346 / 638 passed |
+| `git rm -r src/shared/config-assembler-engine` | 66 files, 4769 lines deleted; `test ! -e` → `ABSENT` |
+| post-deletion: `make hermetic` | exit 0 — four remaining packages: oci-runtime 1095+2 skipped, itr 288, weg 346, csg 638 |
+| `for p in itr weg csg: uv run --directory "$p" pytest -q -k "config or resolv or strateg"` | exit 0: itr `68 passed, 220 deselected`; weg `52 passed, 294 deselected`; csg `84 passed, 554 deselected` |
+| `uv run --directory src/provisioning pytest -q tests/unit/test_compositor_configs_role.py -k DeployCoverageGate` | `20 passed, 33 deselected`, exit 0 |
+| `make deploy-coverage` | exit 0, new line `'config-assembler-engine' is consumed from its pinned repo — no in-tree package and no path source` |
+| `make gates-ci` | exit 0 — five gates; `deploy-coverage: PASS`, `ci-gates-parity: PASS` |
+| `make hermetic` / `make gates-ci` / `make deploy-coverage` on the worktree HEAD | all exit 0 |
+| `openspec validate cli-tools-repos --type change` | `Change 'cli-tools-repos' is valid`, exit 0 |
+| isolated install: `UV_TOOL_DIR=/tmp/opencode/s2-uvtools UV_TOOL_BIN_DIR=/tmp/opencode/s2-uvbin uv tool install --force src/cli-tools/icon-templates-renderer` | exit 0, `Installed 1 executable: itr` |
+| tool env `config_assembler_engine` `direct_url.json` | `{"vcs_info":{"vcs":"git","commit_id":"cad8a91c…","requested_revision":"v0.1.0"}}` — resolved from the tag |
+| tool venv: `python -c "import config_assembler_engine; print(Path(...).resolve())"` | `…/s2-uvtools/icon-templates-renderer/lib/python3.14/site-packages/config_assembler_engine/__init__.py`, exit 0 |
+| `/tmp/opencode/s2-uvbin/itr --version` and `itr list dotfiles/config/icon-template-color-scheme-mappings/icons.yaml` (isolated `HOME`/`XDG_CONFIG_HOME`) | `0.1.0 contract 0.1.0`; the group list printed (`battery:`, `network:`, …), exit 0 — real resolution through the installed engine |
+| `uv run --directory src/runtime pytest -q` with the stale `~/.local/bin` tool dir off `PATH` | exit 1 — `1 failed, 2120 passed, 5 skipped`; the only failure is the pre-existing `test_recording_indicator.py::TestNoPollingInvariant::test_bar_widget_has_no_poll_loop` |
+| `uv run --directory src/provisioning pytest -q` with the stale tool dir off `PATH` | `918 passed, 16 skipped, 2 failed`: `TestVerifyRuntime` playbook runs time out after 120 s |
+| base-commit check: same two `TestVerifyRuntime` cases at `b345bfb2` in `.worktrees/s2-basecheck` | identical 120 s `subprocess.TimeoutExpired` timeouts — pre-existing on the base, not caused by S2; the touched-file diff is empty for the verify role/playbook/test |
+
+Inventory and disposition (live references, before deletion):
+
+| Reference | Disposition |
+| --- | --- |
+| `src/cli-tools/{color-scheme-generator,wallpaper-effects-generator,icon-templates-renderer}/pyproject.toml` `[tool.uv.sources]` | repointed from `path` to `git = …, tag = "v0.1.0"` |
+| those three `uv.lock` files | regenerated; each records `#cad8a91c6bcbc4087209911bc36d82f8b6349f66` |
+| `Makefile:100` `HERMETIC_PACKAGES` | CAE entry removed (now four packages) |
+| csg `Dockerfile.base:9,11`, weg `Dockerfile.imagemagick:12,18` | `COPY`/path install replaced with `config-assembler-engine @ git+…@v0.1.0` (the S1 cli-output shape; the S3 `uv sync` rewrite still owns the build model) |
+| `docs/99-dotfiles-hexagonal-architecture.md` shared/ tree | updated: only the remaining in-repo `oci-runtime` is listed; CAE is named as consumed from its pinned repo |
+| three CLI `docs/ARCHITECTURE_PLAN.md`, `docs/01-…`, `docs/investigation/**`, `openspec/changes/**`, `_bmad-output/**` | historical planning/evidence records — left unchanged, out of reference-cleanup scope by rule |
+| `src/runtime/src/runtime/adapters/weg_adapter.py:54` | prose mention only; no pin or path |
+| `scripts/deploy-coverage.py` + `test_compositor_configs_role.py` | guard/test must name the retired path — expected residual |
+| dependency declarations (`"config-assembler-engine"`, `>=0.1.0`) | unchanged; the tag's version `0.1.0` satisfies them |
+
+Known environment deviation (not a slice failure): the host's pre-S0b `uv tool`
+installs in `~/.local/bin` are broken because their editable `.pth` files point
+at `src/shared/cli-output` (deleted when S1 merged). Leaving that dir on `PATH`
+makes four settings-parity cases call a stale `csg`/`weg` and fail with
+`ModuleNotFoundError: cli_output.adapters.factory`; the suites above were run
+with that stale dir removed from `PATH`, which is the designed skip path. The
+two provisioning `verify.yaml` timeouts reproduce at the base commit and are
+unrelated.
 
 ## 0. Execution contract (applies to every task below)
 
@@ -518,19 +576,28 @@ contracts-only scope.
 
 ## 4. S2 — `config-assembler-engine` repo + `v0.1.0`
 
-- [ ] 4.1 Create the repo from the birth checklist, import
+- [x] 4.1 Create the repo from the birth checklist, import
   `src/shared/config-assembler-engine` as the repo root, add the harness, leave
   `[tool.uv.sources]` empty, and tag `v0.1.0` (version continuity).
   Gate: `git clone "$CLI_REPO_BASE/config-assembler-engine" /tmp/opencode/cae && cd /tmp/opencode/cae && make sync && make gates && make hermetic && uv lock --check`
   Expect: exit 0.
+  Done: fresh clone at `v0.1.0` (tag object `5c5cc84e`, peeled commit
+  `cad8a91c`) → the chained gate exited 0, `163 passed`; the repo is public
+  (`gh api … --jq .private` → `false`) and the anonymous `ls-remote` returned
+  exactly the tag + peeled lines.
 
-- [ ] 4.2 Repoint csg, weg and itr `pyproject.toml` to
+- [x] 4.2 Repoint csg, weg and itr `pyproject.toml` to
   `git = …/config-assembler-engine, tag = "v0.1.0"`; regenerate the three locks.
   Gate: `rg -n 'config-assembler-engine = \{ path = "\.\./shared/config-assembler-engine"' src --glob 'pyproject.toml'`
   Expect: exit 1 (no matches). Scoped to CAE on purpose: `oci-runtime` is the
   last editable path source and is gated out in 5.2 (S3).
+  Done: all three now declare `config-assembler-engine = { git =
+  "https://github.com/RandomGenericUsername/config-assembler-engine", tag =
+  "v0.1.0" }`; the scoped gate → exit 1; each lock records
+  `#cad8a91c6bcbc4087209911bc36d82f8b6349f66` and `uv lock --check` is green
+  ×3. `oci-runtime` path pins untouched.
 
-- [ ] 4.3 Delete `src/shared/config-assembler-engine/` and its lock entries;
+- [x] 4.3 Delete `src/shared/config-assembler-engine/` and its lock entries;
   extend `scripts/deploy-coverage.py` with the absence assertion for
   `src/shared/config-assembler-engine` in the same commit.
   Gate: for each of `src/cli-tools/icon-templates-renderer
@@ -540,6 +607,13 @@ contracts-only scope.
   Gate: `make gates-ci && make deploy-coverage && test ! -e src/shared/config-assembler-engine && echo "ABSENT"`
   Expect: exit 0 and `ABSENT`; `deploy-coverage` names the tree in its
   retired-tree assertion.
+  Done: pre-deletion `make hermetic` (five packages) and the CAE suite
+  (`163 passed`) were green, then `git rm -r` removed 66 files / 4769 lines
+  (`ABSENT` printed). The three `-k` suites → `68 / 52 / 84 passed`, exit 0.
+  `deploy-coverage` gained `assert_no_in_tree_config_assembler_engine` (absent
+  tree **and** no `path =` source under any authored `src/**/pyproject.toml`);
+  its gate tests → `20 passed, 33 deselected`; `make gates-ci` → exit 0 with
+  `'config-assembler-engine' is consumed from its pinned repo`.
 
 - [ ] 4.4 Merge S2 to `master`; only then start S3.
   Gate: `make gates-ci && make deploy-coverage` on the merged `master`
