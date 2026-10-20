@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import os
+from importlib.metadata import version as _dist_version
 from importlib.resources import files as package_files
 from pathlib import Path
 
 import typer
+from cli_invocation_contract import CONTRACT_VERSION
 
 from wallpaper_effects_generator.cli.batch import batch_app
 from wallpaper_effects_generator.cli.dump_config import dump_config_command
@@ -74,9 +76,23 @@ def build_deps() -> CliDependencies:
     )
 
 
+def _version_callback(value: bool) -> None:
+    if not value:
+        return
+    typer.echo(f"{_dist_version('wallpaper-effects-generator')} contract {CONTRACT_VERSION}")
+    raise typer.Exit()
+
+
 @app.callback()
 def main(
     ctx: typer.Context,
+    show_version: bool = typer.Option(
+        False,
+        "--version",
+        callback=_version_callback,
+        is_eager=True,
+        help="Show the package version and invocation contract version, then exit.",
+    ),
     output_format: OutputFormat = typer.Option(
         OutputFormat.JSON,
         "--output-format",

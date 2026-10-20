@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import logging
 import os
+from importlib.metadata import version as _dist_version
 from pathlib import Path
 
 import typer
+from cli_invocation_contract import CONTRACT_VERSION
 
 from color_scheme_generator.cli._helpers import (
     default_app_settings,
@@ -89,9 +91,23 @@ def build_deps() -> CliDependencies:
     )
 
 
+def _version_callback(value: bool) -> None:
+    if not value:
+        return
+    typer.echo(f"{_dist_version('color-scheme-generator')} contract {CONTRACT_VERSION}")
+    raise typer.Exit()
+
+
 @app.callback()
 def main_callback(
     ctx: typer.Context,
+    show_version: bool = typer.Option(
+        False,
+        "--version",
+        callback=_version_callback,
+        is_eager=True,
+        help="Show the package version and invocation contract version, then exit.",
+    ),
     output_format: OutputFormat = typer.Option(  # noqa: B008
         OutputFormat.JSON,
         "--output-format",

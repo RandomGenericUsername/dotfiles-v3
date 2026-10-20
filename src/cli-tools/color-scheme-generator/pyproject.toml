@@ -5,6 +5,7 @@ description = "Extract color palettes from wallpaper images for desktop theming"
 requires-python = ">=3.14"
 dependencies = [
     "typer>=0.12",
+    "cli-invocation-contract",
     "config-assembler-engine",
     "oci-runtime",
     "cli-output",
@@ -37,6 +38,7 @@ pythonpath = ["src", "."]
 addopts = ["--strict-markers", "-rxX"]
 
 [tool.uv.sources]
+cli-invocation-contract = { git = "https://github.com/RandomGenericUsername/contracts", tag = "v0.1.0" }
 cli-output = { path = "../../shared/cli-output", editable = true }
 config-assembler-engine = { path = "../../shared/config-assembler-engine", editable = true }
 oci-runtime = { path = "../../shared/oci-runtime", editable = true }

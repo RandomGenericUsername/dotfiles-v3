@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import logging
+from importlib.metadata import version as _dist_version
 
 import typer
+from cli_invocation_contract import CONTRACT_VERSION
 
 from icon_templates_renderer.cli.list_cmd import list_command
 from icon_templates_renderer.cli.mapping import mapping_app
@@ -11,6 +13,14 @@ from icon_templates_renderer.cli.template import template_app
 from icon_templates_renderer.cli.validate import validate_command
 from icon_templates_renderer.domain.enums import OutputFormat, Verbosity
 from icon_templates_renderer.factory import build_deps, create_output_adapter
+
+
+def _version_callback(value: bool) -> None:
+    if not value:
+        return
+    typer.echo(f"{_dist_version('icon-templates-renderer')} contract {CONTRACT_VERSION}")
+    raise typer.Exit()
+
 
 app = typer.Typer(
     help=(
@@ -33,6 +43,13 @@ app = typer.Typer(
 @app.callback()
 def main_callback(
     ctx: typer.Context,
+    show_version: bool = typer.Option(
+        False,
+        "--version",
+        callback=_version_callback,
+        is_eager=True,
+        help="Show the package version and invocation contract version, then exit.",
+    ),
     output_format: OutputFormat = typer.Option(  # noqa: B008
         OutputFormat.PLAIN,
         "--output-format",
