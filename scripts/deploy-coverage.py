@@ -66,6 +66,11 @@ required):
       Python live-preview engine (`live/btop_live.py`), which the app runs from
       the linked unit tree.
 
+  (k) asserts `cli-output` is consumed from its pinned repo (S1): the in-tree
+      package `src/shared/cli-output/` is gone and no package under `src/`
+      pins it by `path` — either would make a local copy the source of truth
+      while the tag is what every lock records.
+
 The relative-import closure of `dotfiles/config/ags/app.tsx` is still computed
 when that dev/typecheck/test bridge is PRESENT (a developer checkout, or the
 hermetic negative tests below) and reported as a NOTE -- it is no longer a
@@ -126,6 +131,7 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+import tomllib
 from pathlib import Path
 
 VARS_FILE = "src/provisioning/ansible/roles/compositor_configs/vars/main.yml"
@@ -262,6 +268,14 @@ RETIRED_BTOP_STUDIO_DIR = "src/gui-tools/btop-theme-studio"
 # stray file), so an empty `src/gui-tools/` can never quietly become a home for
 # a second source of truth again.
 RETIRED_GUI_TOOLS_DIR = "src/gui-tools"
+
+# `cli-output` left the repo (cli-tools-repos S1): it is consumed from its
+# pinned repo (`git = …/cli-output, tag = "v0.1.0"`) by the runtime, the
+# provisioning package and the three CLIs. The in-tree package is retired, and
+# a `path =` source would silently resurrect the local copy as the source of
+# truth — exactly the drift the pin exists to prevent.
+CLI_OUTPUT_PACKAGE = "cli-output"
+RETIRED_CLI_OUTPUT_DIR = "src/shared/cli-output"
 
 # Files that participate in `ags bundle` and are therefore a missing-module
 # hazard. `.d.ts` ends in `.ts`, so it is covered by the `.ts` suffix.
@@ -1291,6 +1305,46 @@ def assert_no_gui_tools_dir(root: Path) -> None:
         )
 
 
+def assert_no_in_tree_cli_output(root: Path) -> None:
+    """`cli-output` is consumed from its pinned repo: no local copy, no path pin.
+
+    cli-tools-repos S1 moved the package out of this repo (tag `v0.1.0`) and
+    deleted `src/shared/cli-output/`. Both halves are asserted so neither can
+    quietly come back:
+      (a) the in-tree package dir must not exist — a surviving copy would be a
+          second source of truth that no consumer installs; and
+      (b) no package under `src/` may carry a `[tool.uv.sources]` entry that
+          pins `cli-output` by `path` — that would resolve the local checkout
+          instead of the tag while still passing an import.
+    """
+    retired = root / RETIRED_CLI_OUTPUT_DIR
+    if retired.exists():
+        raise ValueError(
+            f"the retired in-tree {CLI_OUTPUT_PACKAGE!r} package still exists at "
+            f"{RETIRED_CLI_OUTPUT_DIR}/ — it is consumed from its pinned repo "
+            f"tag v0.1.0; delete the directory"
+        )
+
+    src = root / "src"
+    if not src.is_dir():
+        raise ValueError(f"{src} is missing — cannot check {CLI_OUTPUT_PACKAGE!r} pins")
+    for pyproject in sorted(src.rglob("pyproject.toml")):
+        # Skip virtualenvs and any other hidden tree (e.g. .venv): only the
+        # authored package manifests participate in the pin.
+        if any(part.startswith(".") for part in pyproject.relative_to(root).parts):
+            continue
+        data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+        source = (
+            data.get("tool", {}).get("uv", {}).get("sources", {}).get(CLI_OUTPUT_PACKAGE)
+        )
+        if isinstance(source, dict) and "path" in source:
+            raise ValueError(
+                f"{pyproject.relative_to(root)} still pins {CLI_OUTPUT_PACKAGE!r} "
+                f"by path ({source['path']!r}) — consume the pinned repo tag "
+                f"(git = …, tag = v0.1.0) instead"
+            )
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         description="the external bar + platform units are provisioned"
@@ -1363,6 +1417,10 @@ def main() -> int:
         # The parent dir itself is retired: the per-app checks above catch a
         # known app returning; this catches ANY reappearance under the old root.
         assert_no_gui_tools_dir(root)
+        # cli-tools-repos S1: `cli-output` is consumed from its pinned repo.
+        # The in-tree package AND every `path =` source for it are retired, so
+        # neither a leftover copy nor a re-pointed pin can slip back in.
+        assert_no_in_tree_cli_output(root)
     except (RuntimeError, ValueError, FileNotFoundError) as exc:
         print(f"FAIL: {exc}")
         return 1
@@ -1424,6 +1482,10 @@ def main() -> int:
         "deploy-coverage: PASS -- the retired bar + hypr-pano + notifications + "
         "capture-tool + wallpaper-selector + icme + btop-theme-studio bridges "
         "carry no per-file deploy source and the external units are provisioned"
+    )
+    print(
+        f"deploy-coverage: {CLI_OUTPUT_PACKAGE!r} is consumed from its pinned "
+        f"repo — no in-tree package and no path source"
     )
     return 0
 
