@@ -169,19 +169,9 @@ wheels = [
 [[package]]
 name = "cli-output"
 version = "0.1.0"
-source = { editable = "../shared/cli-output" }
+source = { git = "https://github.com/RandomGenericUsername/cli-output?tag=v0.1.0#ddae372786fd6053730133e82cf542a17e9a5ae5" }
 dependencies = [
     { name = "rich" },
-]
-
-[package.metadata]
-requires-dist = [{ name = "rich", specifier = ">=13.0" }]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "pytest", specifier = ">=8.0" },
-    { name = "pytest-cov", specifier = ">=7.0" },
-    { name = "ruff", specifier = ">=0.15.17" },
 ]
 
 [[package]]
@@ -265,7 +255,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "ansible-core", specifier = ">=2.16" },
-    { name = "cli-output", editable = "../shared/cli-output" },
+    { name = "cli-output", git = "https://github.com/RandomGenericUsername/cli-output?tag=v0.1.0" },
     { name = "pydantic", specifier = ">=2.0" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "typer", specifier = ">=0.12" },

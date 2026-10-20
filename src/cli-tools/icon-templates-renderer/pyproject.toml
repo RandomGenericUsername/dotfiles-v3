@@ -36,7 +36,7 @@ addopts = ["--strict-markers", "-rxX"]
 
 [tool.uv.sources]
 cli-invocation-contract = { git = "https://github.com/RandomGenericUsername/contracts", tag = "v0.1.0" }
-cli-output = { path = "../../shared/cli-output", editable = true }
+cli-output = { git = "https://github.com/RandomGenericUsername/cli-output", tag = "v0.1.0" }
 config-assembler-engine = { path = "../../shared/config-assembler-engine", editable = true }
 
 [tool.ruff]
