@@ -657,7 +657,6 @@ dotfiles-repo-v3/
 │   │   └── icon-templates-renderer/   (itr)
 │   │
 │   └── shared/                  ← Shared libraries (IMPLEMENTED)
-│       ├── cli-output/
 │       ├── config-assembler-engine/
 │       └── oci-runtime/
 │

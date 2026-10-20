@@ -11,7 +11,7 @@ Last updated: 2026-10-19, after S0b merged to `master` at `56d7d85e`.
 | --- | --- | --- |
 | S0a — `contracts` invocation contract + first tag | done | `contracts` tag `v0.1.0` → commit `48cf3cf` (tag object `6ea43dcb`); `uv run pytest -q` → 49 passed; `openspec validate … --strict` → valid; public repo + anonymous `ls-remote` proven |
 | S0b — dotfiles prerequisites | done (merged to `master` at `56d7d85e`) | `make hermetic` → exit 0 (63 / 163 / 1095+2skip / 288 / 346 / 638); boundary specs deleted here and tracked in `contracts` `55ad61b`; ff-merge `f4f16f11..56d7d85e`, `make gates-ci` exit 0 at HEAD pre-merge; see the S0b verification log below |
-| S1 — `cli-output` repo + `v0.1.0` | pending | — |
+| S1 — `cli-output` repo + `v0.1.0` | done-in-worktree (merge pending) | repo `v0.1.0` (tag object `91489b73`, peeled `ddae3727`) consumed by all five locks; scoped stale-path gate exit 1; tree deleted (25 files, 1330 lines); `deploy-coverage` guard + tests green; see the S1 verification log below |
 | S2 — `config-assembler-engine` repo + `v0.1.0` | pending | — |
 | S3 — `oci-runtime` repo + `v0.5.0` | pending | — |
 | S4 — `icon-templates-renderer` repo + `v0.1.0` | pending | — |
@@ -19,7 +19,8 @@ Last updated: 2026-10-19, after S0b merged to `master` at `56d7d85e`.
 | S6 — `color-scheme-generator` repo + `v0.1.0`, both trees deleted | pending | — |
 | Post-migration verification | pending | — |
 
-S0a and S0b are done; nothing in S1 or later is ticked. The two S0a lines
+S0a and S0b are done; S1 is done in its worktree with the merge (3.5) still
+pending. Nothing in S2 or later is ticked. The two S0a lines
 carried into S0b as 2.7 (boundary-spec relocation) and 2.8 (missing
 `CHANGELOG.md` + GitHub Release assets) are both closed: the specs are tracked in
 `contracts` at `55ad61b` and gone from this repo, and `contracts` `v0.1.0` now
@@ -84,6 +85,55 @@ in `/home/inumaki/Development/contracts` (2026-10-19):
 `make hermetic` is the gate even though the task writes it through an outer
 `env` wrapper: the target scrubs `HOME`, the four XDG vars and the three
 per-tool config vars itself (`Makefile:107-127`).
+
+### S1 verification log
+
+Run in the dotfiles worktree `.worktrees/clitools-s1` on
+`ticket/clitools-s1-consume-cli-output` (base `96c4a0f4`) and in a fresh
+`cli-output` clone at the tag (2026-10-19):
+
+| Command | Observed |
+| --- | --- |
+| `git ls-remote --tags https://github.com/RandomGenericUsername/cli-output 'refs/tags/v0.1.0*'` | exit 0; `91489b73b54e6cd09dc54e360431a3ebb915fa05 refs/tags/v0.1.0`, `ddae372786fd6053730133e82cf542a17e9a5ae5 refs/tags/v0.1.0^{}` |
+| fresh clone: `make sync && make gates && make hermetic && uv lock --check && uv build` | exit 0; `63 passed`; `dist/cli_output-0.1.0-py3-none-any.whl` + `.tar.gz` |
+| `rg -n 'shared/cli-output' --glob 'pyproject.toml' --glob '*.lock' --glob '*.yml' --glob '*.yaml' --glob '*.py' --glob '*.md' src dotfiles scripts Makefile` | 5 pyproject consumers (runtime, provisioning, csg, weg, itr), 5 locks, `Makefile:100`; plus the two Dockerfiles and the guard itself (see below) |
+| `rg -n 'cli-output = \{ path\|\./shared/cli-output' src --glob 'pyproject.toml'` | exit 1 — no path pin for `cli-output` (CAE/OCI editable pins intentionally untouched) |
+| `rg -n 'ddae372' <pkg>/uv.lock` for the five consumers | 5 matches, each `source = { git = "…/cli-output?tag=v0.1.0#ddae372786fd6053730133e82cf542a17e9a5ae5" }` |
+| `uv lock --check --directory <pkg>` ×5 | exit 0 each |
+| `uv run --directory src/runtime python -c "import cli_output, pathlib; print(pathlib.Path(cli_output.__file__).resolve())"` | `…/src/runtime/.venv/lib/python3.14/site-packages/cli_output/__init__.py`, exit 0 |
+| `rg -n 'cli-invocation-contract = .*contracts", tag = "v0\.1\.0"' src --glob 'pyproject.toml'` | 4 matches (runtime + csg + weg + itr) — contract pin untouched |
+| `uv run --directory src/runtime pytest tests/architecture/test_layering.py -q` | `128 passed`, exit 0 |
+| `uv run --directory src/provisioning pytest tests/architecture/test_layering.py -q` | `37 passed`, exit 0 |
+| `make hermetic` | exit 0 — five remaining packages: 163 / 1095+2 skipped / 288 / 346 / 638 passed |
+| `uv run --directory src/runtime pytest -q` | exit 1 — `1 failed, 2122 passed, 2 skipped, 1 xpassed`; the failure is the pre-existing `test_recording_indicator.py::TestNoPollingInvariant::test_bar_widget_has_no_poll_loop`, unrelated to this slice |
+| `uv run --directory src/provisioning pytest -q` | `928 passed, 6 skipped`, exit 0 |
+| `make gates-ci` | exit 0 — five gates; `deploy-coverage: PASS` incl. `'cli-output' is consumed from its pinned repo — no in-tree package and no path source`; `ci-gates-parity: PASS` |
+| `make deploy-coverage` | exit 0, same new line |
+| `uv run --directory src/provisioning pytest -q tests/unit/test_compositor_configs_role.py -k DeployCoverageGate` | `18 passed, 33 deselected`, exit 0 |
+| `openspec validate cli-tools-repos --type change` | `Change 'cli-tools-repos' is valid`, exit 0 |
+| `test ! -e src/shared/cli-output && echo ABSENT` | `ABSENT`, exit 0 |
+| residual scan `rg -n 'src/shared/cli-output\|shared/cli-output' --hidden -g '!.git' -g '!.worktrees' -g '!uv.lock'` | only `docs/investigation/**` + `docs/01-…` (historical plan), `_bmad-output/**`, `openspec/changes/**` records, and the new guard + its tests (which must name the retired path) |
+
+Notes and deviations:
+
+- The two architecture-test copies needed **no edit** (opposite of the S1 step 6
+  expectation): `_allowed_third_party_roots()` adds `cli_output` from
+  `[project].dependencies` as well as from `[tool.uv.sources]` keys, so it
+  accepts the git source unchanged; both suites above are the proof.
+- The two Dockerfiles were edited even though SLICES.md defers the Dockerfile
+  rewrite to S3/S5: deleting the tree would otherwise leave a live
+  `COPY src/shared/cli-output` in `Dockerfile.base` and
+  `Dockerfile.imagemagick`, failing the S1 reference-cleanup gate. They now
+  `pip install "cli-output @ git+…/cli-output@v0.1.0"` (adding `git` +
+  CA certificates). A `podman build` of `Dockerfile.base` fetched `cli-output`
+  from the tag successfully and then failed on a **pre-existing** gap: the
+  image never installed `cli-invocation-contract` (a dependency since S0b), and
+  that package is not on PyPI. The image build was already broken before this
+  slice; S3/S5's `uv sync`-from-lock rewrite owns the fix.
+- `openspec/specs/cli-output/spec.md` was retired here (it asserted the package
+  SHALL live at `src/shared/cli-output/`); the capability now ships with the
+  code as `openspec/specs/cli-output-presentation/spec.md` in the `cli-output`
+  `v0.1.0` checkout (verified in the fresh clone).
 
 ## 0. Execution contract (applies to every task below)
 
@@ -386,17 +436,24 @@ contracts-only scope.
 
 ## 3. S1 — `cli-output` repo + `v0.1.0`
 
-- [ ] 3.1 Create the repo from the birth checklist, import `src/shared/cli-output`
+- [x] 3.1 Create the repo from the birth checklist, import `src/shared/cli-output`
   as the repo root (history via `git subtree split -P src/shared/cli-output`),
   add the harness, and leave `[tool.uv.sources]` empty.
   Gate: `git clone "$CLI_REPO_BASE/cli-output" /tmp/opencode/cli-output && cd /tmp/opencode/cli-output && make sync && make gates && make hermetic && uv lock --check && uv build`
   Expect: exit 0; `dist` contains `cli_output-0.1.0-*.whl` + `.tar.gz`.
+  Done: fresh clone at the tag → the chained gate exited 0, `make hermetic` →
+  `63 passed`, `dist/cli_output-0.1.0-py3-none-any.whl` + `.tar.gz` exist;
+  `[tool.uv.sources]` is empty (the package has no sibling deps).
 
-- [ ] 3.2 Tag `v0.1.0` (version continuity with the imported in-tree `0.1.0`).
+- [x] 3.2 Tag `v0.1.0` (version continuity with the imported in-tree `0.1.0`).
   Gate: `git ls-remote --tags --refs "$CLI_REPO_BASE/cli-output" 'refs/tags/v0.1.0'`
   Expect: exactly one line (the tag ref; `--refs` drops the peeled `^{}` line).
+  Done: exactly one line, `91489b73b54e6cd09dc54e360431a3ebb915fa05
+  refs/tags/v0.1.0`, exit 0; the peeled query adds
+  `ddae372786fd6053730133e82cf542a17e9a5ae5 refs/tags/v0.1.0^{}`, and
+  `git -C /tmp/opencode/cli-output-inspect rev-parse HEAD` is that commit.
 
-- [ ] 3.3 Rewire `src/runtime/pyproject.toml`, `src/provisioning/pyproject.toml`
+- [x] 3.3 Rewire `src/runtime/pyproject.toml`, `src/provisioning/pyproject.toml`
   and each still-in-tree CLI's `pyproject.toml` from path to git tag `v0.1.0`;
   regenerate all five locks; update the two architecture-test forbidden sets so
   `cli_output` is accepted as a git dependency.
@@ -412,8 +469,17 @@ contracts-only scope.
   Gate: `uv run --directory src/runtime python -c
   "import cli_output, pathlib; p=pathlib.Path(cli_output.__file__).resolve(); print(p); assert 'src/shared' not in str(p)"`
   Expect: exit 0; path under `.venv/lib/.../site-packages/cli_output`.
+  Done: all five consumers now declare
+  `cli-output = { git = "https://github.com/RandomGenericUsername/cli-output", tag = "v0.1.0" }`
+  (dependency name unchanged; CAE/OCI path sources untouched). The scoped gate →
+  exit 1; `rg -n 'cli-invocation-contract = …"v0\.1\.0"'` → 4 matches; every lock
+  records `#ddae372786fd6053730133e82cf542a17e9a5ae5` and `uv lock --check` is
+  green ×5; the import resolves to
+  `src/runtime/.venv/lib/python3.14/site-packages/cli_output/__init__.py`.
+  Architecture tests needed no forbidden-set change (see the S1 verification
+  log).
 
-- [ ] 3.4 Delete `src/shared/cli-output/`, update the two architecture-test
+- [x] 3.4 Delete `src/shared/cli-output/`, update the two architecture-test
   copies in the same slice, and extend `scripts/deploy-coverage.py` with the
   absence assertion for `src/shared/cli-output` (the `src/gui-tools` precedent,
   S4 §5.2: the guard lands in the deletion commit, not a later cleanup).
@@ -422,6 +488,18 @@ contracts-only scope.
   Gate: `make gates-ci && make deploy-coverage && test ! -e src/shared/cli-output && echo "ABSENT"`
   Expect: exit 0 and `ABSENT`; `deploy-coverage` names `src/shared/cli-output` in
   its retired-tree assertion.
+  Done: `git rm -r src/shared/cli-output` removed 25 files / 1330 lines (plus
+  the untracked `.venv`/cache, so `test ! -e` is true). The two
+  architecture-test copies needed no edit — `_allowed_third_party_roots()`
+  already accepts the git source via the dependency name (`128 passed` runtime,
+  `37 passed` provisioning). `deploy-coverage` gained
+  `assert_no_in_tree_cli_output`: absent tree **and** no `path =` source under
+  any `src/**/pyproject.toml`; its gate tests → `18 passed, 33 deselected`.
+  `make gates-ci` → exit 0 with the new
+  `'cli-output' is consumed from its pinned repo` line; `ABSENT` printed.
+  Runtime suite: `1 failed, 2122 passed, 2 skipped, 1 xpassed` — the failure is
+  the pre-existing recording-indicator test. Provisioning suite: `928 passed,
+  6 skipped`, exit 0.
 
 - [ ] 3.5 Merge S1 to `master`; only then start S2.
   Gate: `make gates-ci && make deploy-coverage` on the merged `master`
