@@ -16,18 +16,19 @@ in its worktree).
 | S2 — `config-assembler-engine` repo + `v0.1.0` | done in worktree (merge pending) | repo `v0.1.0` (tag object `5c5cc84e`, peeled `cad8a91c`) consumed by csg/weg/itr locks; scoped stale-path gate exit 1; tree deleted (66 files, 4769 lines); `deploy-coverage` guard + tests green; fresh-clone gate and `make hermetic` / `make gates-ci` / `make deploy-coverage` exit 0; see the S2 verification log below |
 | S3 — `oci-runtime` repo + `v0.5.0` | done (merged to `master` at `c4056631`) | repo `v0.5.0` (peeled `b631dfa5`); tree deleted (184 files, 19 848 lines) with the empty `src/shared/`; `deploy-coverage` guard + `23 passed`; merged fast-forward `eb880c2f..c4056631` and pushed; see 5.6 Done |
 | S4 — `icon-templates-renderer` repo + `v0.1.0` | done (merged to `master` at `6ad7117c`) | repo `v0.1.0` (tag object `09271f64`, peeled `92895a06`); pin commit `0bc85765`, retired-tree guard `0c33bdfc`; tree deleted (103 files, 8 918 lines); `make hermetic` / `make gates-ci` / `make deploy-coverage` exit 0 at HEAD pre-merge, itr tree `ABSENT`; merged `c4056631..6ad7117c`, pushed (`origin/master == 6ad7117c`); see 6.5 Done |
-| S5 — `wallpaper-effects-generator` repo + `v0.1.0` | done in worktree (merge pending) | repo `v0.1.0` (tag object `093d4051`, peeled `9672d89c`); tag is the image tag (`weg-podman:v0.1.0`, no `latest`); tree deleted (102 files, 12 380 lines); `make hermetic` / `make gates-ci` / `make deploy-coverage` exit 0; see the S5 verification log below |
-| S6 — `color-scheme-generator` repo + `v0.1.0`, both trees deleted | pending | — |
-| Post-migration verification | pending | — |
+| S5 — `wallpaper-effects-generator` repo + `v0.1.0` | done (merged to `master` at `6e0633ba`) | repo `v0.1.0` (tag object `093d4051`, peeled `9672d89c`); tag is the image tag (`weg-podman:v0.1.0`, no `latest`); tree deleted (102 files, 12 380 lines); `make hermetic` / `make gates-ci` / `make deploy-coverage` exit 0; merged `6ad7117c..6e0633ba`, pushed; see the S5 verification log below |
+| S6 — `color-scheme-generator` repo + `v0.1.0`, both trees deleted | done in worktree (merge pending) | repo `v0.1.0` (tag object `47afbbdf`, peeled `14f2faf5`); pinned checkout installs `csg 0.1.0 contract 0.1.0`; four images at `:v0.1.0`, no `latest`; assets read the checkout (12 templates, `IDENTICAL`); trees deleted (147 files, 18 577 lines); `make hermetic` / `make gates-ci` / `make deploy-coverage` exit 0; see the S6 verification log below |
+| Post-migration verification | run in the S6 worktree (merge pending) | `deploy-coverage` reports the six pinned packages + one in-repo source; tag chain verified for all seven repos; the literal `src/cli-tools`/`src/shared` scan is NOT exit 1 (residue: the guard + its negative tests + `docs/investigation/**`); see §9 below |
 
-S0a, S0b, S1, S2, S3 and S4 are done and merged. S2's merge (4.4) landed as the
-fast-forward `d1f92e6c..eb880c2f`; S3's merge (5.6) landed as
+S0a, S0b, S1, S2, S3, S4 and S5 are done and merged. S2's merge (4.4) landed as
+the fast-forward `d1f92e6c..eb880c2f`; S3's merge (5.6) landed as
 `eb880c2f..c4056631`; S4's merge (6.5) landed as `c4056631..6ad7117c`, pushed
-(`git ls-remote origin refs/heads/master` → `6ad7117c`, exit 0). S5's
-implementation and gate run are done in
-`.worktrees/clitools-s5` on `ticket/clitools-s5-consume-weg` (base `6ad7117c`);
-its merge (7.6) is deliberately NOT done by this slice's agent (STOP before
-merging), so S6 has not started. The two S0a
+(`git ls-remote origin refs/heads/master` → `6ad7117c`, exit 0); S5's merge
+(7.6) landed as `6ad7117c..6e0633ba`, pushed (`origin/master == 6e0633ba`).
+S6's implementation, proof and gate run are done in `.worktrees/clitools-s6` on
+`ticket/clitools-s6-consume-csg-final` (base `6e0633ba`); its merge (8.8) is
+deliberately NOT done by this slice's agent (STOP before merging), so
+`master` still has the pre-S6 shape. The two S0a
 lines carried into S0b as 2.7 (boundary-spec relocation) and 2.8 (missing
 `CHANGELOG.md` + GitHub Release assets) are both closed: the specs are tracked in
 `contracts` at `55ad61b` and gone from this repo, and `contracts` `v0.1.0` now
@@ -1036,15 +1037,18 @@ contracts-only scope.
   next provision re-applies `roles/settings`; that is expected (the slice
   changes the template, not the already-provisioned host spine).
 
-- [ ] 7.6 Merge S5 to `master`; only then start S6.
+- [x] 7.6 Merge S5 to `master`; only then start S6.
   Gate: `make gates-ci && make deploy-coverage` on the merged `master`
   Expect: exit 0; no gate points at the deleted tree.
-  Status: S5 is done in `.worktrees/clitools-s5` on
-  `ticket/clitools-s5-consume-weg` (base `6ad7117c`); its commits are
-  `feat(provisioning): install weg from its pinned repo and pin the image tag`,
-  `test(gates): assert weg tree retired` and the docs record. The merge is
-  deliberately NOT done by this slice's agent (STOP before merging), so S6 has
-  not started.
+  Done: merged fast-forward `6ad7117c..6e0633ba` onto `master` and pushed
+  (`git ls-remote origin refs/heads/master` → `6e0633ba`, exit 0); the S6
+  worktree's base is that commit. At the S5 worktree HEAD before the merge,
+  `make hermetic` / `make gates-ci` / `make deploy-coverage` → exit 0
+  (`deploy-coverage: PASS` with the `'weg' is provisioned from its pinned
+  manifest entry …` line; `ci-gates-parity: PASS`), and
+  `test ! -e src/cli-tools/wallpaper-effects-generator` → `ABSENT` — recorded in
+  the S5 verification log above. The merge added only S5's docs/record commit.
+  S5 is closed; S6 is unblocked.
 
 ### S5 verification log
 
@@ -1091,7 +1095,7 @@ pre-existing `TestVerifyRuntime` timeouts), per the S4 precedent.
 
 ## 8. S6 — `color-scheme-generator` (`csg`) repo + `v0.1.0`, delete both trees
 
-- [ ] 8.1 Create the repo from the birth checklist, import the tree as the repo
+- [x] 8.1 Create the repo from the birth checklist, import the tree as the repo
   root, add the harness; repoint `cli-output`, `config-assembler-engine` and
   `oci-runtime`; confirm the S3 cutover holds (Dockerfiles copy only in-repo
   paths; per-backend Dockerfiles keep `ARG BASE_IMAGE`); move
@@ -1100,14 +1104,39 @@ pre-existing `TestVerifyRuntime` timeouts), per the S4 precedent.
   `specs/no-spec-changes.md` and the nested `.openspec.yaml`; tag `v0.1.0`.
   Gate: `git clone "$CLI_REPO_BASE/color-scheme-generator" /tmp/opencode/csg && cd /tmp/opencode/csg && make sync && make gates && make hermetic && uv lock --check`
   Expect: exit 0.
+  Done: `https://github.com/RandomGenericUsername/color-scheme-generator` is
+  public at `v0.1.0` (annotated tag object `47afbbdf4b3d1d7a2ac6dbc9cfea3d6d4487b335`,
+  peeled `14f2faf590f503cc60baf0da81955076e9e42214`;
+  `gh api repos/…/color-scheme-generator --jq .private` → `false`, exit 0;
+  anonymous `GIT_TERMINAL_PROMPT=0 git -c credential.helper= ls-remote --tags`
+  → exactly the tag + peeled lines). Fresh clone at the tag
+  (`/tmp/opencode/s6-csg-fresh`): `make sync && make gates && make hermetic &&
+  uv lock --check` → exit 0 (`639 passed` gates, ruff `All checks passed!`,
+  `639 passed` hermetic, `uv lock --check` → `Resolved 35 packages`). The repo
+  root pins `cli-output v0.1.0`, `config-assembler-engine v0.1.0`,
+  `oci-runtime v0.5.0` and `contracts v0.1.0` (`pyproject.toml:61-64` in the tag
+  checkout). The nested `openspec/changes/fix-container-engine-plumbing/` is
+  carried verbatim to the repo at `openspec/archive/cli-tools-pre-split/`
+  (orchestrator-verified diff clean) and the placeholder `specs/no-spec-changes.md`
+  + nested `.openspec.yaml` are dropped (AD-15).
 
-- [ ] 8.2 Prove the Dockerfile invariant and image build.
+- [x] 8.2 Prove the Dockerfile invariant and image build.
   Gate: `rg -n "src/shared|src/cli-tools" src/color_scheme_generator/adapters/docker/`
   Expect: exit 1.
   Gate: `podman build -t csg-base-local:test -f src/color_scheme_generator/adapters/docker/Dockerfile.base . && podman run --rm csg-base-local:test csg --version`
   Expect: build exit 0; prints `0.1.0 contract 0.1.0`.
+  Done: run in the pinned checkout (`/tmp/opencode/s6-spine/cli-tools/csg/v0.1.0`,
+  `.git` removed) so the assertion is about the SHIPPED Dockerfiles: the `rg`
+  gate → exit 1 (zero matches), the four Dockerfiles are
+  `Dockerfile.{base,custom,pywal,wallust}` and each backend keeps
+  `ARG BASE_IMAGE=csg-base-docker:latest` (line 1; the tag is overridden at build
+  time via `--build-arg BASE_IMAGE=<base@pin>`), and
+  `podman build -t csg-base-local:test -f …/Dockerfile.base .` from the repo root
+  → exit 0 (`Successfully tagged localhost/csg-base-local:test`) with
+  `podman run --rm csg-base-local:test csg --version` → `0.1.0 contract 0.1.0`
+  (exit 0). The scratch `csg-base-local:test` tag was removed after the proof.
 
-- [ ] 8.3 Prove the runtime's exact argv against the installed tag, install from
+- [x] 8.3 Prove the runtime's exact argv against the installed tag, install from
   the pinned checkout (AD-10, not a `git+…@tag` URL).
   Gate: `CSG_CHECKOUT=/tmp/opencode/install/cli-tools/csg/v0.1.0 && git clone --depth 1 --branch v0.1.0 "$CLI_REPO_BASE/color-scheme-generator" "$CSG_CHECKOUT"`
   Gate: `CSG_CHECKOUT=/tmp/opencode/install/cli-tools/csg/v0.1.0 && test "$(git -C "$CSG_CHECKOUT" rev-parse HEAD)" = "$(git ls-remote "$CLI_REPO_BASE/color-scheme-generator" 'refs/tags/v0.1.0^{}' | cut -f1)" && echo HEAD=tag-commit`
@@ -1119,8 +1148,23 @@ pre-existing `TestVerifyRuntime` timeouts), per the S4 precedent.
   Expect: exit 0; all eight artifacts present (`colors.yaml`, `colors.conf`,
   `colors.gtk.css`, `colors.adw.css`, `colors.sequences`, `colors.rasi`,
   `colors.kitty`, `colors.btop.theme`).
+  Done (simulated install at `/tmp/opencode/s6-spine/cli-tools/csg/v0.1.0`
+  because incus is not on PATH, so no VM): `git clone --depth 1 --branch v0.1.0`
+  → exit 0, `git rev-parse HEAD` → `14f2faf590f503cc60baf0da81955076e9e42214`
+  == the peeled tag → `HEAD=tag-commit`; `.git` removed, `pinned` = `v0.1.0`;
+  `UV_TOOL_DIR=/tmp/opencode/s6-uvtools UV_TOOL_BIN_DIR=/tmp/opencode/s6-uvbin
+  uv tool install --force --no-cache <checkout>` → exit 0, `Installed 1
+  executable: csg`; `direct_url.json` →
+  `{"url":"file:///tmp/opencode/s6-spine/cli-tools/csg/v0.1.0","dir_info":{}}`
+  → `PEP610=CHECKOUT`; `…/s6-uvbin/csg --version` → `0.1.0 contract 0.1.0`.
+  Real generation through the runtime argv (the same eight `--format` values,
+  env output dir) in CONTAINER mode (`XDG_CONFIG_HOME` = the rendered spine whose
+  `[container] image_tag = "v0.1.0"`) → exit 0 with all eight artifacts:
+  `colors.yaml colors.conf colors.gtk.css colors.adw.css colors.sequences
+  colors.rasi colors.kitty colors.btop.theme`; the JSON echoed the in-container
+  command `csg generate /input/wallpaper.png --backend pywal --format … -o /output`.
 
-- [ ] 8.4 Re-address the templates asset to the pinned checkout:
+- [x] 8.4 Re-address the templates asset to the pinned checkout:
   `dotfiles/provisioning/assets.yaml` and `roles/assets/vars/main.yml:72` read
   `<install>/cli-tools/csg/<tag>/src/color_scheme_generator/defaults/templates/`;
   the assets playbook keeps running after `cli-tools.yaml`, so the fetch task
@@ -1132,24 +1176,76 @@ pre-existing `TestVerifyRuntime` timeouts), per the S4 precedent.
   source is the tag-qualified checkout, not `src/cli-tools/...`.
   Gate: `uv run --directory src/provisioning pytest tests/unit/test_bootstrap_playbook.py -q -k dependency_order`
   Expect: exit 0 (`cli-tools.yaml` precedes `assets.yaml`).
+  Done: the manifest entry's source is
+  `{{ install_dir | trim }}/cli-tools/csg/v0.1.0/src/color_scheme_generator/defaults/templates`
+  and the role resolves it from `assets_csg_templates_source` +
+  `assets_csg_pinned_tag` (the AD-11 mirror of the manifest tag, parity-locked).
+  The absolute source lives in `assets_checkout_copies` so the repo-root prefix
+  is never applied to it; the role ALSO stats the resolved dir and fails loud if
+  it is missing (the explicit "assets requires the cli-tools fetch"
+  dependency). The named test →
+  `tests/unit/test_assets_role.py::TestAssetsVars::test_csg_templates_source_resolves_to_pinned_checkout`
+  → `1 passed`, exit 0; `test_bootstrap_playbook.py -q -k dependency_order` →
+  `1 passed, 5 deselected`, exit 0. Proven end to end, not just in the test: a
+  real `playbooks/assets.yaml` run against `/tmp/opencode/s6-spine` copied the
+  catalog from the checkout — `diff -r` between the checkout's
+  `defaults/templates/` and the deployed
+  `<install>/config/color-scheme-generator/templates/` → `IDENTICAL` (12 `.j2`
+  files); with a scratch `install_dir` that has NO checkout the role aborts:
+  `the pinned csg template catalog is missing at
+  /tmp/opencode/s6-noassets/cli-tools/csg/v0.1.0/src/color_scheme_generator/defaults/templates`
+  (exit 2).
 
-- [ ] 8.5 Prove the runtime adapter and determinism still pass.
+- [x] 8.5 Prove the runtime adapter and determinism still pass.
   Gate: `uv run --directory src/runtime pytest tests/integration/test_csg_adapter_integration.py tests/integration/test_csg_determinism.py -v -rs`
   Expect: no failures (`xfail` may XPASS; record the observed line).
+  Done: with the pinned csg first on PATH and `XDG_CONFIG_HOME` = the rendered
+  spine → `2 passed, 1 xpassed` in 45.52 s: the adapter integration XPASSed (the
+  pinned `v0.1.0` DOES support the btop balanced/full formats the xfail recorded
+  as missing) and `test_csg_deterministic_double_run[custom]` PASSED. That case
+  had been SKIPPING on every post-S6 host because its built-image probe looked
+  for `csg-pywal-podman:latest`; the probe now matches the engine-qualified image
+  at ANY tag (AD-7 tags images with the pin). The earlier run with a scrubbed
+  `HOME` skipped it for a different reason (podman's image store lives under
+  `$HOME`), which is why the recorded run keeps the real `HOME` and only pins
+  `XDG_CONFIG_HOME`/`PATH`.
 
-- [ ] 8.6 Prove the images are tag-qualified, never `latest`, and the settings
+- [x] 8.6 Prove the images are tag-qualified, never `latest`, and the settings
   render the pin.
   Gate: `podman images --format '{{.Repository}}:{{.Tag}}' | grep -E '(csg|color-scheme).*:v0\.1\.0$'`
   Expect: base + each built backend at `:v0.1.0`; no `:latest` for a csg image.
   Gate: `uv run --directory src/provisioning pytest tests/unit/test_settings_role.py -q -k image_tag`
-  Expect: exit 0; the csg template renders `image_tag = "v0.1.0"` from the pin
-  (today `src/provisioning/ansible/roles/settings/templates/csg-settings.toml.j2:26`
-  hardcodes `"latest"`).
+  Expect: exit 0; the csg template renders `image_tag = "v0.1.0"` from the pin.
   Gate: `( cd /tmp/opencode/install/cli-tools/csg/v0.1.0 && uv run csg install --container-engine podman --context /tmp/opencode/install/cli-tools/csg/v0.1.0 --image-tag v9.9.9 )`
   Expect: nonzero exit — S6 adds the same `--image-tag` validation as S5, so a
   nonexistent pin fails the build verb.
+  Done: the pre-existing pre-S6 `:latest` tags were removed, then the role's own
+  transport was used from the checkout —
+  `COLORSCHEME__CONTAINER__IMAGE_TAG=v0.1.0 csg install --container-engine podman
+  --context <checkout>` → exit 0 and the JSON listed `base`, `custom`, `pywal`,
+  `wallust` all `status: built` at `csg-<suffix>-podman:v0.1.0`;
+  `podman images` shows exactly
+  `csg-base-podman:v0.1.0 csg-custom-podman:v0.1.0 csg-pywal-podman:v0.1.0
+  csg-wallust-podman:v0.1.0` and NO `csg*:latest`. The settings template renders
+  `image_tag = "{{ settings_csg_image_tag }}"`; a real `playbooks/settings.yaml`
+  run wrote `image_tag = "v0.1.0"` (+ `mode = "container"`, `image_prefix =
+  "csg"`, `engine = "podman"`) at
+  `/tmp/opencode/s6-spine/config/color-scheme-generator/settings.toml:21-29`;
+  `test_settings_role.py -k image_tag` → `6 passed` (3 WEG + 3 CSG, including
+  the two-pin `v0.1.0` → `v0.2.0` render proof).
+  **Deviation (MISSING vs this task's literal third expectation):** csg's
+  `v0.1.0` verb has NO `--image-tag` option at all, so that command exits 2 with
+  `No such option: --image-tag` — nonzero as required, but by unknown-option
+  rejection, not by S5's version-match validation. There is therefore no
+  `--image-tag` path to validate in csg; the pin reaches the build exclusively
+  through `COLORSCHEME__CONTAINER__IMAGE_TAG`, which the role supplies from the
+  manifest (`deploy-coverage` asserts the key carries `{{ item.tag }}` and that
+  no literal tag appears in the task code). A wrong pin still cannot survive
+  provisioning: the clone fails first (``git clone --branch v9.9.9`` → exit 128,
+  `Remote branch v9.9.9 not found`), and `verify` asserts all four images at
+  `<prefix>-<suffix>-<engine>:<pin>`.
 
-- [ ] 8.7 Delete `src/cli-tools/color-scheme-generator/` and
+- [x] 8.7 Delete `src/cli-tools/color-scheme-generator/` and
   `src/cli-tools/openspec/`, then the empty `src/cli-tools/`; remove the runtime
   `csg_templates` repo candidate; update `docs/01-…`, `docs/99-…`,
   `docs/02-config-in-spine-pattern.md`; drop the now-external architecture-test
@@ -1168,12 +1264,123 @@ pre-existing `TestVerifyRuntime` timeouts), per the S4 precedent.
   entry — no extracted CLI entry has a source path.
   Gate: `test ! -e src/cli-tools && test ! -e src/shared && echo "RETIRED TREES ABSENT"`
   Expect: `RETIRED TREES ABSENT`; exit 0.
+  Done: deletion only after the isolated proof above was green.
+  `git rm -r src/cli-tools/color-scheme-generator src/cli-tools/openspec` →
+  147 files / 18 577 lines deleted (diffstat `147 files changed, 18577
+  deletions(-)`), then `rm -rf src/cli-tools` (the empty parent, so no untracked
+  `.venv` remains) → `test ! -e src/cli-tools && test ! -e src/shared` →
+  `RETIRED TREES ABSENT`. `Makefile` `HERMETIC_PACKAGES` is now EMPTY and
+  `make hermetic` prints an explicit four-line PASS
+  (`hermetic: PASS -- no in-repo package sources; the six extracted packages …
+  run their own 'make hermetic' in their pinned repos`) instead of an empty
+  loop; the target and the CI job stay coherent (`hermetic` was never in
+  `GATES`, and `ci-gates-parity` still reports the same five gates).
+  `deploy-coverage` gained `assert_csg_provisioned_from_pinned_manifest`
+  (manifest/role repo+tag, no source, tag-bearing checkout, no `git+` install,
+  the `COLORSCHEME__CONTAINER__IMAGE_TAG` = `{{ item.tag }}` transport,
+  tag-qualified build context, no literal tag in task code, retired tree absent),
+  `assert_no_cli_tools_dir` (terminal: both parent roots) and
+  `assert_manifest_source_scope` (exactly one `source:`, `dotfiles-runtime ->
+  src/runtime`). `TestDeployCoverageGate` → `37 passed, 33 deselected`
+  (7 new negative tests: retired csg tree, csg keeps a source, csg loses its
+  tag, csg env tag is a literal, retired `src/cli-tools/` root, a second local
+  source, the only source re-pointed off `src/runtime`). Gate runs →
+  `make gates-ci` exit 0 (five gates, `deploy-coverage: PASS`,
+  `ci-gates-parity: PASS`), `make deploy-coverage` exit 0 with the new lines
+  `'csg' is provisioned from its pinned manifest entry …` and
+  `PASS -- six packages are consumed from their pinned repos … the CLI manifest
+  carries exactly ONE in-repo source (dotfiles-runtime -> src/runtime)`;
+  `rg -n 'source:' dotfiles/provisioning/cli-tools.yaml` → one code match,
+  `source: src/runtime` (the other hit is the header comment).
+  Runtime: the `csg_templates` repo candidates in `application/derive.py` are
+  removed (with a new `test_csg_templates_has_no_repo_candidate_after_s6`), the
+  stale csg-templates seeding in `test_doctor_check.py` is dropped, and both
+  architecture-test Rule-5 forbidden sets drop the six now-external package
+  roots (they are pinned dependencies, not dotfiles siblings) — provisioning
+  `37 passed`, runtime `128 passed`. `docs/99-…`'s tree/prose, `docs/01-…`'s
+  "current repository state" table and AGENTS.md §2 now state the pinned-repo
+  reality; `docs/02-config-in-spine-pattern.md` needed no edit (it names no
+  `src/cli-tools`/`src/shared` path — verified by grep, exit 1). The workspace
+  `.gitignore` had no csg/cli-tools entries left to drop (S5 removed the last
+  two).
+  **Literal-gate deviation:** `rg -n "src/cli-tools|src/shared" src dotfiles
+  scripts Makefile .github bootstrap.sh AGENTS.md docs` is exit 0, not 1. Every
+  live doc/provisioning/runtime file is clean; the remaining hits are (a)
+  `scripts/deploy-coverage.py` — the guard MUST name the paths it asserts are
+  absent, (b) `src/provisioning/tests/unit/test_compositor_configs_role.py`,
+  `test_assets_role.py`, `test_cli_tools_role.py` and
+  `adapters/test_yaml_manifest_reader.py` — the guard's negative tests and
+  fixtures, which must construct the retired paths to prove rejection, and (c)
+  `docs/investigation/**` — read-only historical evidence (out of scope by rule,
+  the same carve-out the S4/S5 logs record). Recorded, not claimed green.
 
 - [ ] 8.8 Merge S6 to `master`.
   Gate: `make gates-ci && make deploy-coverage` on the merged `master`
   Expect: exit 0, including the terminal absence guard.
+  Status: NOT DONE — this slice's agent stops before merging. The branch
+  `ticket/clitools-s6-consume-csg-final` (base `6e0633ba`) carries the
+  implementation, the deletion, the docs record and the archive; the merge is the
+  orchestrator's step, and the post-merge gate must be re-run on `master`.
+
+### S6 verification log
+
+Run in `.worktrees/clitools-s6` on `ticket/clitools-s6-consume-csg-final` (base
+`6e0633ba`) plus the pinned checkout at the tag and a fresh clone of the csg
+repo (2026-10-21). No VM: incus is absent, so the role was simulated from the
+manifest values.
+
+| Command | Observed |
+| --- | --- |
+| `gh api repos/RandomGenericUsername/color-scheme-generator --jq .private` | `false`, exit 0 — public pin channel |
+| `GIT_TERMINAL_PROMPT=0 git -c credential.helper= ls-remote --tags …/color-scheme-generator 'refs/tags/v0.1.0*'` | `47afbbdf… refs/tags/v0.1.0`, `14f2faf5… refs/tags/v0.1.0^{}` — anonymous |
+| fresh clone at `v0.1.0`: `make sync && make gates && make hermetic && uv lock --check` | exit 0; `639 passed` (gates), ruff `All checks passed!`, `639 passed` (hermetic), `Resolved 35 packages` |
+| `rg -n "src/shared\|src/cli-tools" <checkout>/src/color_scheme_generator/adapters/docker/` | exit 1 — no sibling-repo path; four Dockerfiles, each backend keeps `ARG BASE_IMAGE=csg-base-docker:latest` (line 1) |
+| `podman build -t csg-base-local:test -f …/Dockerfile.base .` + `podman run --rm csg-base-local:test csg --version` | exit 0; `0.1.0 contract 0.1.0` (scratch tag removed after) |
+| `git clone --depth 1 --branch v0.1.0 …` + `git rev-parse HEAD` | exit 0; `14f2faf590f503cc60baf0da81955076e9e42214` → `HEAD=tag-commit` |
+| `rm -rf <checkout>/.git`, `printf 'v0.1.0\n' > …/csg/pinned` | `.git` absent, `pinned` = `v0.1.0` |
+| `UV_TOOL_DIR=/tmp/opencode/s6-uvtools UV_TOOL_BIN_DIR=/tmp/opencode/s6-uvbin uv tool install --force --no-cache <checkout>` | exit 0, `Installed 1 executable: csg` |
+| `cat …/color_scheme_generator-0.1.0.dist-info/direct_url.json` | `{"url":"file:///tmp/opencode/s6-spine/cli-tools/csg/v0.1.0","dir_info":{}}` → `PEP610=CHECKOUT` |
+| `…/s6-uvbin/csg --version` | `0.1.0 contract 0.1.0`, exit 0 |
+| `COLORSCHEME__OUTPUT__DIRECTORY=… COLORSCHEME__OUTPUT__OVERWRITE=true csg generate <wallpaper> --format yaml --format conf --format gtk.css --format adw.css --format sequences --format rasi --format kitty --format btop.theme` (container mode, rendered spine settings) | exit 0; all eight artifacts (`colors.yaml colors.conf colors.gtk.css colors.adw.css colors.sequences colors.rasi colors.kitty colors.btop.theme`) |
+| `playbooks/settings.yaml -e install_dir=/tmp/opencode/s6-spine` | exit 0 (`ok=7 changed=4 failed=0`); `settings.toml:21-29` → `mode = "container"`, `engine = "podman"`, `image_prefix = "csg"`, `image_tag = "v0.1.0"` |
+| `COLORSCHEME__CONTAINER__IMAGE_TAG=v0.1.0 csg install --container-engine podman --context <checkout>` | exit 0; JSON lists `base`, `custom`, `pywal`, `wallust` `status: built` at `csg-<suffix>-podman:v0.1.0` |
+| `podman images --format '{{.Repository}}:{{.Tag}}' \| grep -E '(csg\|color-scheme).*:v0\.1\.0$'` | four lines (`csg-base/-custom/-pywal/-wallust-podman:v0.1.0`); the `:latest` probe → `NO_LATEST` |
+| `csg install --image-tag v9.9.9` | exit 2, `No such option: --image-tag` — csg's verb has no such flag (see 8.6 deviation) |
+| negative: `git clone --depth 1 --branch v9.9.9 …` | exit 128, `Remote branch v9.9.9 not found`; checkout NOT created |
+| negative: clone from `https://github.invalid/...` | exit 128, `Could not resolve host`; `NO_LOCAL_FALLBACK` (no local fallback) |
+| `uv run --directory src/provisioning pytest tests/unit/test_assets_role.py::TestAssetsVars::test_csg_templates_source_resolves_to_pinned_checkout -q` | `1 passed`, exit 0 |
+| `uv run --directory src/provisioning pytest tests/unit/test_bootstrap_playbook.py -q -k dependency_order` | `1 passed, 5 deselected`, exit 0 |
+| real `playbooks/assets.yaml -e install_dir=/tmp/opencode/s6-spine` (weg pinned on PATH) | exit 0 (`ok=16 changed=5`); `diff -r <checkout>/…/defaults/templates <install>/config/color-scheme-generator/templates` → `IDENTICAL` (12 `.j2`) |
+| negative: `playbooks/assets.yaml -e install_dir=/tmp/opencode/s6-noassets` | exit 2, `the pinned csg template catalog is missing at …/cli-tools/csg/v0.1.0/src/color_scheme_generator/defaults/templates` |
+| `ansible-playbook playbooks/cli-tools.yaml --syntax-check` / `assets.yaml --syntax-check` | exit 0 / exit 0 |
+| `ansible-playbook playbooks/cli-tools.yaml --check -e install_dir=<scratch>` | exit 0 (`ok=16 changed=10 failed=0 skipped=21`); scratch `install_dir` NOT created; pinned clone loop = `csg, weg, itr`; argv-tag build loop = `weg`; env-tag build loop = `csg`; source build loop = empty |
+| `ansible-playbook playbooks/assets.yaml --check -e install_dir=<scratch>` | exit 0 (`ok=4 changed=1 failed=0 skipped=12`) — needs `ANSIBLE_COLLECTIONS_PATH=$HOME/.ansible/collections` because the scrubbed `HOME` hides the installed collections |
+| `XDG_CONFIG_HOME=<rendered spine> PATH=<pinned bin>:$PATH uv run --directory src/runtime pytest tests/integration/test_csg_adapter_integration.py tests/integration/test_csg_determinism.py -v -rs` | `2 passed, 1 xpassed` in 45.52 s (adapter XPASS; `test_csg_deterministic_double_run[custom]` PASSED once its built-image probe stopped requiring `:latest`) |
+| `git rm -r src/cli-tools/color-scheme-generator src/cli-tools/openspec` + `rm -rf src/cli-tools` | 147 files / 18 577 lines; `test ! -e src/cli-tools && test ! -e src/shared` → `RETIRED TREES ABSENT` |
+| `uv run --directory src/provisioning pytest tests/unit/test_cli_tools_role.py tests/unit/test_verify_role.py -q -k "not TestVerifyRuntime"` | `140 passed, 9 deselected` |
+| `uv run --directory src/provisioning pytest tests/unit/test_compositor_configs_role.py -q -k DeployCoverageGate` | `37 passed, 33 deselected` |
+| `uv run --directory src/provisioning pytest tests/unit/test_settings_role.py -q -k image_tag` | `6 passed, 27 deselected` |
+| `uv run --directory src/provisioning pytest tests/unit/test_settings_role.py -q` | `32 passed, 1 failed` — `TestSettingsPlaybook::test_runtime_gate_with_cli_tools`, the host-stale `csg` env (`ImportError: cannot import name 'engine_qualified_image' from 'oci_runtime'`), identical at base `6ad7117c` (S5 log) — pre-existing |
+| `uv run --directory src/runtime pytest tests/unit/test_doctor_check.py tests/unit/test_derive_input_provenance.py -q` | `50 passed` |
+| `uv run --directory src/runtime pytest tests/architecture/test_layering.py -q` | `128 passed` |
+| `uv run --directory src/provisioning pytest tests/architecture/test_layering.py -q` | `37 passed` |
+| `make hermetic` | exit 0 — explicit `hermetic: PASS -- no in-repo package sources …` |
+| `make gates-ci` | exit 0 — five gates; `deploy-coverage: PASS`, `ci-gates-parity: PASS` |
+| `make deploy-coverage` | exit 0; new `'csg' is provisioned …` + terminal `PASS -- six packages are consumed from their pinned repos …` lines |
+| `openspec validate cli-tools-repos --type change` | `Change 'cli-tools-repos' is valid`, exit 0 |
+| `openspec validate --all` | `99 passed, 27 failed` — the 27 are the same pre-existing delta-less legacy changes (unchanged; `cli-tools-repos` is not among them). One item fewer than S0b's 127 because the nested CLI-tools OpenSpec root is gone |
+| `uv run --directory src/provisioning pytest tests/unit -q -k "not TestVerifyRuntime"` | see the gate run in §9 below |
+
+Not run: the full `src/provisioning` suite (known ~46-min run with two
+pre-existing `TestVerifyRuntime` timeouts), per the S4/S5 precedent.
 
 ## 9. Post-migration verification (after S6 merges)
+
+Run in the S6 worktree on `ticket/clitools-s6-consume-csg-final` (2026-10-21).
+The boxes stay UNCHECKED on purpose: the gate says "after S6 merges", and 8.8 is
+the orchestrator's step. The worktree tree is byte-identical to what a merge
+would land except for the merge commit itself, so re-running these three boxes on
+the merged `master` is the confirmation step.
 
 - [ ] 9.1 Run the terminal gates and reference scan.
   Gate: `make gates-ci && make deploy-coverage`
@@ -1186,6 +1393,16 @@ pre-existing `TestVerifyRuntime` timeouts), per the S4 precedent.
   Expect: exit 1 (historical dirs are out of scope by rule).
   Gate: `git ls-files 'src/cli-tools/*' 'src/shared/*'`
   Expect: empty.
+  Observed (worktree): `make gates-ci` exit 0 and `make deploy-coverage` exit 0
+  with `PASS -- six packages are consumed from their pinned repos
+  (cli-output, config-assembler-engine, oci-runtime, itr, weg, csg); src/cli-tools/
+  and src/shared/ are retired, and the CLI manifest carries exactly ONE in-repo
+  source (dotfiles-runtime -> src/runtime)`; the manifest `source:` scan → one
+  code match (`source: src/runtime`, line 32) plus one comment mention;
+  `git ls-files 'src/cli-tools/*' 'src/shared/*'` → empty (0 lines). The literal
+  reference scan is **exit 0, not 1** — see 8.7's deviation: the only remaining
+  hits are the `deploy-coverage` guard, its negative tests/fixtures, and
+  `docs/investigation/**` (read-only historical evidence).
 
 - [ ] 9.2 Run the installed-tool and pin checks.
   Gate: `for t in itr weg csg; do command -v "$t" && "$t" --version; done`
@@ -1195,6 +1412,20 @@ pre-existing `TestVerifyRuntime` timeouts), per the S4 precedent.
   Expect: three entries with versions matching the pins.
   Gate: `rg -n 'cli-invocation-contract = .*contracts", tag = "v[0-9]' src --glob 'pyproject.toml'`
   Expect: 4 matches, all the same tag.
+  Observed (worktree): all three binaries exist on the host PATH, but they are
+  the pre-S0b `~/.local/bin` installs whose tool envs point at the retired trees —
+  `itr` → `ModuleNotFoundError: config_assembler_engine.adapters.config_validator`,
+  `weg` → `ModuleNotFoundError: cli_output.adapters.factory`, `csg` →
+  `ImportError: cannot import name 'engine_qualified_image' from 'oci_runtime'`.
+  The DESIGNED path is the next bootstrap's `uv tool install --force` from the
+  pinned checkout, proven here in isolated dirs (`csg --version` →
+  `0.1.0 contract 0.1.0`). `uv tool list` shows all three entries at `v0.1.0`
+  (matching the pins) with the same stale envs.
+  **Deviation:** the contract-pin scan returns **1 match**
+  (`src/runtime/pyproject.toml:27`), not 4 — the three CLI consumers are no
+  longer in this repo, so their pins live in their own `pyproject.toml`s (csg's
+  tag checkout pins `contracts v0.1.0` at line 61; itr/weg were verified in S4/S5).
+  The runtime is the only in-repo consumer left, and it pins the same tag.
 
 - [ ] 9.3 Prove the tag chain for every repo in one pass.
   Gate: `for r in contracts cli-output config-assembler-engine oci-runtime icon-templates-renderer wallpaper-effects-generator color-scheme-generator; do printf '%s: ' "$r"; git ls-remote --tags --refs "$CLI_REPO_BASE/$r" | sed 's#.*refs/tags/##' | tr '\n' ' '; echo; done`
@@ -1203,10 +1434,20 @@ pre-existing `TestVerifyRuntime` timeouts), per the S4 precedent.
   `icon-templates-renderer: v0.1.0`, `wallpaper-effects-generator: v0.1.0`,
   `color-scheme-generator: v0.1.0`; no repo is missing a consumed tag and no tag
   listed twice. `--refs` keeps each tag to exactly one line.
+  Observed (worktree, anonymous): exactly the seven expected lines, one tag each.
+
+## Archive
+
+Command: `openspec archive cli-tools-repos --yes` (run in the S6 worktree after
+§9 was recorded). Its observed output is recorded in the archive commit message
+and in the slice report; nothing above this line is ticked after the archive runs.
 
 ## Workflow follow-up
 
 - Archive this change with `openspec archive cli-tools-repos` after the final
   slice merges and the post-migration verification is recorded as evidence.
+  **Recorded:** the archive was run in the S6 worktree after §9 was recorded as
+  evidence (see "Archive output" below); it lands with 8.8's merge, which is the
+  orchestrator's step.
 - Keep this change's capability specs as the cross-repo contract; per-package
   specs follow their code into the new repos (AD-15) and are not rewritten here.
