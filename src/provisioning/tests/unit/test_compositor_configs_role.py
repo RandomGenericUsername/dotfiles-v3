@@ -178,6 +178,28 @@ _AGS_APPS_REPO = Path(
 )
 
 
+def _seed_assets_configs(install: Path) -> None:
+    """Materialize the pinned assets `configs/` class the skeletons render from.
+
+    S2: the role reads `<install>/assets/<tag>/configs/…`, which the assets role
+    fetches. These execution tests run THIS role in isolation (no network), so
+    they seed the same shape with a recognizable body. `hyprland.lua` carries the
+    one render-time token, so the template module must resolve it to this run's
+    XDG config home — exactly what the assertions below check.
+    """
+    tag = str(_vars()["compositor_configs_assets_pinned_tag"])
+    root = install / "assets" / tag / "configs"
+    for entry in _vars()["compositor_configs_skeleton_files"]:
+        relative = str(entry["source"]).split("}}/", 1)[1]
+        path = root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"-- skeleton {entry['name']}\n")
+    (root / "hypr" / "hyprland.lua").write_text(
+        'local cfg = "{{ compositor_configs_xdg_config_home }}/hypr"\n'
+        'dofile(cfg .. "/keybindings.lua")\n'
+    )
+
+
 def _preseed_bar_unit(install: Path) -> Path:
     """Seed the pinned bar unit exactly as the ags_apps role deploys it.
 
@@ -299,7 +321,8 @@ class TestCompositorConfigsTasks:
         placement task loops over the skeleton FILES (per-file entries — a
         directory `copy` + `force: false` + pre-existing dest is a silent
         no-op, review finding 2026-08-12), each entry a `source` prefixed
-        `{{ compositor_configs_repo_root }}/dotfiles/config/<dir>/<file>` and a
+        `{{ compositor_configs_assets_configs_dir }}/<dir>/<file>` (S2: the pinned
+        assets configs class) and a
         `dest` under the config-in-spine home ({{ compositor_configs_spine_config_dir }},
         config-in-spine 2026-08-16), and the task renders via
         `ansible.builtin.template` with `force: true` — repo-authoritative,
@@ -359,31 +382,40 @@ class TestCompositorConfigsTasks:
             f"entries are retired (slice 2 deploys the unit whole); found {len(files)}"
         )
         sources = sorted(str(f["source"]) for f in files)
+        prefix = "{{ compositor_configs_assets_configs_dir }}/"
         expected = [
-            "dotfiles/config/hypr/animations.lua",
-            "dotfiles/config/hypr/autostart.lua",
-            "dotfiles/config/hypr/colors.lua",
-            "dotfiles/config/hypr/cursor.lua",
-            "dotfiles/config/hypr/decoration.lua",
-            "dotfiles/config/hypr/env-variables.lua",
-            "dotfiles/config/hypr/general.lua",
-            "dotfiles/config/hypr/gloview.lua",
-            "dotfiles/config/hypr/hyprland.lua",
-            "dotfiles/config/hypr/input.lua",
-            "dotfiles/config/hypr/keybindings.lua",
-            "dotfiles/config/hypr/monitors.lua",
-            "dotfiles/config/hypr/window-rules.lua",
-            "dotfiles/config/hyprpaper/hyprpaper.conf",
-            "dotfiles/config/rofi/launcher/config.rasi",
+            prefix + "hypr/animations.lua",
+            prefix + "hypr/autostart.lua",
+            prefix + "hypr/colors.lua",
+            prefix + "hypr/cursor.lua",
+            prefix + "hypr/decoration.lua",
+            prefix + "hypr/env-variables.lua",
+            prefix + "hypr/general.lua",
+            prefix + "hypr/gloview.lua",
+            prefix + "hypr/hyprland.lua",
+            prefix + "hypr/input.lua",
+            prefix + "hypr/keybindings.lua",
+            prefix + "hypr/monitors.lua",
+            prefix + "hypr/window-rules.lua",
+            prefix + "hyprpaper/hyprpaper.conf",
+            prefix + "rofi/launcher/config.rasi",
         ]
         assert sources == expected, f"skeleton file sources must be exactly {expected}"
         for file_ in files:
-            assert str(file_["source"]).startswith("dotfiles/config/"), (
-                "skeleton file source must live under dotfiles/config/"
+            assert str(file_["source"]).startswith(prefix), (
+                "skeleton file source must live in the pinned assets configs class "
+                "(S2) — never a composition-repo tree"
             )
+            assert "dotfiles/config" not in str(file_["source"])
             assert str(file_["dest"]).startswith("{{ compositor_configs_spine_config_dir }}/"), (
                 "skeleton file dest must derive from compositor_configs_spine_config_dir"
             )
+        # --check on a never-provisioned machine skips the render (the assets
+        # clone is check-gated, so the checkout is absent); a real run reaches
+        # the presence assert first and fails loud.
+        assert str(task.get("when")) == (
+            "not ansible_check_mode or compositor_configs_assets_configs_check.stat.isdir | default(false)"
+        ), task.get("when")
 
     def test_skeleton_placements_carry_no_creates(self) -> None:
         """AC 5/6 idempotency: `force: false` already guarantees no re-transfer
@@ -413,7 +445,7 @@ class TestCompositorConfigsTasks:
         asserts the same from the gate side; this pins it structurally.)"""
         data = _vars()
         for file_ in data["compositor_configs_skeleton_files"]:
-            assert not str(file_["source"]).startswith("dotfiles/config/ags/"), (
+            assert "/ags/" not in str(file_["source"]), (
                 f"stale bridge entry {file_['source']!r}: the bar deploys whole "
                 "via the ags_apps unit symlink"
             )
@@ -518,6 +550,29 @@ class TestCompositorConfigsTasks:
                 "dir ensure is check-safe natively — must NOT be --check-gated"
             )
 
+    def test_pinned_checkout_presence_is_asserted_before_rendering(self) -> None:
+        """S2: the skeletons render FROM the pinned checkout, so a missing or
+        mis-pinned corpus must fail loud and named (inside the role) rather than
+        per-file with template's "Could not find". The stat is ungated (a probe)
+        and the assert is real-run-only (a fresh --check has no checkout)."""
+        stats = [
+            task
+            for task in _tasks_with_module("ansible.builtin.stat")
+            if str(task.get("register")) == "compositor_configs_assets_configs_check"
+        ]
+        assert len(stats) == 1, "expected exactly one pinned-checkout stat"
+        assert stats[0].get("when") is None
+        assert "{{ compositor_configs_assets_configs_dir }}" in str(
+            _module(stats[0]).get("path", "")
+        )
+        asserts = [
+            task
+            for task in _tasks_with_module("ansible.builtin.assert")
+            if "compositor_configs_assets_configs_check" in str(_module(task).get("that", ""))
+        ]
+        assert len(asserts) == 1, "expected exactly one pinned-checkout assert"
+        assert asserts[0].get("when") == "not ansible_check_mode"
+
     def test_invariant_documented_in_task_header(self) -> None:
         """Skeletons are repo-authoritative (owner decision 2026-08-26);
         palette fragments are runtime-owned (Epic 4 R2 symlinks — no copies)."""
@@ -547,6 +602,7 @@ class TestCompositorConfigsTasks:
         is baked into any task's module body OR into vars/main.yml."""
         safe_vars = (
             "compositor_configs_repo_root",
+            "compositor_configs_assets_configs_dir",
             "compositor_configs_xdg_config_home",
             "install_dir",
             "ansible_facts.env",
@@ -694,6 +750,9 @@ class TestBarValidateGate:
             home.mkdir()
             xdg.mkdir()
             install.mkdir()
+            # S2: the skeletons render FROM the pinned assets configs class; the
+            # gate failure below must come from icons.json, not a missing source.
+            _seed_assets_configs(install)
             (home / ".local" / "bin").mkdir(parents=True)
             icon_mappings = install / "icon-mappings"
             icon_mappings.mkdir(parents=True)
@@ -734,6 +793,8 @@ class TestBarValidateGate:
 class TestCompositorConfigsVars:
     _REQUIRED_KEYS = {
         "compositor_configs_repo_root",
+        "compositor_configs_assets_pinned_tag",
+        "compositor_configs_assets_configs_dir",
         "compositor_configs_xdg_config_home",
         "compositor_configs_xdg_state_home",
         "compositor_configs_state_current_dir",
@@ -767,8 +828,31 @@ class TestCompositorConfigsVars:
         )
 
     def test_repo_root_mirrors_assets_repo_root(self) -> None:
+        """The repo root is still the source of the bin scripts and desktop
+        entries (S2 moved only the skeletons to the pinned corpus)."""
         data = _vars()
         assert str(data["compositor_configs_repo_root"]) == "{{ playbook_dir }}/../../../.."
+
+    def test_configs_dir_is_the_pinned_assets_checkout(self) -> None:
+        """S2: the skeleton sources are the pinned assets configs class."""
+        data = _vars()
+        configs_dir = str(data["compositor_configs_assets_configs_dir"])
+        assert configs_dir == (
+            "{{ install_dir | trim }}/assets/"
+            "{{ compositor_configs_assets_pinned_tag }}/configs"
+        ), configs_dir
+        assert "dotfiles/config" not in configs_dir
+
+    def test_assets_pin_mirrors_the_assets_manifest(self) -> None:
+        """AD-6: the role's pin mirror equals `assets.tag` in the manifest."""
+        import yaml
+
+        data = _vars()
+        repo_root = _ANSIBLE_DIR.parents[2]
+        manifest = yaml.safe_load(
+            (repo_root / "dotfiles" / "provisioning" / "assets.yaml").read_text()
+        )
+        assert str(data["compositor_configs_assets_pinned_tag"]) == manifest["assets"]["tag"]
 
     def test_xdg_config_home_honors_xdg_and_defaults_to_home(self) -> None:
         """The copy destinations must resolve to the SAME location the filesystem
@@ -860,6 +944,8 @@ class TestCompositorConfigsPlaybook:
             home.mkdir()
             xdg.mkdir()
             install.mkdir()
+            # S2: the skeletons render FROM the pinned assets configs class.
+            _seed_assets_configs(install)
             # ansible's copy module does not create the bin dest parent.
             (home / ".local" / "bin").mkdir(parents=True)
             # Assets-role outputs this role consumes (inputs, not generated):
@@ -982,6 +1068,8 @@ class TestCompositorConfigsPlaybook:
             home.mkdir()
             xdg.mkdir()
             install.mkdir()
+            # S2: the skeletons render FROM the pinned assets configs class.
+            _seed_assets_configs(install)
             # ansible's copy module does not create the bin dest parent.
             (home / ".local" / "bin").mkdir(parents=True)
             # Assets-role outputs this role consumes (inputs, not generated).
@@ -1269,6 +1357,47 @@ class TestDeployCoverageGate:
             assert "path" in result.stdout and "config-assembler-engine" in (
                 result.stdout
             ), "the failure must name the path pin; recap:\n" + result.stdout
+
+    def test_gate_fails_when_the_retired_static_config_tree_returns(self) -> None:
+        """S2: the static config corpus (hypr, hyprpaper, nvim, rofi, starship)
+        moved to the pinned dotfiles-assets repo. A surviving in-tree dir is a
+        second, unowned source of truth that the roles no longer read — the gate
+        must FAIL even when every other shape is intact."""
+        repo_root = _ANSIBLE_DIR.parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._seed_root(root, repo_root)
+            stray = root / "dotfiles" / "config" / "hypr"
+            stray.mkdir(parents=True)
+            (stray / "hyprland.lua").write_text("-- stray copy\n")
+            result = self._run(root)
+            assert result.returncode != 0, (
+                "the gate must FAIL when a retired static config dir returns; "
+                f"recap:\n{result.stdout}"
+            )
+            assert "dotfiles/config/hypr" in result.stdout, (
+                "the failure must name the retired dir; recap:\n" + result.stdout
+            )
+
+    def test_gate_fails_when_the_copied_wlogout_layout_returns(self) -> None:
+        """S2: wlogout's DIRECTORY survives (it keeps style.css.tpl for S3), so
+        the guard keys on the copied FILE — `layout` must not come back."""
+        repo_root = _ANSIBLE_DIR.parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._seed_root(root, repo_root)
+            stray = root / "dotfiles" / "config" / "wlogout"
+            stray.mkdir(parents=True)
+            (stray / "style.css.tpl").write_text("x\n")
+            (stray / "layout").write_text("{}\n")
+            result = self._run(root)
+            assert result.returncode != 0, (
+                "the gate must FAIL when the copied wlogout layout returns; "
+                f"recap:\n{result.stdout}"
+            )
+            assert "dotfiles/config/wlogout/layout" in result.stdout, (
+                "the failure must name the copied file; recap:\n" + result.stdout
+            )
 
     def test_gate_fails_when_the_retired_oci_runtime_tree_returns(self) -> None:
         """cli-tools-repos S3: `oci-runtime` is consumed from its pinned repo

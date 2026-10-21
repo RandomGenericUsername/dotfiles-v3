@@ -45,7 +45,7 @@ _ENTRY_SCHEMAS: dict[ManifestKind, _EntrySchema] = {
     ),
     ManifestKind.FILESYSTEM: (frozenset({"name"}), frozenset({"name"})),
     ManifestKind.CONFIG_COPIES: (
-        frozenset({"name", "target", "version"}),
+        frozenset({"name", "target", "version", "files"}),
         frozenset({"name", "target"}),
     ),
     ManifestKind.CLI_TOOLS: (
@@ -243,6 +243,29 @@ def _validate_rich_kind(index: int, raw: dict[str, object], path: Path, kind: Ma
             ) from exc
     if kind is ManifestKind.CLI_TOOLS:
         _validate_cli_tools_addressing(index, raw, path)
+    if kind is ManifestKind.CONFIG_COPIES and "files" in raw:
+        # `files` narrows a config-copies entry to the named files of its source
+        # directory (S2: wlogout's `layout` is static config while its
+        # `style.css` is rendered, so the whole directory must not be copied).
+        # A bare file name is required: a path here would silently reach
+        # outside the entry's source directory.
+        files = raw["files"]
+        if not isinstance(files, list) or not files:
+            raise ManifestReadError(
+                f"manifest {path} entry {index} 'files' must be a non-empty list"
+            )
+        for file_name in files:
+            if not isinstance(file_name, str) or not file_name.strip():
+                raise ManifestReadError(
+                    f"manifest {path} entry {index} 'files' entries must be "
+                    f"non-empty strings"
+                )
+            if "/" in file_name or file_name in (".", ".."):
+                raise ManifestReadError(
+                    f"manifest {path} entry {index} 'files' entry {file_name!r} "
+                    f"must be a file name inside the entry's source directory, "
+                    f"not a path"
+                )
     for rich_key in ("target", "source"):
         if rich_key not in raw:
             continue

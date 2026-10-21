@@ -113,7 +113,7 @@ anonymously over HTTPS by tag (`openspec/changes/archive/2026-10-21-cli-tools-re
 | `icon-templates-renderer` | console `itr` (pure Python, no container mode) | `v0.2.0` (reports `contract 0.2.0`) | `{name, repo, tag}` manifest + role mirror + verify pin | same five |
 | `wallpaper-effects-generator` | console `weg` + `Dockerfile.imagemagick` + `image` verb | `v0.2.0` (reports `contract 0.2.0`) | same | same five + `image` |
 | `color-scheme-generator` | console `csg` + four Dockerfiles + template catalog + `image` verb | `v0.2.0` (reports `contract 0.2.0`) | same | same five + `image` |
-| `dotfiles-assets` | **data corpus** (no package, no console script): `icons/` (templates + one group map + vocabulary), `templates/`, `configs/`, `content/`, `desktop/` | `v0.2.0` — icons + content populated; `icons/schema.json` `schema_major: 1` | `assets:` block in `dotfiles/provisioning/assets.yaml` + role/verify mirrors; fetched once into `<install>/assets/<tag>/` | `validate validate-icons validate-content lint hermetic` |
+| `dotfiles-assets` | **data corpus** (no package, no console script): `icons/` (templates + one group map + vocabulary), `templates/`, `configs/`, `content/`, `desktop/` | `v0.3.1` — icons + content + configs populated; `icons/schema.json` `schema_major: 1` | `assets:` block in `dotfiles/provisioning/assets.yaml` + role/verify mirrors; fetched once into `<install>/assets/<tag>/` | `validate validate-icons validate-content lint hermetic` |
 
 **Two consumption shapes only** (`POST-MIGRATION.md` §2):
 
@@ -140,7 +140,7 @@ equals `0.2.0` (`roles/verify/vars/main.yml:221-272`).
 |---|---|---|
 | `src/runtime/` | `dotfiles-runtime`: hexagon (domain/ports/adapters/application/cli), daemon, clipboard watcher, cache/state | **live, authored here** |
 | `src/provisioning/` | `dotfiles-provision`: hexagon that drives Ansible + the `ansible/` tree (21 roles, 23 playbooks) | **live, authored here** |
-| `dotfiles/config/` | Inputs still authored here: hypr Lua, hyprpaper, nvim, starship, wlogout, zsh, btop, rofi | **live** (AGS subtree retired; icon mappings + corpus moved to `dotfiles-assets` in S1) |
+| `dotfiles/config/` | Inputs still authored here: `zsh/.zshrc.j2`, `wlogout/style.css.tpl` (S3 templates) and `btop/` (host state) | **live, shrinking** — the static corpus (hypr, hyprpaper, nvim, rofi, starship, wlogout/layout) moved to `dotfiles-assets` `configs/` in S2; the AGS subtree retired in slice 2; icons/content moved in S1 |
 | `dotfiles/provisioning/assets.yaml` | The assets pin (`repo`, `tag`, `classes`) — the corpus itself is `dotfiles-assets` | **live** (single source for the corpus pin) |
 | `dotfiles/applications/`, `dotfiles/scripts/` | `.desktop` files; `toggle-touchpad` | **live** |
 | `dotfiles/provisioning/` | Declarative manifests: `cli-tools.yaml`, `assets.yaml`, `config-copies.yaml`, `filesystem.yaml`, `packages.yaml` | **live** (single source for pins) |
@@ -242,10 +242,15 @@ asserts both carry `{{ item.tag }}` and that no literal tag appears in task code
 
 ### 6.5 assets, settings, verify
 
-- **assets** shallow-clones the **pinned corpus** `dotfiles-assets@v0.2.0` into
-  `<install>/assets/v0.2.0/`, drops the clone's `.git`, writes `<install>/assets/pinned`, and then
+- **assets** shallow-clones the **pinned corpus** `dotfiles-assets@v0.3.1` into
+  `<install>/assets/v0.3.1/`, drops the clone's `.git`, writes `<install>/assets/pinned`, and then
   copies `icons/templates` → `icon-templates/`, `icons/mappings` → `icon-mappings/`, and unpacks
-  `content/wallpapers/wallpapers.tar.gz` → `wallpapers/` from that checkout. csg templates come
+  `content/wallpapers/wallpapers.tar.gz` → `wallpapers/` from that checkout. S2: the two config
+  roles read the same checkout's `configs/` class — `compositor_configs` renders the 15 non-bar
+  skeletons (13 hypr Lua, hyprpaper.conf, rofi config.rasi) into `<install>/config/{hypr,
+  hyprpaper,rofi}/`, and `config_copies` copies `nvim/`, `starship/` and wlogout's `layout`
+  per file into `<install>/config/{nvim,starship,wlogout}/`. `hypr/hyprland.lua` carries one
+  render-time token (the module include dir); the other 14 pass through byte-identically. csg templates come
   from their own **pinned checkout**
   (`<install>/cli-tools/csg/<tag>/src/color_scheme_generator/defaults/templates`), and
   `config/weg/effects.yaml` is emitted via `weg dump-effects` (`roles/assets/vars/main.yml`). It
@@ -276,7 +281,9 @@ There are three hand-maintained copies of the same pin, by design:
 
 Plus per-consumer mirrors where a role cannot read the manifest: `assets_csg_pinned_tag`,
 `settings_weg_image_tag`, `btop_config_authored_themes_pinned_tag` (authored themes live in the
-assets checkout). A pin bump is therefore a multi-file edit, and the gate that proves it is
+assets checkout), `compositor_configs_assets_pinned_tag` and `config_copies_assets_pinned_tag`
+(the static config corpus reads `configs/` from the same checkout; both are parity-tested against
+`assets.tag`). A pin bump is therefore a multi-file edit, and the gate that proves it is
 `make deploy-coverage` (section 11, recipe (a)).
 
 ### 6.7 become vs user scope

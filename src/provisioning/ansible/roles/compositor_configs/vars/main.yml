@@ -9,20 +9,35 @@
 #
 # Mirror-and-adapt discipline (Epic 1 retro action item) — what differs from
 # each mirror:
-#   (a) vs 2.6 assets (copy + repo_root): 2.6 copies from
-#       the pinned assets checkout into the install spine; 2.9 copies from
-#       <repo>/dotfiles/config/{hypr,hyprpaper,ags}/ into the spine config
-#       dirs. `remote_src: true` + trailing-`/` src applies to the skeleton copies.
+#   (a) vs 2.6 assets (copy + pinned checkout): since S2 both roles read the SAME
+#       pinned `dotfiles-assets` checkout: 2.6 copies the asset kinds into the
+#       spine; 2.9 renders the static skeletons from its `configs/` class into
+#       the spine config dirs. No task reads a composition-repo tree for the
+#       skeleton set (the bin scripts and desktop entries are still repo
+#       content — S4 moves the desktop entries). `remote_src` is NOT set: the
+#       skeleton task uses `template`, which renders locally.
 #   (b) vs 2.5 filesystem (XDG config home): 2.5 CREATES the dirs; 2.9 COPIES
 #       into them. Share the exact XDG derivation — do not duplicate logic with
 #       a different result.
 
 # compositor_configs_repo_root: repo root derived from this playbook's
-#   location. The skeleton sources live at
-#   <repo>/dotfiles/config/{hypr,hyprpaper,ags}/, so
+#   location. Only the bin scripts and desktop entries still come from the repo
+#   (dotfiles/scripts/, dotfiles/applications/), so
 #   <repo> = {{ playbook_dir }}/../../../.. (mirror assets_repo_root /
 #   cli_tools_repo_root exactly).
 compositor_configs_repo_root: "{{ playbook_dir }}/../../../.."
+
+# compositor_configs_assets_pinned_tag / compositor_configs_assets_configs_dir:
+#   the S2 source of the static skeletons. The corpus is the PINNED
+#   dotfiles-assets repo (`configs/` class), which the assets role materialized
+#   at <install>/assets/<tag>/ BEFORE this role runs (bootstrap order:
+#   assets.yaml -> ags-platform -> ags-apps -> compositor-configs.yaml), so the
+#   checkout exists by the time the skeletons render. The pin is parity-locked
+#   to dotfiles/provisioning/assets.yaml `assets.tag` (AD-6/AD-11). Trim lock:
+#   the checkout path consumes the same validated {{ install_dir | trim }} value
+#   the fail-loud first-task assert enforces.
+compositor_configs_assets_pinned_tag: v0.3.1
+compositor_configs_assets_configs_dir: "{{ install_dir | trim }}/assets/{{ compositor_configs_assets_pinned_tag }}/configs"
 
 # compositor_configs_xdg_config_home: the target config home the filesystem
 #   role (2.5) used when creating the compositor config dirs. Identical
@@ -91,13 +106,18 @@ compositor_configs_config_dirs:
   # THROUGH that link (compositor_configs_capture_icon_manifest_dest).
   - "{{ compositor_configs_spine_config_dir }}/rofi"
   - "{{ compositor_configs_spine_config_dir }}/rofi/launcher"
-# compositor_configs_skeleton_files: the skeleton FILES authored by 2.8 (AC 2),
-#   one entry per file with the explicit target path. Per-file entries (not
-#   directory sources) are REQUIRED: `copy` with a directory `src` +
-#   `force: false` + a pre-existing dest dir is a silent no-op (review finding
-#   2026-08-12), so the role copies each file individually. The tasks render
-#   these via `ansible.builtin.template` with `force: true` (repo-authoritative
-#   per owner decision 2026-08-26).
+# compositor_configs_skeleton_files: the skeleton FILES (AC 2), one entry per
+#   file with the explicit target path. Per-file entries (not directory
+#   sources) are REQUIRED: `copy` with a directory `src` + `force: false` + a
+#   pre-existing dest dir is a silent no-op (review finding 2026-08-12), so the
+#   role places each file individually. Since S2 every `source` is an entry in
+#   the PINNED assets `configs/` class (the checkout the assets role
+#   materialized); every `dest` is unchanged from the pre-split layout. The
+#   task renders these via `ansible.builtin.template` with `force: true`
+#   (repo-authoritative per owner decision 2026-08-26) — `template`, not
+#   `copy`, because `hypr/hyprland.lua` carries one render-time path token
+#   (`{{ compositor_configs_xdg_config_home }}`); the other 14 files have no
+#   Jinja and pass through byte-identically.
 #
 #   NOTE: the bar is deliberately NOT enumerated here anymore. It used to be
 #   placed per file under ags/ (91 entries); the consumption step
@@ -108,21 +128,21 @@ compositor_configs_config_dirs:
 #   live bar from the pinned tag — so deploy-coverage FAILS on any
 #   dotfiles/config/ags/ source in this list.
 compositor_configs_skeleton_files:
-  - { name: hyprland-lua, source: dotfiles/config/hypr/hyprland.lua, dest: "{{ compositor_configs_spine_config_dir }}/hypr/hyprland.lua" }
-  - { name: keybindings-lua, source: dotfiles/config/hypr/keybindings.lua, dest: "{{ compositor_configs_spine_config_dir }}/hypr/keybindings.lua" }
-  - { name: gloview-lua, source: dotfiles/config/hypr/gloview.lua, dest: "{{ compositor_configs_spine_config_dir }}/hypr/gloview.lua" }
-  - { name: monitors-lua, source: dotfiles/config/hypr/monitors.lua, dest: "{{ compositor_configs_spine_config_dir }}/hypr/monitors.lua" }
-  - { name: general-lua, source: dotfiles/config/hypr/general.lua, dest: "{{ compositor_configs_spine_config_dir }}/hypr/general.lua" }
-  - { name: autostart-lua, source: dotfiles/config/hypr/autostart.lua, dest: "{{ compositor_configs_spine_config_dir }}/hypr/autostart.lua" }
-  - { name: window-rules-lua, source: dotfiles/config/hypr/window-rules.lua, dest: "{{ compositor_configs_spine_config_dir }}/hypr/window-rules.lua" }
-  - { name: animations-lua, source: dotfiles/config/hypr/animations.lua, dest: "{{ compositor_configs_spine_config_dir }}/hypr/animations.lua" }
-  - { name: input-lua, source: dotfiles/config/hypr/input.lua, dest: "{{ compositor_configs_spine_config_dir }}/hypr/input.lua" }
-  - { name: decoration-lua, source: dotfiles/config/hypr/decoration.lua, dest: "{{ compositor_configs_spine_config_dir }}/hypr/decoration.lua" }
-  - { name: colors-lua, source: dotfiles/config/hypr/colors.lua, dest: "{{ compositor_configs_spine_config_dir }}/hypr/colors.lua" }
-  - { name: cursor-lua, source: dotfiles/config/hypr/cursor.lua, dest: "{{ compositor_configs_spine_config_dir }}/hypr/cursor.lua" }
-  - { name: env-variables-lua, source: dotfiles/config/hypr/env-variables.lua, dest: "{{ compositor_configs_spine_config_dir }}/hypr/env-variables.lua" }
-  - { name: hyprpaper-conf, source: dotfiles/config/hyprpaper/hyprpaper.conf, dest: "{{ compositor_configs_spine_config_dir }}/hyprpaper/hyprpaper.conf" }
-  - { name: rofi-launcher-config-rasi, source: dotfiles/config/rofi/launcher/config.rasi, dest: "{{ compositor_configs_spine_config_dir }}/rofi/launcher/config.rasi" }
+  - { name: hyprland-lua, source: "{{ compositor_configs_assets_configs_dir }}/hypr/hyprland.lua", dest: "{{ compositor_configs_spine_config_dir }}/hypr/hyprland.lua" }
+  - { name: keybindings-lua, source: "{{ compositor_configs_assets_configs_dir }}/hypr/keybindings.lua", dest: "{{ compositor_configs_spine_config_dir }}/hypr/keybindings.lua" }
+  - { name: gloview-lua, source: "{{ compositor_configs_assets_configs_dir }}/hypr/gloview.lua", dest: "{{ compositor_configs_spine_config_dir }}/hypr/gloview.lua" }
+  - { name: monitors-lua, source: "{{ compositor_configs_assets_configs_dir }}/hypr/monitors.lua", dest: "{{ compositor_configs_spine_config_dir }}/hypr/monitors.lua" }
+  - { name: general-lua, source: "{{ compositor_configs_assets_configs_dir }}/hypr/general.lua", dest: "{{ compositor_configs_spine_config_dir }}/hypr/general.lua" }
+  - { name: autostart-lua, source: "{{ compositor_configs_assets_configs_dir }}/hypr/autostart.lua", dest: "{{ compositor_configs_spine_config_dir }}/hypr/autostart.lua" }
+  - { name: window-rules-lua, source: "{{ compositor_configs_assets_configs_dir }}/hypr/window-rules.lua", dest: "{{ compositor_configs_spine_config_dir }}/hypr/window-rules.lua" }
+  - { name: animations-lua, source: "{{ compositor_configs_assets_configs_dir }}/hypr/animations.lua", dest: "{{ compositor_configs_spine_config_dir }}/hypr/animations.lua" }
+  - { name: input-lua, source: "{{ compositor_configs_assets_configs_dir }}/hypr/input.lua", dest: "{{ compositor_configs_spine_config_dir }}/hypr/input.lua" }
+  - { name: decoration-lua, source: "{{ compositor_configs_assets_configs_dir }}/hypr/decoration.lua", dest: "{{ compositor_configs_spine_config_dir }}/hypr/decoration.lua" }
+  - { name: colors-lua, source: "{{ compositor_configs_assets_configs_dir }}/hypr/colors.lua", dest: "{{ compositor_configs_spine_config_dir }}/hypr/colors.lua" }
+  - { name: cursor-lua, source: "{{ compositor_configs_assets_configs_dir }}/hypr/cursor.lua", dest: "{{ compositor_configs_spine_config_dir }}/hypr/cursor.lua" }
+  - { name: env-variables-lua, source: "{{ compositor_configs_assets_configs_dir }}/hypr/env-variables.lua", dest: "{{ compositor_configs_spine_config_dir }}/hypr/env-variables.lua" }
+  - { name: hyprpaper-conf, source: "{{ compositor_configs_assets_configs_dir }}/hyprpaper/hyprpaper.conf", dest: "{{ compositor_configs_spine_config_dir }}/hyprpaper/hyprpaper.conf" }
+  - { name: rofi-launcher-config-rasi, source: "{{ compositor_configs_assets_configs_dir }}/rofi/launcher/config.rasi", dest: "{{ compositor_configs_spine_config_dir }}/rofi/launcher/config.rasi" }
 
 # compositor_configs_bin_scripts: executable desktop helpers the XF86 binds in
 #   keybindings.lua call (deployed to the user's XDG bin dir, 0755). These are

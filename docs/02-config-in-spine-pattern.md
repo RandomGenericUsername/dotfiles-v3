@@ -53,13 +53,13 @@ mechanism.
 ```
 $XDG_DATA_HOME/dotfiles/                          ← install target
 ├── config/                                       ← ALL managed configs
-│   ├── hypr/                    hyprland.conf + colors.conf (fragment)
+│   ├── hypr/                    13 Lua modules (12 static + hyprland.lua's one rendered path)
 │   ├── ags/                     app.tsx, style.css + colors.css (fragment)
 │   ├── hyprpaper/               hyprpaper.conf
-│   ├── nvim/                    (repo dotfiles/config/nvim copy)
+│   ├── nvim/                    (pinned dotfiles-assets configs/nvim copy)
 │   ├── starship/                starship.toml
-│   ├── wlogout/                 layout, style.css.tpl
-│   ├── zsh/                     .zshrc.j2 (the legacy .zshrc was user-placed, not managed)
+│   ├── wlogout/                 layout (copied from the corpus) + style.css (RENDERED)
+│   ├── zsh/                     .zshrc (RENDERED from .zshrc.j2; the .j2 itself is not deployed)
 │   ├── color-scheme-generator/  settings.toml + templates/
 │   ├── weg/                     settings.toml + effects.yaml
 │   └── itr/                     settings.toml
@@ -68,6 +68,14 @@ $XDG_DATA_HOME/dotfiles/                          ← install target
 └── (removed) csg-templates/  →  config/color-scheme-generator/templates/
 └── (removed) weg-effects.yaml →  config/weg/effects.yaml
 ```
+
+**Where the static config files come from (S2).** `hypr/`, `hyprpaper/`, `rofi/`, `nvim/`,
+`starship/` and wlogout's `layout` are copied or rendered FROM the pinned `dotfiles-assets`
+checkout (`<install>/assets/<tag>/configs/`, class `configs`), never from this repo. They are
+byte-identical to the files this repo used to carry; the pin is `assets.tag` and each role
+mirrors it (`compositor_configs_assets_pinned_tag`, `config_copies_assets_pinned_tag`). Only the
+Jinja sources (`.zshrc.j2`, `style.css.tpl`) stay in the repo until S3 moves them to the
+corpus's `templates/` class.
 
 ## Symlink mapping (machine side)
 
@@ -188,8 +196,8 @@ resolves the conflict via the move-aside and creates the link.
 |---|---|
 | **filesystem** | creates `<install>/config/` and the tool subdirs (was: XDG dirs only) |
 | **assets** | WEG effects → `config/weg/effects.yaml`; CSG templates → `config/color-scheme-generator/templates/` (was `<install>/weg-effects.yaml`, `<install>/csg-templates/`) |
-| **compositor_configs** | writes skeletons/fragments into `spine/config/{hypr,ags,hyprpaper}/` (was `~/.config/...`) |
-| **config_copies** | copies repo dirs → `spine/config/{nvim,starship,wlogout,zsh}/` (was `~/.config/...`) |
+| **compositor_configs** | renders the pinned corpus's 15 non-bar skeletons into `spine/config/{hypr,hyprpaper,rofi}/` (was: repo skeleton copies into `~/.config/...`; the corpus is `dotfiles-assets` `configs/` since S2) |
+| **config_copies** | copies the pinned corpus's `configs/` class → `spine/config/{nvim,starship,wlogout}/` (was: repo dirs into `~/.config/...`; `zsh` left the set in S2 — zsh_config renders `.zshrc` from the template source) |
 | **settings** | renders → `spine/config/{color-scheme-generator,weg,itr}/settings.toml` (was `~/.config/...`); CSG `default_formats = []` (interactive = all catalog formats) |
 | **default_palette** | `--templates-dir <install>/config/color-scheme-generator/templates` |
 | **config_links (NEW)** | backup guard + symlink step for all managed dirs |

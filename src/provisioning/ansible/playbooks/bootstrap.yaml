@@ -15,7 +15,7 @@
 # (/usr/lib/gloview.so) is installed. Loading needs no provisioning step —
 # the plugin loads at the first Hyprland login via gloview-activate, which
 # backs the provision-owned touchpad gestures
-# (dotfiles/config/hypr/{input,gloview}.lua).
+# (the pinned assets configs/hypr/{input,gloview}.lua).
 # icons roles — the runtime-seed step (`dotfiles-runtime wallpaper set
 # <install>/wallpapers/default.png`) is the single producer of generated
 # artifacts (cache entries, current.json, current/ + R2 consumer symlinks).

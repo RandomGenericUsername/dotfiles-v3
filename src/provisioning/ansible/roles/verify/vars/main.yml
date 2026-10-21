@@ -127,7 +127,7 @@ verify_install_spine_dirs:
 #   that the pin FILE equals this tag, so this slice only asserts presence.
 verify_assets_dir: "{{ install_dir | trim }}/assets"
 verify_assets_pinned_file: "{{ verify_assets_dir }}/pinned"
-verify_assets_pinned_tag: v0.2.0
+verify_assets_pinned_tag: v0.3.1
 verify_assets_tag_dir: "{{ verify_assets_dir }}/{{ verify_assets_pinned_tag }}"
 verify_assets_class_dirs:
   - "{{ verify_assets_tag_dir }}/icons"
@@ -135,6 +135,21 @@ verify_assets_class_dirs:
   - "{{ verify_assets_tag_dir }}/configs"
   - "{{ verify_assets_tag_dir }}/content"
   - "{{ verify_assets_tag_dir }}/desktop"
+
+# verify_assets_configs_dirs: the configs SUBDIRECTORIES inside the pinned
+#   checkout (S2). compositor_configs and config_copies copy FROM this tree, so
+#   a class dir that exists but is empty (a wrong or partial tag) would deploy
+#   nothing silently — the class-dir check above only proves `configs/` exists.
+#   Locked offline to the config roles' registered sources by
+#   TestVerifyVars.test_assets_configs_dirs_are_the_config_role_sources (the
+#   catalog itself lives in the pinned repo, not in this checkout).
+verify_assets_configs_dirs:
+  - "{{ verify_assets_tag_dir }}/configs/hypr"
+  - "{{ verify_assets_tag_dir }}/configs/hyprpaper"
+  - "{{ verify_assets_tag_dir }}/configs/nvim"
+  - "{{ verify_assets_tag_dir }}/configs/rofi"
+  - "{{ verify_assets_tag_dir }}/configs/starship"
+  - "{{ verify_assets_tag_dir }}/configs/wlogout"
 
 # verify_install_spine_files: the file node(s) that must exist IN the spine
 #   (criterion 1 + 4). weg-effects.yaml is a FILE emitted by the assets role
@@ -823,7 +838,7 @@ verify_gui_tools_app_files: []
 #   WITHOUT following (islnk + raw target contains /current/) so a stale
 #   provisioning COPY fails the gate. <install>/config/hypr/colors.conf
 #   is deliberately absent (nothing sources it — verified: no reference
-#   under dotfiles/config/hypr/*.lua).
+#   under the assets configs/hypr/*.lua).
 verify_consumer_symlinks:
   - "{{ install_dir | trim }}/config/ags/colors.css"
 
@@ -833,11 +848,15 @@ verify_consumer_symlinks:
 #   (created by the config-links role) — the 5-layer symlink check applies:
 #   islnk AND exact-target AND resolves AND content-through-link. The test locks
 #   parity with dotfiles/provisioning/config-copies.yaml.
+#   S2: `zsh` left the copy set (its only file was a Jinja template the copy
+#   deposited where nothing read it — zsh_config renders .zshrc from the
+#   template source). The zsh spine dir + symlink stay managed and are asserted
+#   by verify_install_spine_dirs / verify_managed_link_dirs; its CONTENT is
+#   still asserted below through the same ~/.config/zsh link.
 verify_config_copies_targets:
   - nvim
   - starship
   - wlogout
-  - zsh
 
 # verify_config_copy_content: a representative CONTENT FILE inside each config
 #   copy (criterion 9, layer 4 — content-through-link). Verified through the
@@ -845,8 +864,10 @@ verify_config_copies_targets:
 #   though the link itself is valid.
 #   NOTE: zsh's managed content is the RENDERED .zshrc (the zsh_config role
 #   renders .zshrc.j2 → .zshrc; the .j2 is the source template, not runtime
-#   config). wlogout's managed content is the RENDERED style.css (wlogout_config
-#   renders style.css.tpl → style.css).
+#   config). It stays asserted here even though zsh is no longer a config_copies
+#   entry (S2): the file must exist through the symlink whichever role wrote it.
+#   wlogout's managed content is `layout` (copied, configs class) and the
+#   RENDERED style.css (wlogout_config renders style.css.tpl → style.css).
 verify_config_copy_content:
   - "{{ verify_xdg_config_home }}/nvim/init.lua"
   - "{{ verify_xdg_config_home }}/starship/starship.toml"

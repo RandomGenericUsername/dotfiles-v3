@@ -1,16 +1,34 @@
-# Config copies role (Story 2.10, pivot 2026-08-12, config-in-spine 2026-08-16)
-# — COPIES the repo's EXISTING config dirs (dotfiles/config/{nvim,starship,
-# wlogout,zsh}) into the config-in-spine home <install>/config/ (FR-20,
+# Config copies role (Story 2.10, pivot 2026-08-12, config-in-spine 2026-08-16;
+# pinned corpus since S2) — copies the static config corpus from the PINNED
+# assets checkout into the config-in-spine home <install>/config/ (FR-20,
 # chaining-spine.md). The config-links role then symlinks each
 # ~/.config/<target> -> <install>/config/<target>, so the machine sees them at
-# their native XDG locations while the spine is the single home. The copy set
-# is mirrored from dotfiles/provisioning/config-copies.yaml (Story 2.1) via the
+# their native XDG locations while the spine is the single home. The copy set is
+# mirrored from dotfiles/provisioning/config-copies.yaml (Story 2.1) via the
 # config_copies_entries var; a structural parity test locks them together.
+#
+# S2: the sources are `<install>/assets/<tag>/configs/<name>` — the checkout the
+# assets role materialized BEFORE this role runs (bootstrap order) — never a
+# composition-repo tree. The pin is `config_copies_assets_pinned_tag`, parity-
+# locked to the assets manifest.
+#
+# wlogout is PER FILE (entry `files: [layout]`): `layout` is static config, while
+# `style.css` is RENDERED by the wlogout_config role from the assets `templates`
+# class (S3). The destination file set is `target/<file>`, so the directory copy
+# and the per-file copy are two tasks over the same entry list — the entries
+# without `files` copy their directory, the entries with `files` copy exactly
+# those files. Both dests are unchanged from the pre-split layout.
+#
+# zsh is NOT in the copy set (S2): its only in-repo file was `.zshrc.j2`, a
+# template the role copied verbatim into the spine where nothing read it — the
+# zsh_config role renders `.zshrc` from the template source. The entry was
+# redundant and is retired rather than pointed at a path the corpus does not
+# have; zsh_config creates <install>/config/zsh and renders into it.
 #
 # Runtime independence (pivot): configs are COPIED into the spine, not
 # symlinked to the repo — nothing references the repo at runtime, so the
-# machine keeps working after the repo is deleted. The repo is only ever the
-# SOURCE for a provision run.
+# machine keeps working after the repo is deleted. The pinned checkout is only
+# ever the SOURCE for a provision run.
 #
 # Design (locked in Story 2.10 Dev Notes, updated for config-in-spine):
 # - install_dir seam assert: this role now CONSUMES install_dir (its targets
@@ -20,14 +38,21 @@
 # - A non-empty guard on config_copies_entries: all count asserts derive from
 #   `config_copies_entries | length`, so an empty list would make every guard
 #   vacuously pass (0 == 0) and silently disable the role — the assert makes a
-#   manifest desync / runtime override fail loudly.
+#   manifest desync / runtime override fail loudly. The per-file-shape guard
+#   pins the wlogout split the same way.
 # - AC 3 "broken or missing targets are reported as failures" is made concrete
-#   by three independent guards:
-#     1. Missing/non-directory repo source — the ungated source stat+assert
-#        (fails the run before any copy): checks `stat.exists` AND `stat.isdir`
-#        so a regular file at a source path is caught, not silently copied.
-#     2. The `copy` module fails loudly on an unreadable/missing source.
-#     3. Missing or non-directory dest in the SPINE after apply — the resolve
+#   by four independent guards:
+#     1. Missing pinned configs class dir — the ungated stat + the assert (real
+#        runs only: a fresh --check has no checkout yet) name the checkout and
+#        the pin, so a missing or mis-pinned assets checkout cannot silently
+#        deploy nothing.
+#     2. Missing/non-directory source dir, or missing/non-regular source file —
+#        the two stat+assert pairs (they check `stat.isdir` / `stat.isreg`, so a
+#        regular file at a source-dir path — or a directory at a source-file
+#        path — is caught, not silently copied). The stats are ungated probes;
+#        the asserts are real-run-only for the same reason as (1).
+#     3. The `copy` module fails loudly on an unreadable/missing source.
+#     4. Missing or non-directory dest in the SPINE after apply — the resolve
 #        stat+assert, gated `when: not ansible_check_mode` (dests are absent on
 #        a fresh target under --check). The stat uses `follow: false` and
 #        asserts `stat.isdir`: a real copied directory reports isdir: true,
@@ -42,7 +67,9 @@
 #   (review finding 2026-08-12, mirrored from 2.9). Idempotency comes from
 #   copy's checksums: unchanged content reports ok / changed: false. Ansible is
 #   the state authority (NFR-1): a changed source propagates on the next apply.
-#   NO `creates:` — a gate would freeze a stale copy.
+#   NO `creates:` — a gate would freeze a stale copy. Per-file copies use the
+#   same module, `remote_src: true`, a src WITHOUT a trailing slash (a file),
+#   and a dest that names the file.
 # - Don't-clobber tripwire (Story 1.12): a dir-copy cannot skip individual
 #   files and excluding a whole dir would freeze a stale copy, so before the
 #   copy an UNGATED `find` scan (file_type: link, recurse: true) looks for
@@ -52,15 +79,20 @@
 #   paths only), so any hit is drift that the recursive copy would clobber.
 #   The runtime consumer targets compositor_configs paths; this tripwire is
 #   the invariant guard for the dirs it does NOT manage.
-# - The copy task needs NO `when: not ansible_check_mode` gate: the copy module
-#   has FULL check-mode support (predicts changed, writes nothing) — verified
-#   against ansible-core 2.20.3.
+# - The copy tasks need no check-mode gate for MUTATION (copy has full
+#   check-mode support — verified against ansible-core 2.20.3); they carry only
+#   the SOURCE-availability escape `not ansible_check_mode or <pinned class
+#   dir>`: on a machine that has never fetched the corpus the assets role's
+#   clone is check-gated, so the checkout is absent and there is nothing to
+#   copy. A real run reaches the assert first and fails loud; a provisioned
+#   machine still predicts every change.
 # - copy does NOT create dest parents for the top-level dest dir — the target
 #   dirs are re-ensured first (mirror of the 2.6/2.9 "Ensure ... dirs exist"
 #   pattern) so a direct config-copies.yaml run is self-contained.
 # - User-scoped privilege context: NO become/become_user anywhere (mirror of
 #   2.5-2.9).
-# - No absolute repo paths: every source is {{ config_copies_repo_root }}/...
+# - No composition-repo paths: every source is
+#   {{ config_copies_assets_configs_dir }}/... (the pinned checkout).
 
 - name: Assert install_dir seam is provided
   ansible.builtin.assert:
@@ -86,21 +118,72 @@
       override silently disabled the role; nothing would be copied and every
       count assert would vacuously pass
 
-- name: Check repo config sources exist
+- name: Assert the per-file copy shape is exercised
+  ansible.builtin.assert:
+    that: config_copies_entries | selectattr('files', 'defined') | list | length > 0
+    fail_msg: >-
+      no config-copies entry carries `files` — the wlogout entry must be
+      per-file (layout only): its style.css is RENDERED by wlogout_config, so a
+      directory copy would carry both halves of the static/template split
+
+- name: Check the pinned configs class directory exists
   ansible.builtin.stat:
-    path: "{{ config_copies_repo_root }}/dotfiles/config/{{ item.name }}"
+    path: "{{ config_copies_assets_configs_dir }}"
     follow: true
-  loop: "{{ config_copies_entries }}"
+  register: config_copies_assets_configs_check
+
+- name: Assert the pinned configs class directory is present
+  ansible.builtin.assert:
+    that: config_copies_assets_configs_check.stat.isdir | default(false)
+    fail_msg: >-
+      the pinned assets configs class is missing at
+      {{ config_copies_assets_configs_dir }} — the assets role clones
+      dotfiles-assets at {{ config_copies_assets_pinned_tag }} before this role
+      runs, so a missing checkout means the pin is wrong or the clone failed;
+      copying from a missing source would silently deploy nothing
+  when: not ansible_check_mode
+
+- name: Check directory config sources exist in the pinned corpus
+  ansible.builtin.stat:
+    path: "{{ config_copies_assets_configs_dir }}/{{ item.name }}"
+    follow: true
+  loop: "{{ config_copies_entries | rejectattr('files', 'defined') | list }}"
   register: config_copies_source_check
 
-- name: Assert repo config sources are present and are directories
+- name: Assert directory config sources are present and are directories
   ansible.builtin.assert:
-    that: config_copies_source_check.results | selectattr('stat.exists') | selectattr('stat.isdir') | list | length == config_copies_entries | length
+    that: >-
+      config_copies_source_check.results | selectattr('stat.exists')
+      | selectattr('stat.isdir') | list | length
+      == config_copies_entries | rejectattr('files', 'defined') | list | length
     fail_msg: >-
-      one or more config sources missing or not a directory under
-      {{ config_copies_repo_root }}/dotfiles/config/ (expected a directory per
-      entry in dotfiles/provisioning/config-copies.yaml) — the repo config tree
-      is incomplete; refusing to place partial configs
+      one or more directory config sources are missing or not a directory under
+      {{ config_copies_assets_configs_dir }} (expected a directory per entry
+      without `files` in dotfiles/provisioning/config-copies.yaml) — the pinned
+      corpus is incomplete; refusing to place partial configs
+  when: not ansible_check_mode
+
+- name: Check per-file config sources exist in the pinned corpus
+  ansible.builtin.stat:
+    path: "{{ config_copies_assets_configs_dir }}/{{ item.0.name }}/{{ item.1 }}"
+    follow: true
+  loop: "{{ config_copies_entries | selectattr('files', 'defined') | list | subelements('files') }}"
+  loop_control:
+    label: "{{ item.0.name }}/{{ item.1 }}"
+  register: config_copies_file_source_check
+
+- name: Assert per-file config sources are present and are regular files
+  ansible.builtin.assert:
+    that: >-
+      config_copies_file_source_check.results | selectattr('stat.isreg') | list | length
+      == config_copies_entries | selectattr('files', 'defined') | list
+         | map(attribute='files') | map('length') | sum
+    fail_msg: >-
+      one or more per-file config sources are missing or not a regular file
+      under {{ config_copies_assets_configs_dir }} (expected every `files`
+      entry in dotfiles/provisioning/config-copies.yaml to resolve) — the
+      pinned corpus is incomplete; refusing to place partial configs
+  when: not ansible_check_mode
 
 - name: Ensure config-in-spine config dir exists
   ansible.builtin.file:
@@ -133,12 +216,27 @@
       target compositor_configs paths only; investigate before re-applying.
   when: not ansible_check_mode
 
-- name: Copy configs into the config-in-spine home
+- name: Copy config directories into the config-in-spine home
   ansible.builtin.copy:
-    src: "{{ config_copies_repo_root }}/dotfiles/config/{{ item.name }}/"
+    src: "{{ config_copies_assets_configs_dir }}/{{ item.name }}/"
     dest: "{{ config_copies_spine_config_dir }}/{{ item.target }}/"
     remote_src: true
-  loop: "{{ config_copies_entries }}"
+  loop: "{{ config_copies_entries | rejectattr('files', 'defined') | list }}"
+  # --check on a machine that has never fetched the corpus: the checkout is
+  # absent (the assets role's clone is check-gated), so there is nothing to
+  # copy. Skip rather than fail the dry run; a REAL run reaches the assert
+  # above first. A provisioned machine still predicts every change.
+  when: not ansible_check_mode or config_copies_assets_configs_check.stat.isdir | default(false)
+
+- name: Copy per-file config entries into the config-in-spine home
+  ansible.builtin.copy:
+    src: "{{ config_copies_assets_configs_dir }}/{{ item.0.name }}/{{ item.1 }}"
+    dest: "{{ config_copies_spine_config_dir }}/{{ item.0.target }}/{{ item.1 }}"
+    remote_src: true
+  loop: "{{ config_copies_entries | selectattr('files', 'defined') | list | subelements('files') }}"
+  loop_control:
+    label: "{{ item.0.name }}/{{ item.1 }}"
+  when: not ansible_check_mode or config_copies_assets_configs_check.stat.isdir | default(false)
 
 - name: Check config copies are real directories in the spine
   ansible.builtin.stat:

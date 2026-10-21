@@ -312,6 +312,22 @@ RETIRED_SHARED_LIBS_DIR = "src/shared"
 CLI_TOOLS_MANIFEST = "dotfiles/provisioning/cli-tools.yaml"
 RETIRED_ASSETS_DIR = "dotfiles/assets"
 RETIRED_ICON_MAPPINGS_DIR = "dotfiles/config/icon-template-color-scheme-mappings"
+
+# S2: the static config corpus moved to the pinned `dotfiles-assets` repo
+# (configs/ class, v0.3.x). These five directories are gone; wlogout is NOT in
+# the list because its Jinja source (style.css.tpl) is still authored here until
+# S3 renders from the assets templates class — so the guard rejects the COPIED
+# file (layout), not the directory. The byte contract is proven before the
+# deletion; from here on a surviving copy is a second, unowned source of truth
+# that no role reads.
+RETIRED_STATIC_CONFIG_DIRS = (
+    "dotfiles/config/hypr",
+    "dotfiles/config/hyprpaper",
+    "dotfiles/config/nvim",
+    "dotfiles/config/rofi",
+    "dotfiles/config/starship",
+)
+RETIRED_STATIC_CONFIG_FILES = ("dotfiles/config/wlogout/layout",)
 CLI_TOOLS_ROLE_VARS = "src/provisioning/ansible/roles/cli_tools/vars/main.yml"
 ITR_NAME = "itr"
 RETIRED_ITR_DIR = "src/cli-tools/icon-templates-renderer"
@@ -1789,6 +1805,39 @@ def assert_no_assets_corpus(root: Path) -> None:
             )
 
 
+def assert_no_in_tree_static_configs(root: Path) -> None:
+    """S2 (AD-16): the static config corpus is not authored here.
+
+    `dotfiles/config/{hypr,hyprpaper,nvim,rofi,starship}/` and
+    `dotfiles/config/wlogout/layout` (25 files) now ship in the pinned
+    `dotfiles-assets` repo (v0.3.x, `configs/` class); the compositor_configs and
+    config_copies roles read `<install>/assets/<tag>/configs/`. A leftover copy
+    would be a second, unowned source of truth — exactly the drift the pin exists
+    to prevent — so its return fails this gate.
+
+    `dotfiles/config/wlogout/` itself is deliberately NOT retired: it keeps
+    `style.css.tpl`, the Jinja source S3 renders from the assets `templates`
+    class. The guard therefore rejects the copied file (`layout`), not the
+    directory.
+    """
+    for retired in RETIRED_STATIC_CONFIG_DIRS:
+        if (root / retired).exists():
+            raise ValueError(
+                f"the retired static config tree {retired}/ still exists — the "
+                f"static config corpus is the pinned dotfiles-assets repo "
+                f"(configs class, S2/AD-6); delete the in-tree copy and bump the "
+                f"pin instead"
+            )
+    for retired in RETIRED_STATIC_CONFIG_FILES:
+        if (root / retired).exists():
+            raise ValueError(
+                f"the retired static config file {retired} still exists — the "
+                f"copied config corpus is the pinned dotfiles-assets repo "
+                f"(configs class, S2/AD-6); only the Jinja sources stay in-tree "
+                f"until S3"
+            )
+
+
 def assert_manifest_source_scope(root: Path) -> None:
     """The CLI manifest has exactly ONE local `source:` — `dotfiles-runtime`.
 
@@ -1957,6 +2006,10 @@ def main() -> int:
         # S1 (AD-16 catch-all): the icons/content corpus lives in the pinned
         # `dotfiles-assets` repo; the in-tree sources are retired.
         assert_no_assets_corpus(root)
+        # S2 (AD-16): the static config corpus moved to the same pin (configs
+        # class); the five tool dirs and wlogout's copied `layout` are retired,
+        # while wlogout's Jinja source stays until S3.
+        assert_no_in_tree_static_configs(root)
     except (RuntimeError, ValueError, FileNotFoundError) as exc:
         print(f"FAIL: {exc}")
         return 1
@@ -2049,6 +2102,12 @@ def main() -> int:
         f"checkout; its base + backend images are tagged with the pin via "
         f"{CONTAINER_IMAGE_TAG_ENV_KEY} (never `latest`) — the in-tree tree is "
         f"retired"
+    )
+    print(
+        "deploy-coverage: PASS -- the static config corpus (hypr, hyprpaper, "
+        "nvim, rofi, starship + wlogout/layout) is the pinned dotfiles-assets "
+        "configs class; the in-tree copies are retired and wlogout keeps only "
+        "its S3 template source"
     )
     print(
         f"deploy-coverage: PASS -- six packages are consumed from their pinned "

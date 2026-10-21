@@ -1,6 +1,8 @@
 # Compositor configs role (Story 2.9 / AGS-for-Waybar swap 2026-08-18,
-# Epic 4 single-source) — places the static skeletons from
-# dotfiles/config/{hypr,hyprpaper,rofi}/ into the config-in-spine dirs.
+# Epic 4 single-source; pinned corpus since S2) — renders the static skeletons
+# from the PINNED assets `configs/` class (`<install>/assets/<tag>/configs/
+# {hypr,hyprpaper,rofi}/`, the checkout the assets role materialized) into the
+# config-in-spine dirs.
 # The AGS bar is NOT placed here: the `ags_apps` role installs it as ONE
 # versioned unit and deploys it as the live <install>/config/ags symlink
 # (ags-apps-bar-first slice 2, AD-17). This role still GENERATES the bar's
@@ -26,15 +28,23 @@
 #   2026-08-12 proved `copy` with a directory `src` + `force: false` + a
 #   pre-existing dest dir is a SILENT NO-OP (nothing is ever placed). Per-file
 #   copy is the only shape where force: false means "transfer if absent".
+#   `template` (not `copy`) because `hypr/hyprland.lua` carries one render-time
+#   token — the module include dir, resolved from the host's XDG config home.
+#   The other 14 skeletons have no Jinja and render byte-identically.
+# - S2: the skeleton sources are the PINNED assets corpus
+#   (compositor_configs_assets_configs_dir), so a stat+assert on the pinned
+#   `configs/` class runs before the placements: a missing or mis-pinned
+#   checkout must fail loud and named, not per-file with "Could not find".
 # - template module check-mode support is FULL (action plugin predicts changed
 #   without writing) — the skeleton placements need NO `not ansible_check_mode`
 #   gate.
 # - The icon-manifest generation (icons.yaml → icons.json) stays: it converts
 #   authored INPUTS (icon-mappings), not generated output.
 # - User-scoped privilege context: NO become/become_user anywhere.
-# - No absolute repo paths: every source is {{ compositor_configs_repo_root }}/...
-#   fragment ordering/verify guarantee is owned by 2.9 + 2.12 + 3.2/3.3; the
-#   deferred "default colors fallback" is a Phase 2 concern, NOT added here.
+# - No absolute repo paths: the bin scripts and desktop entries are
+#   {{ compositor_configs_repo_root }}/... ; the skeleton sources are absolute
+#   paths into the pinned checkout ({{ compositor_configs_assets_configs_dir }}).
+#   The deferred "default colors fallback" is a Phase 2 concern, NOT added here.
 # - Don't-clobber guard (Story 1.12, RETIRED in Epic 4): the guard used to
 #   protect runtime R2 symlinks from fragment-copy overwrites. The fragment
 #   copies are deleted (rt-4-1) and the R2 symlinks are created by the
@@ -48,8 +58,6 @@
 #   manifest — the five manifests are locked in Story 2.1; the compositor
 #   content contract lives in the skeleton files (2.8)
 #   and is locked by the structural test.
-# - User-scoped privilege context: NO become/become_user anywhere.
-# - No absolute repo paths: every source is {{ compositor_configs_repo_root }}/...
 
 - name: Assert install_dir seam is provided
   ansible.builtin.assert:
@@ -104,12 +112,34 @@
     mode: "0644"
   when: not ansible_check_mode
 
+- name: Check the pinned assets configs class exists
+  ansible.builtin.stat:
+    path: "{{ compositor_configs_assets_configs_dir }}"
+  register: compositor_configs_assets_configs_check
+
+- name: Assert the pinned assets configs class is present
+  ansible.builtin.assert:
+    that: compositor_configs_assets_configs_check.stat.isdir | default(false)
+    fail_msg: >-
+      the pinned assets configs class is missing at
+      {{ compositor_configs_assets_configs_dir }} — the assets role clones
+      dotfiles-assets at {{ compositor_configs_assets_pinned_tag }} before this
+      role runs (bootstrap order), so a missing checkout means the pin is wrong
+      or the clone failed; rendering from a missing source would deploy nothing
+  when: not ansible_check_mode
+
 - name: Place compositor skeleton files
   ansible.builtin.template:
-    src: "{{ compositor_configs_repo_root }}/{{ item.source }}"
+    src: "{{ item.source }}"
     dest: "{{ item.dest }}"
     force: true
   loop: "{{ compositor_configs_skeleton_files }}"
+  # --check on a machine that has never fetched the corpus: the assets role's
+  # clone is check-gated, so the checkout does not exist yet and there is
+  # nothing to render. Skip (no mutation, no false prediction) instead of
+  # failing the dry run; a REAL run reaches the assert above first and fails
+  # loud on a bad pin. A provisioned machine still predicts every change.
+  when: not ansible_check_mode or compositor_configs_assets_configs_check.stat.isdir | default(false)
 
 - name: Install desktop helper scripts (touchpad toggle for XF86 binds)
   ansible.builtin.copy:

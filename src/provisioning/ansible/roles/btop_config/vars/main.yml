@@ -73,7 +73,7 @@ btop_config_default_active_theme: "colors.btop.theme"
 #   bootstrap chain, so <install>/assets/<tag>/ exists by the time this role
 #   reads it; TestBtopAssetsPinParity fails if this mirror drifts from
 #   dotfiles/provisioning/assets.yaml `assets.tag`.
-btop_config_authored_themes_pinned_tag: v0.2.0
+btop_config_authored_themes_pinned_tag: v0.3.1
 
 # btop_config_authored_themes_repo_dir: the authored-themes directory inside the
 #   pinned assets checkout. The studio writes to its Repo target and

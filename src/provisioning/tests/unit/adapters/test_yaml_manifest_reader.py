@@ -284,6 +284,49 @@ class TestYamlManifestReaderPerKindSchemas:
         assert manifest.kind is ManifestKind.CONFIG_COPIES
         assert manifest.entries == (Spec(name="nvim"),)
 
+    def test_config_copies_kind_accepts_files_narrowing(self, tmp_path: Path) -> None:
+        """S2: an entry MAY name `files` to copy only those files of its source
+        dir (wlogout's `layout` is static; `style.css` is rendered). The key is
+        validated and not captured into the domain Spec — Ansible reads the YAML."""
+        path = tmp_path / "config-copies.yaml"
+        path.write_text(
+            "kind: config-copies\n"
+            "entries:\n"
+            "  - name: wlogout\n"
+            "    target: wlogout\n"
+            "    files:\n"
+            "      - layout\n",
+            encoding="utf-8",
+        )
+        manifest = READER.read(path)
+        assert manifest.kind is ManifestKind.CONFIG_COPIES
+        assert manifest.entries == (Spec(name="wlogout"),)
+
+    @pytest.mark.parametrize(
+        "bad_files",
+        [
+            "files: []\n",
+            "files: layout\n",
+            "files:\n  - \"\"\n",
+            "files:\n  - lua/options.lua\n",
+            "files:\n  - ..\n",
+        ],
+    )
+    def test_config_copies_kind_rejects_a_bad_files_list(
+        self, tmp_path: Path, bad_files: str
+    ) -> None:
+        path = tmp_path / "config-copies.yaml"
+        path.write_text(
+            "kind: config-copies\n"
+            "entries:\n"
+            "  - name: wlogout\n"
+            "    target: wlogout\n"
+            "    " + bad_files,
+            encoding="utf-8",
+        )
+        with pytest.raises(ManifestReadError, match="files"):
+            READER.read(path)
+
     @pytest.mark.parametrize("bad_target", ["", "   ", "42", "null"])
     def test_config_copies_kind_empty_target_rejected(
         self, tmp_path: Path, bad_target: str
@@ -546,10 +589,14 @@ class TestReadRealManifests:
         manifest = READER.read(_MANIFEST_DIR / "config-copies.yaml")
         names = [entry.name for entry in manifest.entries]
         assert len(names) == len(set(names)), f"duplicate config-copy entries: {names}"
-        assert set(names) == {"nvim", "starship", "wlogout", "zsh"}
+        # S2: zsh left the copy set (its only file was a Jinja template the copy
+        # deposited where nothing read it). hypr/hyprpaper/ags are placed by the
+        # compositor_configs role, not this manifest.
+        assert set(names) == {"nvim", "starship", "wlogout"}
         assert "hypr" not in names
         assert "hyprpaper" not in names
         assert "ags" not in names
+        assert "zsh" not in names
 
     def test_cli_tools_manifest_has_four_install_targets(self) -> None:
         manifest = READER.read(_MANIFEST_DIR / "cli-tools.yaml")

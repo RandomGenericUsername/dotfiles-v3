@@ -934,6 +934,30 @@
       copying; re-run the assets playbook and check the pin.
   when: not ansible_check_mode
 
+# S2: the two config roles copy FROM the pinned `configs/` class, so the class
+# dir alone is not enough — its six tool subdirectories must exist, or a wrong
+# tag would silently deploy nothing (the class dir exists in every tag since
+# v0.1.0). Same stat+assert shape as the class-dir pair above.
+- name: Check the pinned configs corpus subdirectories are present
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop: "{{ verify_assets_configs_dirs }}"
+  register: verify_assets_configs_checks
+  when: not ansible_check_mode
+
+- name: Assert the pinned configs corpus subdirectories are directories
+  ansible.builtin.assert:
+    that: >-
+      verify_assets_configs_checks.results | selectattr('stat.isdir') | list | length
+      == verify_assets_configs_dirs | length
+    fail_msg: >-
+      the pinned assets configs corpus is incomplete under
+      {{ verify_assets_tag_dir }}/configs (expected hypr, hyprpaper, nvim, rofi,
+      starship and wlogout). compositor_configs and config_copies read this tree,
+      so a missing subdir means the config roles deployed nothing; re-run the
+      assets playbook and check the pin.
+  when: not ansible_check_mode
+
 - name: Check runtime palette files exist under the runtime current dir
   ansible.builtin.stat:
     path: "{{ verify_state_current_dir }}/{{ item }}"
@@ -1691,7 +1715,7 @@
     fail_msg: >-
       not every config-copy target under {{ verify_xdg_config_home }} resolves
       to a real directory (expected one per dotfiles/provisioning/config-copies.yaml:
-      nvim, starship, wlogout, zsh — done-criterion 9). A symlink whose spine
+      nvim, starship, wlogout — done-criterion 9). A symlink whose spine
       target is missing/wrong breaks runtime independence. The config_copies
       (Story 2.10) + config_links roles place them; run those playbooks first
   when: not ansible_check_mode

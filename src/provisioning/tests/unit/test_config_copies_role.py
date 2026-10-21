@@ -198,10 +198,49 @@ def _source_assert_tasks() -> list[dict[str, object]]:
     ]
 
 
-def _copy_task() -> dict[str, object]:
-    """The single directory-copy task."""
-    matches = _tasks_with_module("ansible.builtin.copy")
-    assert len(matches) == 1, f"expected exactly one copy task; found {len(matches)}"
+def _file_source_stat_tasks() -> list[dict[str, object]]:
+    """The per-file source stat: stat on <assets configs>/<name>/<file>, looping
+    the `files` entries via subelements, registering config_copies_file_source_check."""
+    return [
+        task
+        for task in _tasks_with_module("ansible.builtin.stat")
+        if "config_copies_file_source_check" == str(task.get("register"))
+    ]
+
+
+def _file_source_assert_tasks() -> list[dict[str, object]]:
+    """The per-file source assert consuming config_copies_file_source_check."""
+    return [
+        task
+        for task in _assert_tasks()
+        if "config_copies_file_source_check" in str(_module(task).get("that", ""))
+    ]
+
+
+def _copy_tasks() -> list[dict[str, object]]:
+    """The copy tasks: one directory copy + one per-file copy (S2)."""
+    return _tasks_with_module("ansible.builtin.copy")
+
+
+def _dir_copy_task() -> dict[str, object]:
+    """The directory-copy task (entries without `files`)."""
+    matches = [
+        task
+        for task in _copy_tasks()
+        if "rejectattr('files', 'defined')" in str(task.get("loop", ""))
+    ]
+    assert len(matches) == 1, f"expected exactly one directory-copy task; found {len(matches)}"
+    return matches[0]
+
+
+def _file_copy_task() -> dict[str, object]:
+    """The per-file copy task (entries with `files`, e.g. wlogout/layout)."""
+    matches = [
+        task
+        for task in _copy_tasks()
+        if "subelements('files')" in str(task.get("loop", ""))
+    ]
+    assert len(matches) == 1, f"expected exactly one per-file copy task; found {len(matches)}"
     return matches[0]
 
 
@@ -298,30 +337,43 @@ class TestConfigCopiesTasks:
         task = _non_empty_guard_task()
         assert task.get("when") is None, "the non-empty guard must be ungated"
 
-    def test_source_stat_pair_loops_config_copies_entries(self) -> None:
-        """Fail-loud direct-run prerequisite: the source stat loop registers
-        config_copies_source_check and the assert checks the registered results —
-        both derive their count from config_copies_entries | length, never a
-        hardcoded literal, and both are UNGATED (repo content is static — a
-        missing source must abort even under --check)."""
-        stat_tasks = _source_stat_tasks()
-        assert stat_tasks, "no source-presence stat loop task found"
-        for task in stat_tasks:
-            assert "{{ config_copies_entries }}" in str(task.get("loop", ""))
+    def test_source_stat_pairs_cover_dirs_and_files(self) -> None:
+        """Fail-loud direct-run prerequisite: the source stat loops register
+        config_copies_source_check (directory entries) and
+        config_copies_file_source_check (per-file entries, via subelements).
+        Both derive their expected count from config_copies_entries, never a
+        hardcoded literal. The stat PROBES are ungated; the asserts are
+        real-run-only, because a fresh --check has no fetched checkout (the
+        assets role's clone is check-gated)."""
+        dir_stats = _source_stat_tasks()
+        assert dir_stats, "no directory source-presence stat loop task found"
+        for task in dir_stats:
+            assert "config_copies_entries" in str(task.get("loop", ""))
+            assert "rejectattr('files', 'defined')" in str(task.get("loop", ""))
             assert task.get("register") == "config_copies_source_check"
             assert task.get("when") is None, (
-                "source stat must be ungated (static repo content — abort under --check too)"
+                "source stat must be an ungated probe (the assert gates the real run)"
             )
             assert _module(task).get("follow") is True, (
                 "source stat must pass follow: true explicitly"
             )
 
+        file_stats = _file_source_stat_tasks()
+        assert file_stats, "no per-file source-presence stat loop task found"
+        for task in file_stats:
+            assert "subelements('files')" in str(task.get("loop", ""))
+            assert task.get("register") == "config_copies_file_source_check"
+            assert task.get("when") is None, (
+                "per-file source stat must be an ungated probe"
+            )
+            assert _module(task).get("follow") is True
+
         assert_tasks = _source_assert_tasks()
         assert assert_tasks, "no source-presence assert task found"
         for task in assert_tasks:
             that = str(_module(task).get("that", ""))
-            assert "config_copies_entries | length" in that, (
-                "source assert must derive its count from config_copies_entries | length, "
+            assert "config_copies_entries | length" in that or "config_copies_entries" in that, (
+                "source assert must derive its count from config_copies_entries, "
                 "not a hardcoded literal"
             )
             assert "config_copies_source_check" in that
@@ -329,20 +381,33 @@ class TestConfigCopiesTasks:
                 "source assert must check stat.isdir — a regular file at a "
                 "source path must fail loudly, not be silently copied"
             )
-            assert task.get("when") is None, "source assert must be ungated (static repo content)"
+            assert task.get("when") == "not ansible_check_mode", (
+                "source assert is real-run-only: a fresh --check has no checkout"
+            )
+
+        file_asserts = _file_source_assert_tasks()
+        assert file_asserts, "no per-file source-presence assert task found"
+        for task in file_asserts:
+            that = str(_module(task).get("that", ""))
+            assert "config_copies_file_source_check" in that
+            assert "stat.isreg" in that, (
+                "per-file source assert must check stat.isreg — a directory at a "
+                "source-file path must fail loudly"
+            )
+            assert task.get("when") == "not ansible_check_mode"
 
     def test_copy_task_contract(self) -> None:
-        """AC 2 + 4: the copy task is `ansible.builtin.copy` with a trailing-`/`
-        `src` prefixed {{ config_copies_repo_root }}/dotfiles/config/ (contents-
-        into-dest semantics), a trailing-`/` `dest` prefixed
-        {{ config_copies_spine_config_dir }}/ (config-in-spine 2026-08-16 —
-        dests land at <install>/config/<target>), `remote_src: true`
-        (localhost mirror of the assets role), a loop over config_copies_entries,
-        NO `creates:`, and NO check-mode gate (the copy module has FULL
-        check-mode support). NOT `force: false` — a directory src + force: false
-        + a pre-existing dest dir is a silent no-op (2.9 review finding); the
-        default force: true + checksums is the idempotency mechanism."""
-        task = _copy_task()
+        """AC 2 + 4 (S2 rewire): the directory copy is `ansible.builtin.copy`
+        with a trailing-`/` `src` prefixed {{ config_copies_assets_configs_dir }}
+        (the PINNED assets configs class — never a repo tree), a trailing-`/`
+        `dest` prefixed {{ config_copies_spine_config_dir }}/
+        (dests land at <install>/config/<target>), `remote_src: true`, a loop
+        over the entries WITHOUT `files`, NO `creates:`, and only the
+        source-availability escape on `when` (a fresh --check has no checkout).
+        NOT `force: false` — a directory src + force: false + a pre-existing dest
+        dir is a silent no-op (2.9 review finding); the default force: true +
+        checksums is the idempotency mechanism."""
+        task = _dir_copy_task()
         module = _module(task)
         assert module.get("force") is not False, (
             "copy task must NOT set force: false (directory src + force: false + "
@@ -350,8 +415,12 @@ class TestConfigCopiesTasks:
             "default force: true + checksums is the idempotency mechanism"
         )
         src = str(module.get("src", ""))
-        assert src.startswith("{{ config_copies_repo_root }}/dotfiles/config/"), (
-            "copy src must derive from config_copies_repo_root/dotfiles/config/"
+        assert src.startswith("{{ config_copies_assets_configs_dir }}/"), (
+            "copy src must derive from config_copies_assets_configs_dir (the "
+            "pinned assets configs class)"
+        )
+        assert "dotfiles/config" not in src, (
+            "copy src must not name the retired in-tree config tree"
         )
         assert src.endswith("/"), (
             "copy src must end with '/' (contents-into-dest semantics — no accidental nested dir)"
@@ -364,13 +433,39 @@ class TestConfigCopiesTasks:
         assert module.get("remote_src") is True, (
             "copy must set remote_src: true (localhost mirror of the assets role)"
         )
-        assert "{{ config_copies_entries }}" in str(task.get("loop", ""))
+        assert "config_copies_entries" in str(task.get("loop", ""))
         assert _creates_value(task) is None, (
             "copy task must not carry creates: (a gate would freeze a stale copy)"
         )
-        assert task.get("when") is None, (
-            "copy task must NOT be --check-gated (copy has full check-mode support — verified)"
+        assert str(task.get("when")) == (
+            "not ansible_check_mode or config_copies_assets_configs_check.stat.isdir | default(false)"
+        ), (
+            "copy must carry ONLY the source-availability escape: a real run "
+            "reaches the assert first, a provisioned --check still predicts, and "
+            "a fresh --check (no fetched checkout) skips instead of failing"
         )
+
+    def test_per_file_copy_task_contract(self) -> None:
+        """S2 wlogout: `layout` is static config while `style.css` is rendered,
+        so the entry names `files` and the copy is per FILE — src without a
+        trailing slash, dest = <target>/<file>, remote_src, no creates."""
+        task = _file_copy_task()
+        module = _module(task)
+        assert module.get("force") is not False
+        src = str(module.get("src", ""))
+        assert src == (
+            "{{ config_copies_assets_configs_dir }}/{{ item.0.name }}/{{ item.1 }}"
+        ), src
+        assert not src.endswith("/"), (
+            "a per-file copy src must NOT end with '/' (that would copy a directory)"
+        )
+        dest = str(module.get("dest", ""))
+        assert dest == (
+            "{{ config_copies_spine_config_dir }}/{{ item.0.target }}/{{ item.1 }}"
+        ), dest
+        assert module.get("remote_src") is True
+        assert "subelements('files')" in str(task.get("loop", ""))
+        assert _creates_value(task) is None
 
     def test_resolve_check_pair_all_gated(self) -> None:
         """AC 3 + runtime independence (pivot): ONE stat loop with follow: false
@@ -533,7 +628,7 @@ class TestConfigCopiesTasks:
         `ansible_facts.env`) — no literal absolute path is baked into any
         task's module body OR into vars/main.yml."""
         safe_vars = (
-            "config_copies_repo_root",
+            "config_copies_assets_configs_dir",
             "config_copies_xdg_config_home",
             "config_copies_spine_config_dir",
             "config_copies_entries",
@@ -554,7 +649,8 @@ class TestConfigCopiesTasks:
 
 class TestConfigCopiesVars:
     _REQUIRED_KEYS = {
-        "config_copies_repo_root",
+        "config_copies_assets_pinned_tag",
+        "config_copies_assets_configs_dir",
         "config_copies_xdg_config_home",
         "config_copies_spine_config_dir",
         "config_copies_entries",
@@ -580,9 +676,28 @@ class TestConfigCopiesVars:
             "colors.yaml",
         ]
 
-    def test_repo_root_mirrors_assets_repo_root(self) -> None:
+    def test_configs_dir_is_the_pinned_assets_checkout(self) -> None:
+        """S2: the sources are the pinned assets `configs/` class, derived from
+        the role's pin mirror (never a composition-repo tree)."""
         data = _vars()
-        assert str(data["config_copies_repo_root"]) == "{{ playbook_dir }}/../../../.."
+        configs_dir = str(data["config_copies_assets_configs_dir"])
+        assert configs_dir == (
+            "{{ install_dir | trim }}/assets/"
+            "{{ config_copies_assets_pinned_tag }}/configs"
+        ), configs_dir
+        assert "dotfiles/config" not in configs_dir
+        assert "config_copies_repo_root" not in data, (
+            "the repo-root var is retired: every config source is the pinned checkout"
+        )
+
+    def test_assets_pin_mirrors_the_assets_manifest(self) -> None:
+        """AD-6: the role's pin mirror equals `assets.tag` in the ASSETS manifest
+        (`config-copies.yaml` carries no pin block — the corpus pin has one
+        owner)."""
+        data = _vars()
+        assets_manifest = _REPO_ROOT / "dotfiles" / "provisioning" / "assets.yaml"
+        manifest = yaml.safe_load(assets_manifest.read_text())
+        assert str(data["config_copies_assets_pinned_tag"]) == manifest["assets"]["tag"]
 
     def test_xdg_config_home_honors_xdg_and_defaults_to_home(self) -> None:
         """The copy destinations must resolve to the SAME location the filesystem
@@ -595,15 +710,29 @@ class TestConfigCopiesVars:
         assert "{{ ansible_env." not in value, "F4 lock: never the top-level ansible_env fact"
 
     def test_config_copies_entries_parity_with_manifest(self) -> None:
-        """Parity lock: the role var exactly mirrors the manifest by
-        (name, target) so they can never silently diverge (AC 2)."""
+        """Parity lock: the role var exactly mirrors the manifest, including the
+        S2 `files` narrowing (wlogout), so they can never silently diverge."""
         data = _vars()
         role_entries = [dict(item) for item in data["config_copies_entries"]]
         manifest_entries = _manifest_entries()
-        assert len(role_entries) == len(manifest_entries)
-        assert {tuple(e.items()) for e in role_entries} == {
-            tuple(e.items()) for e in manifest_entries
-        }
+        assert role_entries == manifest_entries, (
+            "config_copies_entries must equal dotfiles/provisioning/config-copies.yaml "
+            "entries exactly (name, target, files)"
+        )
+
+    def test_zsh_is_not_a_copy_entry(self) -> None:
+        """S2: zsh left the copy set. Its only in-repo file was `.zshrc.j2`, a
+        Jinja template config_copies copied verbatim into the spine where
+        nothing read it (zsh_config renders .zshrc from the template itself).
+        The corpus has no `configs/zsh`, so an entry here would point at a path
+        that does not exist in the pinned tag."""
+        data = _vars()
+        names = [str(entry["name"]) for entry in data["config_copies_entries"]]
+        assert "zsh" not in names, (
+            "zsh must not be a config-copies entry: .zshrc.j2 is a template "
+            "(the assets templates class from S3) and the rendered .zshrc is "
+            "zsh_config's output"
+        )
 
     def test_vars_use_non_deprecated_env_fact(self) -> None:
         """F4 lock: vars read ansible_facts.env, never the deprecated top-level
@@ -613,6 +742,30 @@ class TestConfigCopiesVars:
         text = str(data)
         assert "ansible_facts.env." in text
         assert "{{ ansible_env." not in text
+
+
+def _seed_pinned_configs(install: Path) -> str:
+    """Materialize the pinned assets `configs/` class this role reads (S2).
+
+    The real corpus is fetched by the assets role; this test runs THIS role in
+    isolation (no network), so it seeds the same SHAPE under
+    `<install>/assets/<pinned tag>/configs/` with unique content and returns the
+    tag. `wlogout` deliberately carries a `style.css.tpl` beside `layout` so the
+    per-file copy proves it does NOT drag a template into the spine.
+    """
+    tag = str(_vars()["config_copies_assets_pinned_tag"])
+    root = install / "assets" / tag / "configs"
+    contents = {
+        "nvim": ("init.lua", "lua/options.lua"),
+        "starship": ("starship.toml",),
+        "wlogout": ("layout", "style.css.tpl"),
+    }
+    for name, files in contents.items():
+        for relative in files:
+            path = root / name / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(f"-- fixture {name}/{relative}\n")
+    return tag
 
 
 class TestConfigCopiesPlaybook:
@@ -655,10 +808,11 @@ class TestConfigCopiesPlaybook:
         """Regression guard (review finding 2026-08-12 discipline): the role
         must ACTUALLY copy configs — structural tests alone could not catch a
         silent no-op. Run the real playbook against a temp HOME/XDG home and
-        install_dir and assert every dest is a REAL directory in the
-        config-in-spine home (<install>/config/<target> — not a symlink; the
-        runtime-independence guarantee), contains the repo source's entries,
-        and re-running is a no-op (AC 4 idempotency at runtime)."""
+        install_dir seeded with the PINNED assets configs class (S2), then
+        assert every dest is a REAL directory in the config-in-spine home
+        (<install>/config/<target> — not a symlink; the runtime-independence
+        guarantee), the per-file wlogout entry placed `layout` and NOT the
+        template beside it, and re-running is a no-op (AC 4 idempotency)."""
         ansible_playbook = shutil.which("ansible-playbook")
         if ansible_playbook is None:
             pytest.skip("ansible-playbook not installed; skipping execution test")
@@ -669,6 +823,8 @@ class TestConfigCopiesPlaybook:
             home.mkdir()
             xdg.mkdir()
             install.mkdir()
+            tag = _seed_pinned_configs(install)
+            configs_root = install / "assets" / tag / "configs"
 
             env = dict(os.environ)
             env["HOME"] = str(home)
@@ -691,17 +847,30 @@ class TestConfigCopiesPlaybook:
             first = run()
             assert first.returncode == 0, first.stdout + first.stderr
 
+            expected_top = {
+                "nvim": {"init.lua", "lua"},
+                "starship": {"starship.toml"},
+                # per-file entry: `layout` only — style.css.tpl stays behind
+                "wlogout": {"layout"},
+            }
             for entry in _manifest_entries():
-                target = install / "config" / entry["target"]
-                source = _REPO_ROOT / "dotfiles" / "config" / entry["name"]
+                name = str(entry["name"])
+                target = install / "config" / str(entry["target"])
                 assert target.is_dir(), f"{target} was never copied (silent no-op?)"
                 assert not target.is_symlink(), (
                     f"{target} must be a REAL directory, not a symlink (runtime "
                     "independence — the machine must work after the repo is deleted)"
                 )
-                assert set(os.listdir(target)) == set(os.listdir(source)), (
-                    f"{target} contents do not match the repo source {source}"
+                assert set(os.listdir(target)) == expected_top[name], (
+                    f"{target} contents {sorted(os.listdir(target))} do not match "
+                    f"the expected file set {sorted(expected_top[name])} "
+                    f"(source {configs_root / name})"
                 )
+                for relative in expected_top[name]:
+                    if (configs_root / name / relative).is_file():
+                        assert (target / relative).read_text() == (
+                            configs_root / name / relative
+                        ).read_text()
 
             second = run()
             assert second.returncode == 0, second.stdout + second.stderr

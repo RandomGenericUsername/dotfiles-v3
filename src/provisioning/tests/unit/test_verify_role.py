@@ -1367,6 +1367,7 @@ class TestVerifyVars:
         "verify_xdg_dirs",
         "verify_install_spine_dirs",
         "verify_install_spine_files",
+        "verify_assets_configs_dirs",
         "verify_weg_effects_path",
         "verify_asset_dirs",
         "verify_asset_files",
@@ -2002,6 +2003,28 @@ class TestVerifyVars:
         assert role_targets == manifest_targets, (
             "verify_config_copies_targets must be parity-EXACT with "
             "dotfiles/provisioning/config-copies.yaml entries"
+        )
+
+    def test_assets_configs_dirs_are_the_config_role_sources(self) -> None:
+        """S2: `verify_assets_configs_dirs` names the configs subdirectories the
+        two roles copy FROM. Locked offline to their registered sources (the
+        assets catalog itself is in the pinned repo, not in this checkout):
+        the union of the compositor skeletons' class subdirs and the
+        config-copies entry names must equal the verify list."""
+        data = _vars()
+        verified = {
+            str(path).rsplit("/configs/", 1)[1]
+            for path in data["verify_assets_configs_dirs"]
+        }
+        compositor = _sibling_vars("compositor_configs")
+        copy = _sibling_vars("config_copies")
+        sources = {
+            str(entry["source"]).split("}}/", 1)[1].split("/", 1)[0]
+            for entry in compositor["compositor_configs_skeleton_files"]
+        } | {str(entry["name"]) for entry in copy["config_copies_entries"]}
+        assert verified == sources, (
+            "verify_assets_configs_dirs must name every configs subdir the roles "
+            f"read; only-in-verify={verified - sources} missing={sources - verified}"
         )
 
     def test_palette_files_match_cache_artifacts(self) -> None:
@@ -3435,13 +3458,19 @@ def _build_provisioned_layout(
     # S1: the six per-concern duplicates were retired; only the vocabulary ships
     # beside the single group map.
     (install / "icon-mappings" / "defaults.yaml").write_text("{}\n")
-    # S1: the pinned assets checkout the assets role materializes (AD-6/AD-7).
-    # verify asserts the pin file and the five class dirs.
-    assets_tag = "v0.2.0"
+    # S1/S2: the pinned assets checkout the assets role materializes (AD-6/AD-7).
+    # verify asserts the pin file, the five class dirs and (S2) the configs
+    # subdirectories the two config roles copy FROM. The tag comes from the var,
+    # so a pin bump never leaves this fixture behind.
+    assets_tag = str(_vars()["verify_assets_pinned_tag"])
     (install / "assets").mkdir(parents=True, exist_ok=True)
     (install / "assets" / "pinned").write_text(f"{assets_tag}\n")
     for class_name in ("icons", "templates", "configs", "content", "desktop"):
         (install / "assets" / assets_tag / class_name).mkdir(parents=True, exist_ok=True)
+    for configs_subdir in ("hypr", "hyprpaper", "nvim", "rofi", "starship", "wlogout"):
+        (install / "assets" / assets_tag / "configs" / configs_subdir).mkdir(
+            parents=True, exist_ok=True
+        )
     nested_icon = install / "icon-templates" / "status-bar" / "battery"
     nested_icon.mkdir(parents=True, exist_ok=True)
     (nested_icon / "icon.svg").write_text("<svg/>\n")

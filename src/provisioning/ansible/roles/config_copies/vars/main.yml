@@ -1,20 +1,35 @@
-# Config copies role vars (Story 2.10, pivot 2026-08-12).
+# Config copies role vars (Story 2.10, pivot 2026-08-12; pinned corpus since S2).
 #
-# The role COPIES the repo's EXISTING config dirs (dotfiles/config/*) into the
-# user config home (FR-20): nvim, starship, wlogout, zsh. The desired copy set
-# lives in dotfiles/provisioning/config-copies.yaml (Story 2.1): a
-# `kind: config-copies` manifest with `entries: [{name, target}]`. Ansible does
-# NOT read manifests — the role mirrors the manifest into config_copies_entries
-# and a structural parity test locks them together (single source of truth).
+# The role copies the static config corpus into the config-in-spine home
+# (FR-20): nvim, starship and the wlogout layout. The desired copy set lives in
+# dotfiles/provisioning/config-copies.yaml (Story 2.1): a `kind: config-copies`
+# manifest with `entries: [{name, target}]` (plus the optional `files` narrowing,
+# S2). Ansible does NOT read manifests — the role mirrors the manifest into
+# config_copies_entries and a structural parity test locks them together (single
+# source of truth).
+#
+# S2 (assets v0.3.0): the corpus is the PINNED `dotfiles-assets` repo, `configs/`
+# class. Every source is the checkout the assets role materialized at
+# `<install>/assets/<tag>/configs/<name>`; nothing here reads a
+# composition-repo tree. The pin is mirrored by `config_copies_assets_pinned_tag`
+# and parity-tested against `dotfiles/provisioning/assets.yaml`.
 #
 # Runtime independence (pivot): configs are COPIED, not symlinked — nothing in
 # the repo is referenced at runtime, so the machine keeps working after the
-# repo is deleted. The repo is only ever the SOURCE for a provision run.
+# repo is deleted. The pinned checkout is only ever the SOURCE for a provision
+# run.
 #
-# hypr/hyprpaper/ags are DELIBERATELY absent: those skeletons land in Story
-# 2.8 and are PLACED BY COPY in Story 2.9 (compositor_configs role). The
-# icon mappings are ASSETS (pinned corpus) deployed to
-# <install>/icon-mappings/ (Story 2.6).
+# hypr/hyprpaper/ags are DELIBERATELY absent: those skeletons are PLACED BY COPY
+# in Story 2.9 (compositor_configs role) from the same pinned corpus. The icon
+# mappings are ASSETS (pinned corpus) deployed to <install>/icon-mappings/
+# (Story 2.6).
+#
+# zsh is DELIBERATELY absent (S2): its only in-repo file was `.zshrc.j2`, a
+# Jinja template the role copied VERBATIM into the spine where nothing read it.
+# The zsh_config role renders `.zshrc` from the template source directly, so the
+# copy entry was redundant; the template moves to the assets `templates` class in
+# S3 and the entry is retired rather than pointed at a path the corpus lacks.
+# The `zsh` SPINE dir is still created (by zsh_config) and linked (config_links).
 #
 # Mirror-and-adapt discipline (Epic 1 retro action item) — what differs from
 # each mirror:
@@ -22,27 +37,30 @@
 #       2.10 COPIES INTO them. Share the exact XDG derivation
 #       (ansible_facts.env, F4 lock) — do not duplicate logic with a different
 #       result.
-#   (b) vs 2.9 compositor_configs (dir-ensure + check-gating + runtime exec
-#       test): 2.9 copies PER-FILE with force: false (transfer-only-if-absent —
-#       a directory src + force: false is a known silent no-op) and its
-#       fragment sources are check-gated (apply-time outputs); 2.10 copies
-#       DIRECTORIES with the default force: true (idempotent via checksums —
-#       Ansible is the state authority, NFR-1) and its sources are STATIC repo
-#       content, so the source guard is ungated. 2.10's RESOLVE assert IS
-#       check-gated (dests absent under --check).
-#   (c) vs 2.6 assets (copy + repo_root): 2.6 copies from
-#       the pinned assets checkout into the install spine; 2.10 copies from
-#       <repo>/dotfiles/config/* into the user config home. Both use
-#       `ansible.builtin.copy` with `remote_src: true` and a trailing-`/` src
-#       (contents-into-dest semantics).
-#   (d) vs cli_tools (manifest parity): the exact (name, target) set-equality
-#       parity test form.
+#   (b) vs 2.9 compositor_configs: 2.9 places PER-FILE entries with
+#       `template` + force: true; 2.10 copies DIRECTORIES (and the wlogout
+#       `files` entry per file) with `copy` + the default force: true
+#       (idempotent via checksums — Ansible is the state authority, NFR-1).
+#       Both now read the same pinned checkout (S2) and both fail loud on a
+#       missing source.
+#   (c) vs 2.6 assets: 2.6 clones the corpus into the spine and copies the asset
+#       kinds from it; 2.10 copies the configs class from that same checkout
+#       into the user config home, with a trailing-`/` dir src
+#       (contents-into-dest) and per-file copies where the entry names `files`.
+#   (d) vs cli_tools (manifest parity): the exact (name, target[, files])
+#       set-equality parity test form.
 
-# config_copies_repo_root: repo root derived from this playbook's location.
-#   The copy sources live at <repo>/dotfiles/config/<name>, so
-#   <repo> = {{ playbook_dir }}/../../../.. (mirror assets_repo_root /
-#   compositor_configs_repo_root exactly).
-config_copies_repo_root: "{{ playbook_dir }}/../../../.."
+# config_copies_assets_pinned_tag: the AD-6 mirror of the assets pin. The config
+#   sources live in the checkout the assets role materializes, which the
+#   bootstrap chain runs BEFORE this role, so <install>/assets/<tag>/ exists by
+#   the time the copies run. Parity-locked to dotfiles/provisioning/assets.yaml
+#   `assets.tag`.
+config_copies_assets_pinned_tag: v0.3.1
+
+# config_copies_assets_configs_dir: the `configs/` class directory inside the
+#   pinned checkout. Trim lock: consumes the same validated
+#   {{ install_dir | trim }} value the fail-loud first-task assert enforces.
+config_copies_assets_configs_dir: "{{ install_dir | trim }}/assets/{{ config_copies_assets_pinned_tag }}/configs"
 
 # config_copies_xdg_config_home: the target config home the filesystem role
 #   (2.5) created. Identical derivation: honors $XDG_CONFIG_HOME with the spec
@@ -61,21 +79,29 @@ config_copies_spine_config_dir: "{{ install_dir | trim }}/config"
 
 # config_copies_entries: the copy set mirroring
 #   dotfiles/provisioning/config-copies.yaml EXACTLY (parity-locked by the
-#   structural test on (name, target)). `name` is the repo source dir under
-#   dotfiles/config/; `target` is the ~/.config/ component. Current data has
-#   name == target for all four — do NOT assume they must be equal, and do NOT
+#   structural test on the full entry, including `files`). `name` is the source
+#   directory under the pinned corpus's configs/ class; `target` is the
+#   ~/.config/ component; `files`, when present, narrows the copy to those files
+#   (the destination file set is `target/<file>`). Current data has
+#   name == target for all three — do NOT assume they must be equal, and do NOT
 #   assume they must differ.
+#
+#   wlogout is the one PER-FILE entry: `layout` is static config, while
+#   `style.css` is RENDERED by the wlogout_config role (the Jinja source is the
+#   assets `templates` class from S3). Copying the whole directory would either
+#   carry a template into the spine or depend on the corpus's wlogout/ dir
+#   happening to hold nothing else — the per-file entry makes the contract
+#   explicit.
 config_copies_entries:
   - { name: nvim, target: nvim }
   - { name: starship, target: starship }
-  - { name: wlogout, target: wlogout }
-  - { name: zsh, target: zsh }
+  - { name: wlogout, target: wlogout, files: [layout] }
 
 # config_copies_guard_patterns: the palette-format filenames the Story 1.12
 #   don't-clobber tripwire scans for inside managed copy destinations
 #   (tasks/main.yml find+assert pair before the copy). Deliberately BROADER
 #   than a runtime-target match: provisioning never creates palette-format
-#   symlinks under <install>/config/{nvim,starship,wlogout,zsh}/ — the runtime
+#   symlinks under <install>/config/{nvim,starship,wlogout}/ — the runtime
 #   consumer flips target compositor_configs paths only — so ANY hit is drift
 #   (runtime link or otherwise) and must fail loud rather than be silently
 #   clobbered by the recursive copy (force: true).

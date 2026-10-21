@@ -1,13 +1,33 @@
-# Copies from repo dotfiles/config/* to ~/.config/*.
+# Copies from the PINNED assets configs corpus to ~/.config/*.
 #
 # Runtime independence (pivot 2026-08-12): configs are COPIED, not symlinked —
 # nothing in the repo is referenced at runtime, so the machine keeps working
-# after the repo is deleted. The repo is only ever the SOURCE for a provision
-# run, never a runtime dependency.
+# after the repo is deleted. The pinned corpus is only ever the SOURCE for a
+# provision run, never a runtime dependency.
 #
-# Only EXISTING config dirs (verified, plan §2): nvim, starship, wlogout, zsh.
-# hypr/hyprpaper/ags are NOT listed — those dirs land in Story 2.8 and are
-# placed by copy in Story 2.9 (compositor_configs role).
+# S2 (assets v0.3.0): the static corpus ships in the `dotfiles-assets` repo
+# (`configs/` class), so every source is the checkout the assets role
+# materialized at `<install>/assets/<tag>/configs/<name>` — never a
+# composition-repo tree. `name` is the directory inside that class; `target`
+# is the config-dir component under the spine.
+#
+# `wlogout` is a PER-FILE entry (`files: [layout]`). Only its layout is static
+# configuration; `style.css` is RENDERED by the wlogout_config role from a
+# Jinja template whose values exist only on a provisioned host. A directory
+# copy would carry both halves of the split (today the corpus's wlogout/ dir
+# holds only `layout`, but the contract must not depend on that staying true).
+#
+# `zsh` is deliberately NOT listed (S2). Its only in-repo file was
+# `.zshrc.j2`, a Jinja TEMPLATE that config_copies copied verbatim into the
+# spine where nothing read it: the zsh_config role renders `.zshrc` from the
+# template source itself. The template moves to the assets `templates` class in
+# S3, so the copy entry is retired rather than repointed at a path the corpus
+# does not have. The `zsh` config dir itself stays managed: zsh_config creates
+# `<install>/config/zsh` and renders into it, and config_links symlinks it.
+#
+# hypr/hyprpaper/ags are NOT listed — those skeletons land in Story 2.8 and
+# are placed by copy in Story 2.9 (compositor_configs role) from the same
+# pinned corpus.
 kind: config-copies
 entries:
   - name: nvim
@@ -16,5 +36,5 @@ entries:
     target: starship
   - name: wlogout
     target: wlogout
-  - name: zsh
-    target: zsh
+    files:
+      - layout
