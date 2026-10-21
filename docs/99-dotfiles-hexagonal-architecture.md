@@ -651,14 +651,14 @@ dotfiles-repo-v3/
 │   │   ├── tests/               ←   unit + architecture-layering tests
 │   │   └── pyproject.toml       ←   uv package `dotfiles-provision`
 │   │
-│   └── cli-tools/               ← Standalone compute providers (IMPLEMENTED,
-│       │                          being extracted to pinned repos one slice at a time)
-│       ├── color-scheme-generator/    (csg)
-│       ├── wallpaper-effects-generator/ (weg)
-│       └── icon-templates-renderer/   (itr)
+│   └── cli-tools/               ← Standalone compute providers (being extracted
+│       │                          to pinned repos one slice at a time)
+│       └── color-scheme-generator/    (csg)
 │
 │   (no shared/ layer: cli-output, config-assembler-engine, cli-invocation-contract
-│    and oci-runtime are consumed from their pinned repo tags)
+│    and oci-runtime are consumed from their pinned repo tags; the extracted CLIs
+│    `weg` and `itr` are consumed the same way — cloned at their pinned tag into
+│    <install>/cli-tools/<name>/<tag>/, never a local package tree)
 │
 ├── dotfiles/                    ← declarative manifests + config + assets sources
 ├── docs/
@@ -1064,7 +1064,9 @@ CLI tools should:
 > (wallpaper-effects-generator), `itr` (icon-templates-renderer). Provisioning
 > installs them via `uv tool install` and invokes them at apply time — `csg
 > generate` (container mode) and `itr render` (local) are real provisioning
-> steps, not future work. They stay standalone packages under `src/cli-tools/`.
+> steps, not future work. `weg` and `itr` are consumed from their pinned repo
+> tags (shallow clone at the tag into `<install>/cli-tools/<name>/<tag>/`);
+> `csg` is the last package still authored under `src/cli-tools/`.
 
 ---
 

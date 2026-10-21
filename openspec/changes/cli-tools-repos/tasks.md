@@ -5,7 +5,8 @@ starts before its predecessor is merged on `master`.
 
 ## Status
 
-Last updated: 2026-10-19, after S1 merged to `master` at `843b50d0`.
+Last updated: 2026-10-21, after S4 merged to `master` at `6ad7117c` (S5 done
+in its worktree).
 
 | Slice | State | Evidence anchor |
 | --- | --- | --- |
@@ -13,17 +14,20 @@ Last updated: 2026-10-19, after S1 merged to `master` at `843b50d0`.
 | S0b — dotfiles prerequisites | done (merged to `master` at `56d7d85e`) | `make hermetic` → exit 0 (63 / 163 / 1095+2skip / 288 / 346 / 638); boundary specs deleted here and tracked in `contracts` `55ad61b`; ff-merge `f4f16f11..56d7d85e`, `make gates-ci` exit 0 at HEAD pre-merge; see the S0b verification log below |
 | S1 — `cli-output` repo + `v0.1.0` | done (merged to `master` at `843b50d0`) | repo `v0.1.0` (tag object `91489b73`, peeled `ddae3727`) consumed by all five locks; scoped stale-path gate exit 1; tree deleted (25 files, 1330 lines); `deploy-coverage` guard + tests green; ff-merge `96c4a0f4..843b50d0`, `make hermetic` / `make gates-ci` / `make deploy-coverage` exit 0 at HEAD pre-merge; see the S1 verification log below |
 | S2 — `config-assembler-engine` repo + `v0.1.0` | done in worktree (merge pending) | repo `v0.1.0` (tag object `5c5cc84e`, peeled `cad8a91c`) consumed by csg/weg/itr locks; scoped stale-path gate exit 1; tree deleted (66 files, 4769 lines); `deploy-coverage` guard + tests green; fresh-clone gate and `make hermetic` / `make gates-ci` / `make deploy-coverage` exit 0; see the S2 verification log below |
-| S3 — `oci-runtime` repo + `v0.5.0` | pending | — |
-| S4 — `icon-templates-renderer` repo + `v0.1.0` | pending | — |
-| S5 — `wallpaper-effects-generator` repo + `v0.1.0` | pending | — |
+| S3 — `oci-runtime` repo + `v0.5.0` | done (merged to `master` at `c4056631`) | repo `v0.5.0` (peeled `b631dfa5`); tree deleted (184 files, 19 848 lines) with the empty `src/shared/`; `deploy-coverage` guard + `23 passed`; merged fast-forward `eb880c2f..c4056631` and pushed; see 5.6 Done |
+| S4 — `icon-templates-renderer` repo + `v0.1.0` | done (merged to `master` at `6ad7117c`) | repo `v0.1.0` (tag object `09271f64`, peeled `92895a06`); pin commit `0bc85765`, retired-tree guard `0c33bdfc`; tree deleted (103 files, 8 918 lines); `make hermetic` / `make gates-ci` / `make deploy-coverage` exit 0 at HEAD pre-merge, itr tree `ABSENT`; merged `c4056631..6ad7117c`, pushed (`origin/master == 6ad7117c`); see 6.5 Done |
+| S5 — `wallpaper-effects-generator` repo + `v0.1.0` | done in worktree (merge pending) | repo `v0.1.0` (tag object `093d4051`, peeled `9672d89c`); tag is the image tag (`weg-podman:v0.1.0`, no `latest`); tree deleted (102 files, 12 380 lines); `make hermetic` / `make gates-ci` / `make deploy-coverage` exit 0; see the S5 verification log below |
 | S6 — `color-scheme-generator` repo + `v0.1.0`, both trees deleted | pending | — |
 | Post-migration verification | pending | — |
 
-S0a, S0b and S1 are done. S1's merge (3.5) landed as the fast-forward
-`96c4a0f4..843b50d0`, pushed to `origin/master` (`origin/master == 843b50d0`);
-S1 is closed and S2 is unblocked. S2's implementation and its gate run are done
-in this worktree (`ticket/clitools-s2-consume-cae`); its merge (4.4) is still
-pending, so S3 has not started. The two S0a
+S0a, S0b, S1, S2, S3 and S4 are done and merged. S2's merge (4.4) landed as the
+fast-forward `d1f92e6c..eb880c2f`; S3's merge (5.6) landed as
+`eb880c2f..c4056631`; S4's merge (6.5) landed as `c4056631..6ad7117c`, pushed
+(`git ls-remote origin refs/heads/master` → `6ad7117c`, exit 0). S5's
+implementation and gate run are done in
+`.worktrees/clitools-s5` on `ticket/clitools-s5-consume-weg` (base `6ad7117c`);
+its merge (7.6) is deliberately NOT done by this slice's agent (STOP before
+merging), so S6 has not started. The two S0a
 lines carried into S0b as 2.7 (boundary-spec relocation) and 2.8 (missing
 `CHANGELOG.md` + GitHub Release assets) are both closed: the specs are tracked in
 `contracts` at `55ad61b` and gone from this repo, and `contracts` `v0.1.0` now
@@ -855,30 +859,51 @@ contracts-only scope.
   the docs tables), so the literal rg gate is not green yet and is recorded as
   such rather than claimed.
 
-- [ ] 6.5 Merge S4 to `master`; only then start S5.
-  Status: S4 is done in the worktree `.worktrees/clitools-s4` on
-  `ticket/clitools-s4-consume-itr` (base `c4056631`); the merge is deliberately
-  NOT done by this slice's agent (STOP before merging).
+- [x] 6.5 Merge S4 to `master`; only then start S5.
   Gate: `make gates-ci && make deploy-coverage` on the merged `master`
   Expect: exit 0; no gate points at the deleted tree.
+  Done: the S4 worktree branch was merged fast-forward onto `master` and pushed;
+  the merge commit is `6ad7117c` (`git ls-remote origin refs/heads/master` →
+  `6ad7117cc982d540d05ec70cecf466393ac1cadc`, exit 0; the S5 worktree's base is
+  that commit). At the S4 worktree HEAD before the merge, `make hermetic` /
+  `make gates-ci` / `make deploy-coverage` → exit 0 and the retired itr tree was
+  `ABSENT` (recorded in the S4 tasks 6.4 Done); the merge added no code beyond
+  the S4 docs commit. `git ls-tree -d --name-only 6ad7117c:src/cli-tools` →
+  `color-scheme-generator`, `openspec`, `wallpaper-effects-generator` — itr is
+  gone, weg still present (S5 owns its deletion). S4 is closed; S5 is unblocked.
 
 ## 7. S5 — `wallpaper-effects-generator` (`weg`) repo + `v0.1.0`
 
-- [ ] 7.1 Create the repo from the birth checklist, import the tree as the repo
+- [x] 7.1 Create the repo from the birth checklist, import the tree as the repo
   root, add the harness; repoint `cli-output`, `config-assembler-engine` and
   `oci-runtime` to tags; confirm the S3 cutover holds (Dockerfile copies only
   `pyproject.toml`, `uv.lock`, `src/`; the verb resolves relative to `--context`);
   tag `v0.1.0`.
   Gate: `git clone "$CLI_REPO_BASE/wallpaper-effects-generator" /tmp/opencode/weg && cd /tmp/opencode/weg && make sync && make gates && make hermetic && uv lock --check`
   Expect: exit 0.
+  Done: `https://github.com/RandomGenericUsername/wallpaper-effects-generator`
+  is public at `v0.1.0` (annotated tag object `093d4051…`, peeled
+  `9672d89c117709afa6eb5b574bd8fdb71469f801`; anonymous
+  `GIT_TERMINAL_PROMPT=0 git -c credential.helper= ls-remote --tags` → the tag
+  and peeled lines only, exit 0). Fresh clone at the tag
+  (`/tmp/opencode/weg-verify`, `git rev-parse HEAD` → `9672d89c…`): `make sync`
+  exit 0; `make gates` exit 0 (`349 passed`, `uv lock --check` →
+  `Resolved 26 packages`); `make hermetic` exit 0 (`349 passed`). The tag's
+  Dockerfile paths are in-repo only (see 7.2).
 
-- [ ] 7.2 Prove the Dockerfile invariant and build from the repo root only.
+- [x] 7.2 Prove the Dockerfile invariant and build from the repo root only.
   Gate: `rg -n "src/shared|src/cli-tools|\.\./" src/wallpaper_effects_generator/adapters/docker/`
   Expect: exit 1.
   Gate: `podman build -t weg-local:test -f src/wallpaper_effects_generator/adapters/docker/Dockerfile.imagemagick . && podman run --rm weg-local:test weg --version`
   Expect: build exit 0; prints `0.1.0 contract 0.1.0`.
+  Done: the `rg` gate → exit 1 (zero matches). From the clone root,
+  `podman build -t weg-local:test -f …/Dockerfile.imagemagick .` → exit 0
+  (`Successfully tagged localhost/weg-local:test`, plus the Dockerfile's own
+  pin tag `Successfully tagged localhost/weg-podman:v0.1.0`), and
+  `podman run --rm weg-local:test weg --version` → `0.1.0 contract 0.1.0`
+  (exit 0). The scratch `weg-local:test` tag was removed after the proof.
 
-- [ ] 7.3 Provisioning: `{name: weg, repo, tag}`; clone at tag into
+- [x] 7.3 Provisioning: `{name: weg, repo, tag}`; clone at tag into
   `<install>/cli-tools/weg/<tag>/`, remove `.git`, write `pinned`; install from
   that checkout (AD-10, not a `git+…@tag` URL) and build with
   `--context <checkout>`.
@@ -890,8 +915,27 @@ contracts-only scope.
   Expect: `PEP610=CHECKOUT`.
   Gate: `rm -rf /tmp/opencode/weg-out && mkdir -p /tmp/opencode/weg-out && WALLPAPER__OUTPUT__DIRECTORY=/tmp/opencode/weg-out /tmp/opencode/uvbin/weg batch all -- "$(find . -name '*.png' -path '*test*' | head -1)"`
   Expect: exit 0; at least one image under `/tmp/opencode/weg-out`.
+  Done (simulated install at `/tmp/opencode/s5-spine/cli-tools/weg/v0.1.0`
+  because incus is not on PATH, so no VM): manifest entry is `{name: weg, repo:
+  https://github.com/RandomGenericUsername/wallpaper-effects-generator, tag:
+  v0.1.0}` and the role's `cli_tools` mirror carries the identical shape (parity
+  test); the S4 role machinery handles the pinned shape generically, so S5 adds
+  no clone code. `git clone --depth 1 --branch v0.1.0 …` → exit 0,
+  `HEAD` = `9672d89c…` == the peeled tag → `HEAD=tag-commit`; `.git` removed;
+  `pinned` contains `v0.1.0`; `uv tool install --force --no-cache <checkout>`
+  → exit 0, `Installed 1 executable: weg`;
+  `direct_url.json` → `{"url":"file:///tmp/opencode/s5-spine/cli-tools/weg/v0.1.0","dir_info":{}}`
+  → `PEP610=CHECKOUT`; `…/s5-uvbin/weg --version` → `0.1.0 contract 0.1.0`;
+  real `weg batch all -- <wallpaper>` → exit 0 with 20 files under
+  `/tmp/opencode/s5-weg-out` (7 `preset/` + 13 `composite/` images).
+  `ansible-playbook playbooks/cli-tools.yaml --syntax-check` → exit 0 (from the
+  ansible dir, so `ansible.cfg` resolves `roles_path`); `--check` with an
+  isolated `HOME` and scratch `install_dir` → exit 0
+  (`ok=16 changed=10 failed=0 skipped=20`), the scratch `install_dir` was NOT
+  created, and the pinned build loop iterated exactly `item=weg` (the source
+  loop exactly `item=csg`).
 
-- [ ] 7.4 Prove the runtime adapter and the tag-qualified image, and that the
+- [x] 7.4 Prove the runtime adapter and the tag-qualified image, and that the
   rendered settings carry the pin.
   Gate: `uv run --directory src/runtime pytest tests/integration/test_weg_adapter_integration.py -v -rs`
   Expect: `1 passed`.
@@ -911,18 +955,139 @@ contracts-only scope.
   to the build verb and validates it against the checkout's package version
   (`0.1.0`), so a pin no tag produced (`v9.9.9`) fails closed instead of
   building an image that `verify` would later reject.
+  Done: the settings template renders `image_tag = "{{ settings_weg_image_tag }}"`
+  (var = `v0.1.0`, mirror of the manifest, locked by
+  `TestSettingsImageTag`), and the `roles/settings` playbook rendered a real
+  spine at `/tmp/opencode/s5-spine/config/weg/settings.toml` with
+  `image_tag = "v0.1.0"`. `test_settings_role.py -k image_tag` → `3 passed`
+  (including a two-render bump proof: `v0.1.0` then `v0.2.0`, each rendered
+  value equal to the pin). Build from the checkout with the pin:
+  `weg install --container-engine podman --context <checkout> --image-tag v0.1.0`
+  → exit 0, `Container image installed: weg-podman:v0.1.0`;
+  `podman images` → exactly `localhost/weg-podman:v0.1.0`, no `weg*:latest`
+  (the pre-existing 4-day-old `:latest` and a previous experiment's `v9.9.9`
+  tag were removed before the pinned rebuild); `podman run --rm
+  weg-podman:v0.1.0 weg --version` → `0.1.0 contract 0.1.0`. Runtime adapter
+  against the pinned install (`XDG_CONFIG_HOME` = the rendered spine + a
+  `dump-effects` catalog, pinned bin first on PATH) →
+  `1 passed` (`test_weg_adapter_integration.py`, 20.5 s).
+  Negative (provisioning layer, proven): a pin no tag produced fails closed —
+  `git clone --depth 1 --branch v9.9.9 …` → exit 128
+  (`fatal: Remote branch v9.9.9 not found in upstream origin`) and the checkout
+  is NOT created, so the role's clone task fails before any build and can never
+  fall back to a branch head or `latest`. The CLI's own tag validation is
+  grammar-only: `--image-tag 'bad tag'` → exit 2, `invalid image tag 'bad tag'`
+  (no build). **Open observation (MISSING vs this task's literal third
+  expectation):** the `v0.1.0` CLI does NOT validate `--image-tag` against the
+  checkout's package version, so `--image-tag v9.9.9` → exit 0, tagging
+  `weg-podman:v9.9.9` (observed, then removed). The repo's own spec at the tag
+  requires only the grammar check (`openspec/specs/weg-cli/spec.md:41-56`:
+  "SHALL reject a tag outside `[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}`"), so the
+  version-match gate cannot be satisfied without a new `weg` tag. This slice
+  mitigates it end to end: the manifest pin is the ONLY tag the role can pass
+  (`--image-tag "{{ item.tag }}"`, unit-tested + `deploy-coverage`-asserted),
+  the rendered settings carry the same pin, and `verify` fails when the image is
+  absent at `weg-<engine>:<pin>` — a wrong pin cannot silently survive
+  provisioning.
 
-- [ ] 7.5 Delete `src/cli-tools/wallpaper-effects-generator/`, the runtime
+- [x] 7.5 Delete `src/cli-tools/wallpaper-effects-generator/`, the runtime
   `weg_effects` repo candidate, stale docs tables and `.gitignore` lines;
   extend `scripts/deploy-coverage.py` with the absence assertion for
   `src/cli-tools/wallpaper-effects-generator` in the deletion commit.
   Gate: `make gates-ci && make deploy-coverage && test ! -e src/cli-tools/wallpaper-effects-generator && echo "ABSENT"`
   Expect: exit 0 and `ABSENT`; `deploy-coverage` names the tree in its
   retired-tree assertion.
+  Done: deletion only after the isolated proof above was green.
+  `rm -rf src/cli-tools/wallpaper-effects-generator` (staged as deletions) →
+  102 files / 12 380 lines deleted (diffstat `102 files changed, 12380 deletions(-)`); `test ! -e`
+  → `ABSENT`; `Makefile` `HERMETIC_PACKAGES` now lists only
+  `src/cli-tools/color-scheme-generator`; the two stale `.gitignore` lines
+  (`feedback.md`, `test.sh`) are gone; `docs/99-…`'s tree and CLI prose updated.
+  Runtime: `application/derive.py`'s `weg_effects` repo-relative candidates are
+  removed (in-slice per the deletion step) and `adapters/weg_adapter.py`'s
+  repo-ancestor catalog fallback — which searched the deleted tree and could
+  therefore never resolve again — is removed with its tests
+  (`test_derive_input_provenance.py`, `test_doctor_check.py`,
+  `test_weg_adapter.py`); the touched runtime tests → `60 passed`. `deploy-coverage`
+  now asserts the per-CLI pin shape for `weg` (repo+tag and no `source` in
+  manifest + role mirror, tag-qualified checkout in the tasks, no `git+…@tag`
+  install, in-tree tree absent) plus the AD-7 build shape (`--image-tag
+  "{{ item.tag }}"`, context = the tag-qualified checkout), with four negative
+  tests (retired tree, `source` + pin, repo without tag, literal image tag).
+  Gate run → `make gates-ci` exit 0 (five gates, `deploy-coverage: PASS`,
+  `ci-gates-parity: PASS`), `make deploy-coverage` exit 0 with the new line
+  `'weg' is provisioned from its pinned manifest entry (repo+tag, no source)
+  and installed from the tag-bearing checkout; its image tag is the pin
+  (never `latest`) — the in-tree tree is retired`. Targeted suites:
+  `test_cli_tools_role.py` → `57 passed`; `test_verify_role.py -k "not
+  TestVerifyRuntime"` → `80 passed, 9 deselected`; `TestDeployCoverageGate` →
+  `30 passed, 33 deselected`; `test_settings_role.py` → `109 passed, 1 failed`
+  (`TestSettingsPlaybook::test_runtime_gate_with_cli_tools`, which fails
+  identically at base `6ad7117c` because the HOST `~/.local/bin/csg` env cannot
+  import `oci_runtime.engine_qualified_image` — pre-existing, not this slice).
+  `make hermetic` → exit 0 (`639 passed`, csg only). Stale-path scan
+  `rg -n "src/cli-tools/wallpaper-effects-generator" src dotfiles scripts
+  Makefile .github docs --glob '!**/uv.lock'` → only `docs/01-…:33` (the stale
+  "current repository state" table, S6 §8.7 owns the docs tables),
+  `docs/investigation/*` (read-only evidence), `scripts/deploy-coverage.py:317`
+  (the guard constant) and three negative-test strings — so the literal exit-1
+  scan is NOT achieved and is recorded as such, not claimed. The host
+  `~/.config/weg/settings.toml` still renders `image_tag = "latest"` until the
+  next provision re-applies `roles/settings`; that is expected (the slice
+  changes the template, not the already-provisioned host spine).
 
 - [ ] 7.6 Merge S5 to `master`; only then start S6.
   Gate: `make gates-ci && make deploy-coverage` on the merged `master`
   Expect: exit 0; no gate points at the deleted tree.
+  Status: S5 is done in `.worktrees/clitools-s5` on
+  `ticket/clitools-s5-consume-weg` (base `6ad7117c`); its commits are
+  `feat(provisioning): install weg from its pinned repo and pin the image tag`,
+  `test(gates): assert weg tree retired` and the docs record. The merge is
+  deliberately NOT done by this slice's agent (STOP before merging), so S6 has
+  not started.
+
+### S5 verification log
+
+Run in `.worktrees/clitools-s5` on `ticket/clitools-s5-consume-weg` (base
+`6ad7117c`) plus the pinned checkout at the tag (2026-10-21). No VM: incus is
+absent, so the role was simulated from the manifest values.
+
+| Command | Observed |
+| --- | --- |
+| `GIT_TERMINAL_PROMPT=0 git -c credential.helper= ls-remote --tags …/wallpaper-effects-generator` | exit 0; `093d4051… refs/tags/v0.1.0`, `9672d89c… refs/tags/v0.1.0^{}` — anonymous |
+| `git clone --depth 1 --branch v0.1.0 … <checkout>` + `git rev-parse HEAD` | exit 0; `9672d89c117709afa6eb5b574bd8fdb71469f801` → `HEAD=tag-commit` |
+| `rm -rf <checkout>/.git`, `printf 'v0.1.0\n' > …/weg/pinned` | `.git` absent, `pinned` = `v0.1.0` |
+| `UV_TOOL_DIR=/tmp/opencode/s5-uvtools UV_TOOL_BIN_DIR=/tmp/opencode/s5-uvbin uv tool install --force --no-cache <checkout>` | exit 0, `Installed 1 executable: weg` |
+| `cat …/wallpaper_effects_generator-0.1.0.dist-info/direct_url.json` | `{"url":"file:///tmp/opencode/s5-spine/cli-tools/weg/v0.1.0","dir_info":{}}` → `PEP610=CHECKOUT` |
+| `…/s5-uvbin/weg --version` | `0.1.0 contract 0.1.0`, exit 0 |
+| `WALLPAPER__OUTPUT__DIRECTORY=/tmp/opencode/s5-weg-out weg batch all -- <wallpaper>` | exit 0; 20 PNGs (7 `preset/`, 13 `composite/`) |
+| fresh clone at tag: `make sync && make gates && make hermetic` | exit 0 each; `349 passed` (gates), `349 passed` (hermetic), `uv lock --check` → `Resolved 26 packages` |
+| `rg -n "src/shared\|src/cli-tools\|\.\./" <clone>/src/wallpaper_effects_generator/adapters/docker/` | exit 1 — no sibling-repo path |
+| `podman build -t weg-local:test -f …/Dockerfile.imagemagick .` + `podman run --rm weg-local:test weg --version` | exit 0; `0.1.0 contract 0.1.0` |
+| `weg install --container-engine podman --context <checkout> --image-tag v0.1.0` | exit 0, `Container image installed: weg-podman:v0.1.0` |
+| `podman images --format '{{.Repository}}:{{.Tag}}'` | `localhost/weg-podman:v0.1.0` only; no `weg*:latest` |
+| `podman run --rm weg-podman:v0.1.0 weg --version` | `0.1.0 contract 0.1.0`, exit 0 |
+| `XDG_CONFIG_HOME=<rendered spine link> PATH=<pinned bin>:$PATH uv run --directory src/runtime pytest tests/integration/test_weg_adapter_integration.py -v -rs` | `1 passed` (20.5 s) |
+| `uv run --directory src/provisioning pytest -q tests/unit/test_settings_role.py -k image_tag` | `3 passed` |
+| `ansible-playbook playbooks/cli-tools.yaml --syntax-check` | exit 0 |
+| `ansible-playbook playbooks/cli-tools.yaml --check -e install_dir=<scratch>` | exit 0 (`ok=16 changed=10 failed=0 skipped=20`); scratch dir NOT created; pinned loop = `weg`, source loop = `csg` |
+| negative: `git clone --depth 1 --branch v9.9.9 …` | exit 128, `Remote branch v9.9.9 not found`; checkout NOT created |
+| negative: `weg install … --image-tag 'bad tag'` | exit 2, `invalid image tag 'bad tag'` |
+| negative: `weg install … --image-tag v9.9.9` | exit 0, tags `weg-podman:v9.9.9` — **version-match validation absent at `v0.1.0`** (see 7.4) |
+| `rm -rf src/cli-tools/wallpaper-effects-generator` (staged) | 102 files / 12 380 lines; `test ! -e` → `ABSENT` |
+| `uv run --directory src/provisioning pytest tests/unit/test_cli_tools_role.py` | `57 passed` |
+| `uv run --directory src/provisioning pytest tests/unit/test_verify_role.py -k "not TestVerifyRuntime"` | `80 passed, 9 deselected` |
+| `uv run --directory src/provisioning pytest tests/unit/test_compositor_configs_role.py -k DeployCoverageGate` | `30 passed, 33 deselected` |
+| `uv run --directory src/runtime pytest tests/unit/test_weg_adapter.py tests/unit/test_derive_input_provenance.py tests/unit/test_doctor_check.py` | `60 passed` |
+| `make hermetic` | exit 0, `639 passed` (csg is the only package left) |
+| `make gates-ci` | exit 0 — five gates; `deploy-coverage: PASS`, `ci-gates-parity: PASS` |
+| `make deploy-coverage` | exit 0; new `'weg' is provisioned from its pinned manifest entry …` line |
+| `openspec validate cli-tools-repos --type change` | `Change 'cli-tools-repos' is valid`, exit 0 |
+| `uv run --directory src/provisioning pytest -q tests/unit/test_settings_role.py` | `109 passed, 1 failed` — the failure reproduces identically at base `6ad7117c` (host `csg` env, pre-existing) |
+
+Not run: the full `src/provisioning` suite (known ~46-min run with two
+pre-existing `TestVerifyRuntime` timeouts), per the S4 precedent.
+
 
 ## 8. S6 — `color-scheme-generator` (`csg`) repo + `v0.1.0`, delete both trees
 
