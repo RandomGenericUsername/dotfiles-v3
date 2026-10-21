@@ -1054,6 +1054,8 @@ class TestDeployCoverageGate:
     _RETIRED_CONFIG_ASSEMBLER_ENGINE = "src/shared/config-assembler-engine"
     _RETIRED_OCI_RUNTIME = "src/shared/oci-runtime"
     _RETIRED_SHARED_ROOT = "src/shared"
+    _RETIRED_ITR = "src/cli-tools/icon-templates-renderer"
+    _CLI_MANIFEST = "dotfiles/provisioning/cli-tools.yaml"
     _APPS_VARS = "src/provisioning/ansible/roles/ags_apps/vars/main.yml"
 
     def _run(self, root: Path) -> subprocess.CompletedProcess[str]:
@@ -1085,6 +1087,10 @@ class TestDeployCoverageGate:
         vars_dst = root / self._VARS
         vars_dst.parent.mkdir(parents=True, exist_ok=True)
         vars_dst.write_text((repo_root / self._VARS).read_text())
+        manifest_src = repo_root / self._CLI_MANIFEST
+        manifest_dst = root / self._CLI_MANIFEST
+        manifest_dst.parent.mkdir(parents=True, exist_ok=True)
+        manifest_dst.write_text(manifest_src.read_text())
         for role in roles:
             shutil.copytree(
                 repo_root / "src/provisioning/ansible/roles" / role,
@@ -1110,6 +1116,10 @@ class TestDeployCoverageGate:
         assert "'oci-runtime' is consumed from its pinned repo" in result.stdout, (
             "the gate must report the retired in-tree oci-runtime package and "
             "the now-empty src/shared/ root; recap:\n" + result.stdout
+        )
+        assert "'itr' is provisioned from its pinned manifest entry" in result.stdout, (
+            "the gate must report itr's pinned manifest entry and tag-bearing "
+            "checkout; recap:\n" + result.stdout
         )
 
     def test_gate_fails_when_the_retired_cli_output_tree_returns(self) -> None:
@@ -1296,6 +1306,75 @@ class TestDeployCoverageGate:
             )
             assert "path" in result.stdout and "oci-runtime" in result.stdout, (
                 "the failure must name the path pin; recap:\n" + result.stdout
+            )
+
+    def test_gate_fails_when_the_retired_itr_tree_returns(self) -> None:
+        """cli-tools-repos S4: `itr` is consumed from its pinned repo
+        (v0.1.0), so the in-tree package is retired. A surviving copy is a
+        second source of truth that no consumer installs — it must FAIL even
+        when the manifest and every pin still resolve the tag."""
+        repo_root = _ANSIBLE_DIR.parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._seed_root(root, repo_root)
+            stray = root / self._RETIRED_ITR
+            stray.mkdir(parents=True)
+            (stray / "pyproject.toml").write_text(
+                '[project]\nname = "icon-templates-renderer"\nversion = "0.1.0"\n'
+            )
+            result = self._run(root)
+            assert result.returncode != 0, (
+                "the gate must FAIL when the retired in-tree itr package "
+                f"returns; recap:\n{result.stdout}"
+            )
+            assert "src/cli-tools/icon-templates-renderer" in result.stdout, (
+                "the failure must name the retired in-tree itr dir; recap:\n"
+                + result.stdout
+            )
+
+    def test_gate_fails_when_itr_keeps_a_source_path(self) -> None:
+        """AD-10: an entry with BOTH a source and repo/tag lets the local path
+        silently shadow the pin for one consumer. The gate must reject it
+        rather than accept the repo+tag half."""
+        repo_root = _ANSIBLE_DIR.parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._seed_root(root, repo_root)
+            manifest = root / self._CLI_MANIFEST
+            manifest.write_text(
+                manifest.read_text().replace(
+                    "  - name: itr\n",
+                    "  - name: itr\n    source: src/cli-tools/icon-templates-renderer\n",
+                )
+            )
+            result = self._run(root)
+            assert result.returncode != 0, (
+                "the gate must FAIL when itr carries a source path AND a pin; "
+                f"recap:\n{result.stdout}"
+            )
+            assert "source" in result.stdout and "itr" in result.stdout, (
+                "the failure must name the offending source path; recap:\n"
+                + result.stdout
+            )
+
+    def test_gate_fails_when_itr_loses_its_tag(self) -> None:
+        """A repo without a tag has no pin: the role would clone a branch head
+        and verify could never assert the tag. The gate must fail closed."""
+        repo_root = _ANSIBLE_DIR.parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._seed_root(root, repo_root)
+            manifest = root / self._CLI_MANIFEST
+            manifest.write_text(
+                manifest.read_text().replace("    tag: v0.1.0\n", "")
+            )
+            result = self._run(root)
+            assert result.returncode != 0, (
+                "the gate must FAIL when the itr entry has a repo but no tag; "
+                f"recap:\n{result.stdout}"
+            )
+            assert "tag" in result.stdout, (
+                "the failure must name the missing tag; recap:\n" + result.stdout
             )
 
     def test_gate_passes_when_the_in_repo_bridge_is_absent(self) -> None:

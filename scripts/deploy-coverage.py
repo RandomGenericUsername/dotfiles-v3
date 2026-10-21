@@ -302,6 +302,18 @@ OCI_RUNTIME_PACKAGE = "oci-runtime"
 RETIRED_OCI_RUNTIME_DIR = "src/shared/oci-runtime"
 RETIRED_SHARED_LIBS_DIR = "src/shared"
 
+# `icon-templates-renderer` (console: `itr`) is the FIRST CLI consumed from its
+# own pinned repo (cli-tools-repos S4): the manifest entry is
+# `{name: itr, repo: …, tag: v0.1.0}`, no `source:` path, and the `cli_tools`
+# role installs FROM a tag-bearing checkout at <install>/cli-tools/itr/<tag>/
+# (AD-10) rather than from a `git+…@tag` URL. The in-tree package is retired in
+# the same slice that proves the new wiring, so a surviving copy is a second
+# source of truth that no consumer installs.
+CLI_TOOLS_MANIFEST = "dotfiles/provisioning/cli-tools.yaml"
+CLI_TOOLS_ROLE_VARS = "src/provisioning/ansible/roles/cli_tools/vars/main.yml"
+ITR_NAME = "itr"
+RETIRED_ITR_DIR = "src/cli-tools/icon-templates-renderer"
+
 # Files that participate in `ags bundle` and are therefore a missing-module
 # hazard. `.d.ts` ends in `.ts`, so it is covered by the `.ts` suffix.
 _MODULE_SUFFIXES = (".ts", ".tsx", ".css")
@@ -1469,6 +1481,128 @@ def assert_no_in_tree_oci_runtime(root: Path) -> None:
             )
 
 
+def assert_itr_provisioned_from_pinned_manifest(root: Path) -> None:
+    """`itr` is provisioned from its pinned repo, never a local path.
+
+    cli-tools-repos S4 moved the icon renderer out of this repo (tag
+    `v0.1.0`). This gate asserts the SHAPE of the consumption, since the host
+    assertions live in `verify` (AD-11):
+      (a) the manifest entry is `{name, repo, tag}` — a repo and tag are
+          present and there is NO `source:` path (a source would silently
+          resolve the local checkout in one consumer while others use the tag);
+      (b) the role mirror in `vars/main.yml` carries the same repo/tag and
+          installs from the tag-qualified checkout root;
+      (c) the role tasks address the tag-bearing checkout path
+          (`<install>/cli-tools/<name>/<tag>`) and never a `git+…@tag` URL —
+          AD-10 requires the installed tool's PEP 610 record to be a path that
+          names the tag;
+      (d) the retired in-tree package dir does not exist.
+    """
+    import yaml
+
+    manifest_path = root / CLI_TOOLS_MANIFEST
+    if not manifest_path.is_file():
+        raise ValueError(f"{CLI_TOOLS_MANIFEST} is missing")
+    data = yaml.safe_load(manifest_path.read_text())
+    entries = data.get("entries") if isinstance(data, dict) else None
+    if not isinstance(entries, list):
+        raise ValueError(f"{CLI_TOOLS_MANIFEST} has no `entries` list")
+    by_name = {
+        str(entry.get("name")): entry
+        for entry in entries
+        if isinstance(entry, dict) and entry.get("name")
+    }
+    itr = by_name.get(ITR_NAME)
+    if itr is None:
+        raise ValueError(
+            f"{CLI_TOOLS_MANIFEST} has no {ITR_NAME!r} entry — the icon renderer "
+            f"is consumed from its pinned repo; re-add it as {{name, repo, tag}}"
+        )
+    if "source" in itr:
+        raise ValueError(
+            f"{CLI_TOOLS_MANIFEST} still provisions {ITR_NAME!r} from a source "
+            f"path ({itr['source']!r}) — it must carry repo+tag and install "
+            f"from the tag-bearing checkout (spine AD-10)"
+        )
+    if not str(itr.get("repo") or "").strip() or not str(itr.get("tag") or "").strip():
+        raise ValueError(
+            f"{CLI_TOOLS_MANIFEST} entry {ITR_NAME!r} must carry BOTH repo and "
+            f"tag (spine AD-10); got repo={itr.get('repo')!r} tag={itr.get('tag')!r}"
+        )
+    tag = str(itr["tag"]).strip()
+
+    role_vars_path = root / CLI_TOOLS_ROLE_VARS
+    if not role_vars_path.is_file():
+        raise ValueError(f"{CLI_TOOLS_ROLE_VARS} is missing")
+    role_vars = yaml.safe_load(role_vars_path.read_text())
+    role_entries = role_vars.get("cli_tools") if isinstance(role_vars, dict) else None
+    role_itr = next(
+        (
+            entry
+            for entry in role_entries or []
+            if isinstance(entry, dict) and entry.get("name") == ITR_NAME
+        ),
+        None,
+    )
+    if role_itr is None:
+        raise ValueError(f"{CLI_TOOLS_ROLE_VARS} has no {ITR_NAME!r} cli_tools entry")
+    if "source" in role_itr:
+        raise ValueError(
+            f"{CLI_TOOLS_ROLE_VARS} still provisions {ITR_NAME!r} from a source "
+            f"path ({role_itr['source']!r}) — role and manifest must agree on "
+            f"the pinned shape"
+        )
+    if (
+        str(role_itr.get("repo") or "").strip() != str(itr["repo"]).strip()
+        or str(role_itr.get("tag") or "").strip() != tag
+    ):
+        raise ValueError(
+            f"{CLI_TOOLS_ROLE_VARS} {ITR_NAME!r} pin ({role_itr.get('repo')!r}, "
+            f"{role_itr.get('tag')!r}) does not mirror {CLI_TOOLS_MANIFEST} "
+            f"({itr.get('repo')!r}, {tag!r})"
+        )
+    checkout_root = str(role_vars.get("cli_tools_checkout_root", ""))
+    if "install_dir" not in checkout_root or not checkout_root.endswith("/cli-tools"):
+        raise ValueError(
+            f"{CLI_TOOLS_ROLE_VARS} cli_tools_checkout_root must be "
+            f"<install>/cli-tools (spine AD-10); got {checkout_root!r}"
+        )
+
+    tasks_path = root / CLI_TOOLS_ROLE_TASKS
+    if not tasks_path.is_file():
+        raise ValueError(f"{CLI_TOOLS_ROLE_TASKS} is missing")
+    tasks_text = tasks_path.read_text()
+    for fragment in (
+        "{{ cli_tools_checkout_root }}/{{ item.name }}/{{ item.tag }}",
+        "{{ item.item.tag }}",
+        "pinned",
+    ):
+        if fragment not in tasks_text:
+            raise ValueError(
+                f"{CLI_TOOLS_ROLE_TASKS} does not reference {fragment!r} — the "
+                f"role must clone at the pinned tag and install from the "
+                f"tag-bearing checkout (spine AD-10)"
+            )
+    for line in tasks_text.splitlines():
+        stripped = line.lstrip()
+        if "uv tool install" not in stripped or stripped.startswith("#"):
+            continue
+        if "git+" in stripped:
+            raise ValueError(
+                f"{CLI_TOOLS_ROLE_TASKS} installs from a git+…@tag URL — the "
+                f"tool must be installed FROM the tag-bearing checkout so PEP "
+                f"610 records a path that names the tag (spine AD-10)"
+            )
+
+    retired = root / RETIRED_ITR_DIR
+    if retired.exists():
+        raise ValueError(
+            f"the retired in-tree {ITR_NAME!r} package still exists at "
+            f"{RETIRED_ITR_DIR}/ — it is consumed from its pinned repo tag "
+            f"{tag}; delete the directory (cli-tools-repos S4)"
+        )
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         description="the external bar + platform units are provisioned"
@@ -1551,6 +1685,11 @@ def main() -> int:
         # cli-tools-repos S3: `oci-runtime` (v0.5.0) was the last shared
         # library, so the package AND the `src/shared/` root are retired.
         assert_no_in_tree_oci_runtime(root)
+        # cli-tools-repos S4: `itr` is the first CLI consumed from its own
+        # pinned repo. The manifest/role shape is asserted (repo+tag, no
+        # source), the role must install from the tag-bearing checkout, and the
+        # in-tree package must be gone.
+        assert_itr_provisioned_from_pinned_manifest(root)
     except (RuntimeError, ValueError, FileNotFoundError) as exc:
         print(f"FAIL: {exc}")
         return 1
@@ -1625,6 +1764,11 @@ def main() -> int:
         f"deploy-coverage: {OCI_RUNTIME_PACKAGE!r} is consumed from its pinned "
         f"repo — no in-tree package, no {RETIRED_SHARED_LIBS_DIR}/ root and no "
         f"path source"
+    )
+    print(
+        f"deploy-coverage: {ITR_NAME!r} is provisioned from its pinned manifest "
+        f"entry (repo+tag, no source) and installed from the tag-bearing "
+        f"checkout — the in-tree tree is retired"
     )
     return 0
 
