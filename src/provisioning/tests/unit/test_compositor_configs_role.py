@@ -33,6 +33,30 @@ def _authored_icons_yaml() -> Path | None:
         candidates.append(xdg_data / "dotfiles" / "icon-mappings" / "icons.yaml")
     return next((path for path in candidates if path.is_file()), None)
 
+def _assets_configs_file(relative: str) -> Path | None:
+    """Resolve a file inside the pinned assets `configs/` class.
+
+    S2 moved the static config corpus out of this checkout, so a test that
+    cross-checks BOTH sides of a rule (the window rule and the editor's dialog
+    titles) can only read the rule where the corpus exists. Resolution mirrors
+    `_authored_icons_yaml`: explicit ``DOTFILES_ASSETS_CONFIGS_DIR``, else the
+    provisioned spine's pinned checkout. ``None`` means "not provided" — the
+    caller must skip loudly rather than pin a copy of the bytes here.
+    """
+    explicit = os.environ.get("DOTFILES_ASSETS_CONFIGS_DIR")
+    candidates: list[Path] = [Path(explicit).expanduser()] if explicit else []
+    tag = str(_vars()["compositor_configs_assets_pinned_tag"])
+    spine = os.environ.get("DOTFILES_INSTALL_SPINE")
+    if spine:
+        candidates.append(Path(spine).expanduser() / "assets" / tag / "configs")
+    else:
+        xdg_data = Path(
+            os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share"
+        )
+        candidates.append(xdg_data / "dotfiles" / "assets" / tag / "configs")
+    return next((base / relative for base in candidates if (base / relative).is_file()), None)
+
+
 def _find_ansible_dir() -> Path:
     """Locate the real ansible scaffold dir by walking up from this test file.
 
@@ -265,13 +289,14 @@ class TestCompositorConfigsRoleTree:
         """
         import re
 
-        rule = (
-            _ANSIBLE_DIR.parents[2]
-            / "dotfiles"
-            / "config"
-            / "hypr"
-            / "window-rules.lua"
-        ).read_text()
+        rule_path = _assets_configs_file("hypr/window-rules.lua")
+        if rule_path is None:
+            pytest.skip(
+                "window-rules.lua is in the pinned corpus: set "
+                "DOTFILES_ASSETS_CONFIGS_DIR=<v0.3.1 checkout>/configs or "
+                "provision the spine, then re-run this cross-check"
+            )
+        rule = rule_path.read_text()
         m = re.search(
             r"icme-filechooser-replaces-editor.*?title = \"([^\"]+)\"",
             rule,
