@@ -1056,6 +1056,8 @@ class TestDeployCoverageGate:
     _RETIRED_SHARED_ROOT = "src/shared"
     _RETIRED_ITR = "src/cli-tools/icon-templates-renderer"
     _RETIRED_WEG = "src/cli-tools/wallpaper-effects-generator"
+    _RETIRED_CSG = "src/cli-tools/color-scheme-generator"
+    _RETIRED_CLI_TOOLS = "src/cli-tools"
     _CLI_MANIFEST = "dotfiles/provisioning/cli-tools.yaml"
     _APPS_VARS = "src/provisioning/ansible/roles/ags_apps/vars/main.yml"
 
@@ -1125,6 +1127,15 @@ class TestDeployCoverageGate:
         assert "'weg' is provisioned from its pinned manifest entry" in result.stdout, (
             "the gate must report weg's pinned manifest entry and tag-bearing "
             "checkout; recap:\n" + result.stdout
+        )
+        assert "'csg' is provisioned from its pinned manifest entry" in result.stdout, (
+            "the gate must report csg's pinned manifest entry, tag-bearing "
+            "checkout and env-delivered image tag; recap:\n" + result.stdout
+        )
+        assert "six packages are consumed from their pinned repos" in result.stdout, (
+            "the gate must report the terminal state: six pinned packages, both "
+            "parent roots retired and exactly one in-repo source; recap:\n"
+            + result.stdout
         )
 
     def test_gate_fails_when_the_retired_cli_output_tree_returns(self) -> None:
@@ -1497,6 +1508,177 @@ class TestDeployCoverageGate:
             assert "image-tag" in result.stdout or "image tagged" in result.stdout, (
                 "the failure must name the image tag; recap:\n" + result.stdout
             )
+
+    def test_gate_fails_when_the_retired_csg_tree_returns(self) -> None:
+        """cli-tools-repos S6: `csg` is consumed from its pinned repo (v0.1.0),
+        so the in-tree package is retired. A surviving copy is a second source
+        of truth that no consumer installs."""
+        repo_root = _ANSIBLE_DIR.parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._seed_root(root, repo_root)
+            stray = root / self._RETIRED_CSG
+            stray.mkdir(parents=True)
+            (stray / "pyproject.toml").write_text(
+                '[project]\nname = "color-scheme-generator"\nversion = "0.1.0"\n'
+            )
+            result = self._run(root)
+            assert result.returncode != 0, (
+                "the gate must FAIL when the retired in-tree csg package "
+                f"returns; recap:\n{result.stdout}"
+            )
+            assert "src/cli-tools/color-scheme-generator" in result.stdout, (
+                "the failure must name the retired in-tree csg dir; recap:\n"
+                + result.stdout
+            )
+
+    def test_gate_fails_when_csg_keeps_a_source_path(self) -> None:
+        """AD-10: an entry with BOTH a source and repo/tag lets the local path
+        silently shadow the pin for one consumer."""
+        repo_root = _ANSIBLE_DIR.parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._seed_root(root, repo_root)
+            manifest = root / self._CLI_MANIFEST
+            manifest.write_text(
+                manifest.read_text().replace(
+                    "  - name: csg\n",
+                    "  - name: csg\n"
+                    "    source: src/cli-tools/color-scheme-generator\n",
+                )
+            )
+            result = self._run(root)
+            assert result.returncode != 0, (
+                "the gate must FAIL when csg carries a source path AND a pin; "
+                f"recap:\n{result.stdout}"
+            )
+            assert "source" in result.stdout and "csg" in result.stdout, (
+                "the failure must name the offending source path; recap:\n"
+                + result.stdout
+            )
+
+    def test_gate_fails_when_csg_loses_its_tag(self) -> None:
+        """A repo without a tag has no pin: the role would clone a branch head,
+        the images could not be tagged with the pin, and verify could never
+        assert them."""
+        repo_root = _ANSIBLE_DIR.parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._seed_root(root, repo_root)
+            manifest = root / self._CLI_MANIFEST
+            manifest.write_text(
+                manifest.read_text().replace(
+                    "  - name: csg\n"
+                    "    repo: https://github.com/RandomGenericUsername/"
+                    "color-scheme-generator\n"
+                    "    tag: v0.1.0\n",
+                    "  - name: csg\n"
+                    "    repo: https://github.com/RandomGenericUsername/"
+                    "color-scheme-generator\n",
+                )
+            )
+            result = self._run(root)
+            assert result.returncode != 0, (
+                "the gate must FAIL when the csg entry has a repo but no tag; "
+                f"recap:\n{result.stdout}"
+            )
+            assert "tag" in result.stdout and "csg" in result.stdout, (
+                "the failure must name the missing tag and csg; recap:\n"
+                + result.stdout
+            )
+
+    def test_gate_fails_when_the_csg_image_tag_is_a_literal(self) -> None:
+        """AD-7 for the ENV transport: csg's verb has no `--image-tag`, so the
+        pin reaches it as COLORSCHEME__CONTAINER__IMAGE_TAG. A literal there
+        (e.g. `latest`) would ship images the rendered settings never resolve."""
+        repo_root = _ANSIBLE_DIR.parents[2]
+        tasks_rel = "src/provisioning/ansible/roles/cli_tools/tasks/main.yml"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._seed_root(root, repo_root)
+            tasks = root / tasks_rel
+            text = tasks.read_text()
+            replaced = text.replace(
+                'COLORSCHEME__CONTAINER__IMAGE_TAG: "{{ item.tag }}"',
+                'COLORSCHEME__CONTAINER__IMAGE_TAG: "v0.1.0"',
+            )
+            assert replaced != text, "seed did not contain the env-delivered tag"
+            tasks.write_text(replaced)
+            result = self._run(root)
+            assert result.returncode != 0, (
+                "the gate must FAIL when the env-delivered image tag is a "
+                f"literal instead of the manifest pin; recap:\n{result.stdout}"
+            )
+            assert "image tag" in result.stdout or "literal image tag" in (
+                result.stdout
+            ), "the failure must name the image tag; recap:\n" + result.stdout
+
+    def test_gate_fails_when_the_retired_cli_tools_root_returns(self) -> None:
+        """S6 terminal catch-all: with the last CLI extracted, the parent
+        `src/cli-tools/` root is retired. An empty leftover is the obvious home
+        for a re-vendored copy that no consumer installs."""
+        repo_root = _ANSIBLE_DIR.parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._seed_root(root, repo_root)
+            (root / self._RETIRED_CLI_TOOLS).mkdir(parents=True)
+            result = self._run(root)
+            assert result.returncode != 0, (
+                "the gate must FAIL when the retired src/cli-tools/ root "
+                f"returns; recap:\n{result.stdout}"
+            )
+            assert "src/cli-tools/" in result.stdout and "still exists" in (
+                result.stdout
+            ), "the failure must name the retired CLI-tools root; recap:\n" + (
+                result.stdout
+            )
+
+    def test_gate_fails_when_a_second_local_source_appears(self) -> None:
+        """AD-11 (final, strict): `dotfiles-runtime -> src/runtime` is the ONE
+        permitted in-repo source. A second one reopens the mixed-shape window
+        the extraction closed."""
+        repo_root = _ANSIBLE_DIR.parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._seed_root(root, repo_root)
+            manifest = root / self._CLI_MANIFEST
+            manifest.write_text(
+                manifest.read_text()
+                + "  - name: stray-tool\n    source: src/stray-tool\n"
+            )
+            result = self._run(root)
+            assert result.returncode != 0, (
+                "the gate must FAIL when the manifest carries a second local "
+                f"source; recap:\n{result.stdout}"
+            )
+            assert "exactly ONE `source:`" in result.stdout or "one in-repo source" in (
+                result.stdout
+            ), "the failure must name the single-source rule; recap:\n" + result.stdout
+
+    def test_gate_fails_when_the_only_source_is_not_the_runtime(self) -> None:
+        """The permitted local source is the runtime this repo authors, not any
+        other tree: a `source:` re-pointed at an extracted package would install
+        it from a path while the manifest still looks pinned."""
+        repo_root = _ANSIBLE_DIR.parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._seed_root(root, repo_root)
+            manifest = root / self._CLI_MANIFEST
+            manifest.write_text(
+                manifest.read_text().replace(
+                    "  - name: dotfiles-runtime\n    source: src/runtime\n",
+                    "  - name: dotfiles-runtime\n"
+                    "    source: src/cli-tools/color-scheme-generator\n",
+                )
+            )
+            result = self._run(root)
+            assert result.returncode != 0, (
+                "the gate must FAIL when the only local source is not "
+                f"src/runtime; recap:\n{result.stdout}"
+            )
+            assert "dotfiles-runtime" in result.stdout and "src/runtime" in (
+                result.stdout
+            ), "the failure must name the permitted source; recap:\n" + result.stdout
 
     def test_gate_passes_when_the_in_repo_bridge_is_absent(self) -> None:
         """Slice 1: the gate asserts the provisioning SHAPE, so it must exit 0

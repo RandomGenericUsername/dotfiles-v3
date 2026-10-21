@@ -1,5 +1,0 @@
-ARG BASE_IMAGE=csg-base-docker:latest
-FROM ${BASE_IMAGE}
-
-RUN apt-get update && apt-get install -y --no-install-recommends imagemagick && rm -rf /var/lib/apt/lists/* && \
-    pip install --no-cache-dir pywal

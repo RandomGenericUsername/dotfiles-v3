@@ -315,6 +315,19 @@ ITR_NAME = "itr"
 RETIRED_ITR_DIR = "src/cli-tools/icon-templates-renderer"
 WEG_NAME = "weg"
 RETIRED_WEG_DIR = "src/cli-tools/wallpaper-effects-generator"
+CSG_NAME = "csg"
+RETIRED_CSG_DIR = "src/cli-tools/color-scheme-generator"
+
+# The terminal catch-all (cli-tools-repos S6): the LAST CLI left the repo, so
+# the parent roots are retired. `src/cli-tools/` held the four in-tree trees
+# (csg/weg/itr) plus the nested openspec root; `src/shared/` held the four
+# shared libraries. A surviving parent (even empty) is an obvious home for a
+# vendored copy that no consumer installs, so the presence of either is a gate
+# failure regardless of what it contains.
+RETIRED_CLI_TOOLS_DIR = "src/cli-tools"
+# `src/shared/` is asserted by assert_no_in_tree_oci_runtime (S3); S6 restates
+# it in the terminal catch-all so one gate run reports both parent roots.
+CONTAINER_IMAGE_TAG_ENV_KEY = "COLORSCHEME__CONTAINER__IMAGE_TAG"
 
 # Files that participate in `ags bundle` and are therefore a missing-module
 # hazard. `.d.ts` ends in `.ts`, so it is covered by the `.ts` suffix.
@@ -1500,7 +1513,11 @@ def _task_argv(task: object) -> list[str] | None:
 
 
 def assert_cli_provisioned_from_pinned_manifest(
-    root: Path, name: str, retired_dir: str, slice_label: str
+    root: Path,
+    name: str,
+    retired_dir: str,
+    slice_label: str,
+    tag_env_key: str | None = None,
 ) -> None:
     """One CLI is provisioned from its pinned repo, never a local path.
 
@@ -1656,6 +1673,151 @@ def assert_cli_provisioned_from_pinned_manifest(
             f"{tag}; delete the directory (cli-tools-repos {slice_label})"
         )
 
+    if tag_env_key is None:
+        return
+
+    # AD-7 for a CLI whose build verb takes the tag from SETTINGS ENV instead of
+    # argv (csg's `v0.1.0` `install` has no `--image-tag`). The contract is the
+    # same — the image tag is the manifest pin — so the gate asserts the env
+    # transport carries exactly `{{ item.tag }}`, that the build still uses the
+    # tag-qualified checkout as context, and that no literal tag appears in the
+    # ... and that no literal tag appears in the task CODE (comments may name a
+    # version — a hardcoded `v0.1.0` in an argv/env would survive a pin bump).
+    task_code = "\n".join(
+        line for line in tasks_text.splitlines() if not line.lstrip().startswith("#")
+    )
+    if tag in task_code:
+        raise ValueError(
+            f"{CLI_TOOLS_ROLE_TASKS} contains the literal image tag {tag!r} in a "
+            f"task — the tag must come from the manifest pin (`{{{{ item.tag }}}}`) "
+            f"so a pin bump reaches the build (spine AD-7)"
+        )
+    env_builds = [
+        task
+        for task in yaml.safe_load(tasks_text) or []
+        if isinstance(task.get("environment"), dict)
+        and tag_env_key in task["environment"]
+    ]
+    if len(env_builds) != 1:
+        raise ValueError(
+            f"{CLI_TOOLS_ROLE_TASKS} must carry exactly ONE image build whose "
+            f"tag comes from {tag_env_key} (csg's verb has no --image-tag); "
+            f"found {len(env_builds)}"
+        )
+    env_task = env_builds[0]
+    env_argv = _task_argv(env_task) or []
+    if env_argv[0:2] != ["{{ item.name }}", "install"]:
+        raise ValueError(
+            f"the {tag_env_key} build is not an `<cli> install` argv build: "
+            f"{env_argv!r}"
+        )
+    if "--image-tag" in env_argv:
+        raise ValueError(
+            f"the {tag_env_key} build also passes --image-tag — pick ONE "
+            f"transport; csg's v0.1.0 verb does not accept the flag"
+        )
+    if env_argv[env_argv.index("--context") + 1 :][:1] != [
+        "{{ cli_tools_checkout_root }}/{{ item.name }}/{{ item.tag }}"
+    ]:
+        raise ValueError(
+            f"the {tag_env_key} build uses the wrong context — it must build "
+            f"from the tag-qualified checkout (spine AD-5/AD-10)"
+        )
+    if str(env_task["environment"][tag_env_key]).strip() != "{{ item.tag }}":
+        raise ValueError(
+            f"the {tag_env_key} build tags the image "
+            f"{env_task['environment'][tag_env_key]!r} — the image tag must be "
+            f"the manifest pin (`{{{{ item.tag }}}}`), never a literal "
+            f"(spine AD-7)"
+        )
+
+
+def assert_csg_provisioned_from_pinned_manifest(root: Path) -> None:
+    """cli-tools-repos S6: `csg` (palette generator) is consumed from its pin.
+
+    csg is the LAST extracted CLI and the second container-mode one. Its
+    `v0.1.0` build verb has no `--image-tag`, so the AD-7 assertion follows the
+    SETTINGS-ENV transport (`COLORSCHEME__CONTAINER__IMAGE_TAG`) instead of
+    argv — same pin, same tag-qualified build context.
+    """
+    assert_cli_provisioned_from_pinned_manifest(
+        root,
+        CSG_NAME,
+        RETIRED_CSG_DIR,
+        "S6",
+        tag_env_key=CONTAINER_IMAGE_TAG_ENV_KEY,
+    )
+
+
+def assert_no_cli_tools_dir(root: Path) -> None:
+    """cli-tools-repos S6 (terminal): both retired package roots are absent.
+
+    Every compute-provider CLI is consumed from its pinned repo and every
+    shared library from its pinned repo, so `src/cli-tools/` and `src/shared/`
+    have no remaining purpose. The per-package assertions above catch a known
+    package reappearing; this catches the PARENT coming back for any reason (a
+    leftover, an unknown package, a vendored copy), because an empty
+    `src/cli-tools/` is exactly the shape that invites one.
+    """
+    for retired in (RETIRED_CLI_TOOLS_DIR, RETIRED_SHARED_LIBS_DIR):
+        if (root / retired).exists():
+            raise ValueError(
+                f"the retired package root {retired}/ still exists — every CLI "
+                f"tool and shared library is consumed from its pinned repo "
+                f"(spine AD-10); delete the directory"
+            )
+
+
+def assert_manifest_source_scope(root: Path) -> None:
+    """The CLI manifest has exactly ONE local `source:` — `dotfiles-runtime`.
+
+    AD-11 (final, strict) / OPEN-7: every EXTRACTED entry is `{name, repo,
+    tag}`. `dotfiles-runtime` is not extracted — this repo still authors it at
+    `src/runtime` — so it is the single permitted in-repo source. Asserted so
+    the mixed-shape window cannot silently reopen: a stray `source:` on a CLI
+    entry is a local path one consumer would resolve while the others use the
+    tag.
+    """
+    import yaml
+
+    manifest_path = root / CLI_TOOLS_MANIFEST
+    if not manifest_path.is_file():
+        raise ValueError(f"{CLI_TOOLS_MANIFEST} is missing")
+    data = yaml.safe_load(manifest_path.read_text())
+    entries = data.get("entries") if isinstance(data, dict) else None
+    if not isinstance(entries, list) or not entries:
+        raise ValueError(f"{CLI_TOOLS_MANIFEST} has no `entries` list")
+
+    source_entries = [e for e in entries if isinstance(e, dict) and "source" in e]
+    if len(source_entries) != 1:
+        raise ValueError(
+            f"{CLI_TOOLS_MANIFEST} must carry exactly ONE `source:` entry "
+            f"(`dotfiles-runtime` -> src/runtime); found "
+            f"{[(e.get('name'), e.get('source')) for e in source_entries]}"
+        )
+    only = source_entries[0]
+    if only.get("name") != "dotfiles-runtime" or str(
+        only.get("source")
+    ).strip() != "src/runtime":
+        raise ValueError(
+            f"{CLI_TOOLS_MANIFEST}'s only local source must be "
+            f"`dotfiles-runtime: src/runtime` (the runtime this repo still "
+            f"authors); got {only.get('name')!r}: {only.get('source')!r}"
+        )
+
+    for entry in entries:
+        name = str(entry.get("name"))
+        if "source" in entry:
+            continue
+        if not str(entry.get("repo") or "").strip() or not str(
+            entry.get("tag") or ""
+        ).strip():
+            raise ValueError(
+                f"{CLI_TOOLS_MANIFEST} entry {name!r} has neither a local "
+                f"source nor BOTH repo and tag (spine AD-10); got "
+                f"repo={entry.get('repo')!r} tag={entry.get('tag')!r}"
+            )
+
 
 def assert_itr_provisioned_from_pinned_manifest(root: Path) -> None:
     """cli-tools-repos S4: `itr` (icon renderer) is consumed from its pin."""
@@ -1762,6 +1924,15 @@ def main() -> int:
         # manifest, no source path, installed from the tag-bearing checkout,
         # and the in-tree package gone.
         assert_weg_provisioned_from_pinned_manifest(root)
+        # cli-tools-repos S6: `csg` closes the set. Same pinned shape, plus the
+        # AD-7 assertion for its SETTINGS-ENV tag transport (its v0.1.0 build
+        # verb has no --image-tag) and the tag-qualified build context.
+        assert_csg_provisioned_from_pinned_manifest(root)
+        # Terminal: both parent roots are retired (the last CLI left the repo).
+        assert_no_cli_tools_dir(root)
+        # AD-11 (final, strict): exactly one local `source:` in the CLI
+        # manifest, and it is `dotfiles-runtime` -> src/runtime (OPEN-7).
+        assert_manifest_source_scope(root)
     except (RuntimeError, ValueError, FileNotFoundError) as exc:
         print(f"FAIL: {exc}")
         return 1
@@ -1847,6 +2018,21 @@ def main() -> int:
         f"entry (repo+tag, no source) and installed from the tag-bearing "
         f"checkout; its image tag is the pin (never `latest`) — the in-tree "
         f"tree is retired"
+    )
+    print(
+        f"deploy-coverage: {CSG_NAME!r} is provisioned from its pinned manifest "
+        f"entry (repo+tag, no source) and installed from the tag-bearing "
+        f"checkout; its base + backend images are tagged with the pin via "
+        f"{CONTAINER_IMAGE_TAG_ENV_KEY} (never `latest`) — the in-tree tree is "
+        f"retired"
+    )
+    print(
+        f"deploy-coverage: PASS -- six packages are consumed from their pinned "
+        f"repos ({CLI_OUTPUT_PACKAGE}, {CONFIG_ASSEMBLER_ENGINE_PACKAGE}, "
+        f"{OCI_RUNTIME_PACKAGE}, {ITR_NAME}, {WEG_NAME}, {CSG_NAME}); "
+        f"{RETIRED_CLI_TOOLS_DIR}/ and {RETIRED_SHARED_LIBS_DIR}/ are retired, "
+        f"and the CLI manifest carries exactly ONE in-repo source "
+        f"(dotfiles-runtime -> src/runtime)"
     )
     return 0
 
