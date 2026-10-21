@@ -12,6 +12,27 @@ import pytest
 import yaml
 
 
+
+def _authored_icons_yaml() -> Path | None:
+    """Resolve the authored icon map — it is assets corpus since S1.
+
+    The map moved to the pinned `dotfiles-assets` repo, so it is not in this
+    checkout. Resolution: explicit ``DOTFILES_ASSETS_ICONS_YAML``, else the
+    provisioned spine's deployed copy. ``None`` means "not provided" — the
+    caller must skip loudly rather than seed a stub the bar gate rejects.
+    """
+    explicit = os.environ.get("DOTFILES_ASSETS_ICONS_YAML")
+    candidates: list[Path] = [Path(explicit).expanduser()] if explicit else []
+    spine = os.environ.get("DOTFILES_INSTALL_SPINE")
+    if spine:
+        candidates.append(Path(spine).expanduser() / "icon-mappings" / "icons.yaml")
+    else:
+        xdg_data = Path(
+            os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share"
+        )
+        candidates.append(xdg_data / "dotfiles" / "icon-mappings" / "icons.yaml")
+    return next((path for path in candidates if path.is_file()), None)
+
 def _find_ansible_dir() -> Path:
     """Locate the real ansible scaffold dir by walking up from this test file.
 
@@ -850,14 +871,13 @@ class TestCompositorConfigsPlaybook:
             # design. A real install always carries the full authored map.
             icon_mappings = install / "icon-mappings"
             icon_mappings.mkdir(parents=True)
-            repo_icons = (
-                _ANSIBLE_DIR.parents[2]
-                / "dotfiles"
-                / "config"
-                / "icon-template-color-scheme-mappings"
-                / "icons.yaml"
-            )
-            assert repo_icons.is_file(), f"missing authored icons source {repo_icons}"
+            repo_icons = _authored_icons_yaml()
+            if repo_icons is None:
+                pytest.skip(
+                    "authored icons.yaml not found: provision the spine "
+                    "(DOTFILES_INSTALL_SPINE / XDG_DATA_HOME) or set "
+                    "DOTFILES_ASSETS_ICONS_YAML to an assets checkout"
+                )
             shutil.copy(repo_icons, icon_mappings / "icons.yaml")
             # Bootstrap order: the ags_apps role deploys the live bar BEFORE
             # this role runs (icons.json generates through the link and the
@@ -970,14 +990,13 @@ class TestCompositorConfigsPlaybook:
             # fail this run by design (see the gate-failure test below).
             icon_mappings = install / "icon-mappings"
             icon_mappings.mkdir(parents=True)
-            repo_icons = (
-                _ANSIBLE_DIR.parents[2]
-                / "dotfiles"
-                / "config"
-                / "icon-template-color-scheme-mappings"
-                / "icons.yaml"
-            )
-            assert repo_icons.is_file(), f"missing authored icons source {repo_icons}"
+            repo_icons = _authored_icons_yaml()
+            if repo_icons is None:
+                pytest.skip(
+                    "authored icons.yaml not found: provision the spine "
+                    "(DOTFILES_INSTALL_SPINE / XDG_DATA_HOME) or set "
+                    "DOTFILES_ASSETS_ICONS_YAML to an assets checkout"
+                )
             shutil.copy(repo_icons, icon_mappings / "icons.yaml")
 
             # Bootstrap order: the live bar link exists before this role
@@ -1386,7 +1405,7 @@ class TestDeployCoverageGate:
                     "  - name: itr\n"
                     "    repo: https://github.com/RandomGenericUsername/"
                     "icon-templates-renderer\n"
-                    "    tag: v0.1.0\n",
+                    "    tag: v0.2.0\n",
                     "  - name: itr\n"
                     "    repo: https://github.com/RandomGenericUsername/"
                     "icon-templates-renderer\n",
@@ -1464,7 +1483,7 @@ class TestDeployCoverageGate:
                     "  - name: weg\n"
                     "    repo: https://github.com/RandomGenericUsername/"
                     "wallpaper-effects-generator\n"
-                    "    tag: v0.1.0\n",
+                    "    tag: v0.2.0\n",
                     "  - name: weg\n"
                     "    repo: https://github.com/RandomGenericUsername/"
                     "wallpaper-effects-generator\n",
@@ -1571,7 +1590,7 @@ class TestDeployCoverageGate:
                     "  - name: csg\n"
                     "    repo: https://github.com/RandomGenericUsername/"
                     "color-scheme-generator\n"
-                    "    tag: v0.1.0\n",
+                    "    tag: v0.2.0\n",
                     "  - name: csg\n"
                     "    repo: https://github.com/RandomGenericUsername/"
                     "color-scheme-generator\n",

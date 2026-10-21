@@ -7,6 +7,7 @@ this adapter never globs.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import yaml
@@ -21,6 +22,15 @@ class ManifestReadError(ValueError):
 
 
 _ALLOWED_MANIFEST_KEYS = frozenset({"kind", "entries"})
+
+#: The pinned-corpus block is valid ONLY on the assets manifest (spine AD-6):
+#: `assets: {repo, tag, classes}` is the single source of truth for the pin and
+#: the destination class map. It is validated here but NOT captured into the
+#: domain view (Ansible never reads the manifest; the role mirrors it and a
+#: parity test locks the mirror).
+_ASSETS_BLOCK_KIND = "assets"
+_ASSET_CLASSES = ("icons", "templates", "configs", "content", "desktop")
+_TAG = re.compile(r"^v\d+\.\d+\.\d+$")
 
 _EntrySchema = tuple[frozenset[str], frozenset[str]]
 
@@ -92,10 +102,70 @@ def _read_payload(path: Path) -> dict[str, object]:
         raise ManifestReadError(f"invalid YAML in manifest {path}: {exc}") from exc
     if not isinstance(data, dict):
         raise ManifestReadError(f"manifest {path} must be a mapping, got {type(data).__name__}")
-    unknown = set(data) - _ALLOWED_MANIFEST_KEYS
+    allowed = set(_ALLOWED_MANIFEST_KEYS)
+    if data.get("kind") == _ASSETS_BLOCK_KIND:
+        allowed.add("assets")
+    unknown = set(data) - allowed
     if unknown:
         raise ManifestReadError(f"manifest {path} has unknown keys: {', '.join(sorted(unknown))}")
+    if "assets" in data:
+        _validate_assets_block(data["assets"], path)
     return data
+
+
+def _validate_assets_block(block: object, path: Path) -> None:
+    """Validate the assets pin block; the domain view deliberately omits it.
+
+    The block is the manifest's single source of truth for the pinned corpus:
+    `repo` + semver `tag` + a `classes` map whose keys are exactly the five
+    asset classes. `dest` is class-local (never an absolute path); `schema` is
+    the class's contract file, or null for a class with no contract.
+    """
+    if not isinstance(block, dict):
+        raise ManifestReadError(f"manifest {path} 'assets' must be a mapping")
+    unknown = set(block) - {"repo", "tag", "classes"}
+    if unknown:
+        raise ManifestReadError(
+            f"manifest {path} 'assets' has unknown keys: {', '.join(sorted(unknown))}"
+        )
+    repo, tag = block.get("repo"), block.get("tag")
+    if not isinstance(repo, str) or not repo.startswith("https://"):
+        raise ManifestReadError(
+            f"manifest {path} 'assets.repo' must be an https URL, got {repo!r}"
+        )
+    if not isinstance(tag, str) or not _TAG.match(tag):
+        raise ManifestReadError(
+            f"manifest {path} 'assets.tag' must be a released vX.Y.Z tag, got {tag!r}"
+        )
+    classes = block.get("classes")
+    if not isinstance(classes, dict):
+        raise ManifestReadError(f"manifest {path} 'assets.classes' must be a mapping")
+    if set(classes) != set(_ASSET_CLASSES):
+        raise ManifestReadError(
+            f"manifest {path} 'assets.classes' must name exactly {list(_ASSET_CLASSES)}; "
+            f"got {sorted(classes)}"
+        )
+    for name, entry in classes.items():
+        if not isinstance(entry, dict):
+            raise ManifestReadError(
+                f"manifest {path} 'assets.classes.{name}' must be a mapping"
+            )
+        if set(entry) != {"dest", "schema"}:
+            raise ManifestReadError(
+                f"manifest {path} 'assets.classes.{name}' must carry exactly "
+                f"`dest` and `schema`"
+            )
+        dest = entry.get("dest")
+        if not isinstance(dest, str) or not dest or dest.startswith(("/", "~")):
+            raise ManifestReadError(
+                f"manifest {path} 'assets.classes.{name}.dest' must be a class-local "
+                f"name, got {dest!r}"
+            )
+        schema = entry.get("schema")
+        if schema is not None and (not isinstance(schema, str) or not schema):
+            raise ManifestReadError(
+                f"manifest {path} 'assets.classes.{name}.schema' must be a path or null"
+            )
 
 
 def _read_kind(data: dict[str, object], path: Path) -> ManifestKind:

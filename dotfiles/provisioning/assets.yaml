@@ -1,23 +1,40 @@
 # Assets to deploy into the install spine (verified repo inventory, plan §5).
 #
+# `assets:` is the PINNED CORPUS (spine AD-6): the repository, the exact tag,
+# and the destination class map. The assets role clones repo@tag ONCE into
+# <install>/assets/<tag>/ and every corpus entry below reads from that checkout;
+# nothing reads a composition-repo tree. A pin bump edits `assets.tag` AND the
+# three checkout sources below (the role + verify mirrors are parity-locked by
+# tests, and the sources are checked against `assets.tag`).
+#
 # Each entry is tagged with an AssetKind; `AssetKind.spine_segment()` resolves
 # the deploy target under $XDG_DATA_HOME/dotfiles/. `source` is the path Ansible
-# copies FROM: `dotfiles/...` for repo-authored assets, and an ABSOLUTE
-# install-spine path for an asset that lives inside a pinned CLI checkout
-# (`csg-templates`, spine AD-10 — see that entry). Rich keys are validated by
-# YamlManifestReader but not captured into the domain view — Ansible reads the
-# full YAML directly.
+# copies FROM: an ABSOLUTE install-spine path into the pinned assets checkout
+# (or, for `csg-templates`, into the pinned csg checkout — spine AD-10). Rich
+# keys are validated by YamlManifestReader but not captured into the domain view
+# — Ansible reads the full YAML directly.
 kind: assets
+
+assets:
+  repo: https://github.com/RandomGenericUsername/dotfiles-assets
+  tag: v0.2.0
+  classes:
+    icons:     { dest: icons,     schema: icons/schema.json }
+    templates: { dest: templates, schema: "**/vars.schema.json" }
+    configs:   { dest: configs,   schema: null }
+    content:   { dest: content,   schema: null }
+    desktop:   { dest: desktop,   schema: desktop/desktop.yaml }
+
 entries:
   - name: wallpapers
     kind: wallpaper
-    source: dotfiles/assets/wallpapers/wallpapers.tar.gz
+    source: "{{ install_dir | trim }}/assets/v0.2.0/content/wallpapers/wallpapers.tar.gz"
   - name: icon-templates
     kind: icon-template
-    source: dotfiles/assets/icon-templates/
+    source: "{{ install_dir | trim }}/assets/v0.2.0/icons/templates/"
   - name: icon-mappings
     kind: icon-mapping
-    source: dotfiles/config/icon-template-color-scheme-mappings/
+    source: "{{ install_dir | trim }}/assets/v0.2.0/icons/mappings/"
   - name: csg-templates
     kind: csg-template
     # ABSOLUTE install-spine path INTO the pinned csg checkout (spine AD-10):

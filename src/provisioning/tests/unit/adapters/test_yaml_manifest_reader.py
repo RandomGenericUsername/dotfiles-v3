@@ -175,10 +175,10 @@ class TestYamlManifestReaderPerKindSchemas:
             "entries:\n"
             "  - name: wallpapers\n"
             "    kind: wallpaper\n"
-            "    source: dotfiles/assets/wallpapers/wallpapers.tar.gz\n"
+            "    source: \"{{ install_dir | trim }}/assets/v0.2.0/content/wallpapers/wallpapers.tar.gz\"\n"
             "  - name: battery\n"
             "    kind: icon-mapping\n"
-            "    source: dotfiles/config/icon-template-color-scheme-mappings/battery.yaml\n",
+            "    source: \"{{ install_dir | trim }}/assets/v0.2.0/icons/mappings/\"\n",
             encoding="utf-8",
         )
         manifest = READER.read(path)
@@ -210,6 +210,62 @@ class TestYamlManifestReaderPerKindSchemas:
             encoding="utf-8",
         )
         with pytest.raises(ManifestReadError, match="bogus"):
+            READER.read(path)
+
+    def test_assets_kind_accepts_the_pin_block(self, tmp_path: Path) -> None:
+        """AD-6: `assets: {repo, tag, classes}` is valid on the assets manifest
+        and is deliberately NOT captured into the domain view."""
+        path = tmp_path / "assets.yaml"
+        path.write_text(
+            "kind: assets\n"
+            "assets:\n"
+            "  repo: https://github.com/RandomGenericUsername/dotfiles-assets\n"
+            "  tag: v0.2.0\n"
+            "  classes:\n"
+            "    icons: { dest: icons, schema: icons/schema.json }\n"
+            "    templates: { dest: templates, schema: '**/vars.schema.json' }\n"
+            "    configs: { dest: configs, schema: null }\n"
+            "    content: { dest: content, schema: null }\n"
+            "    desktop: { dest: desktop, schema: desktop/desktop.yaml }\n"
+            "entries:\n"
+            "  - name: wallpapers\n    kind: wallpaper\n    source: x\n",
+            encoding="utf-8",
+        )
+        manifest = READER.read(path)
+        assert manifest.kind is ManifestKind.ASSETS
+        assert manifest.entries == (Spec(name="wallpapers"),)
+
+    @pytest.mark.parametrize(
+        ("block", "match"),
+        [
+            ("assets:\n  repo: nope\n  tag: v0.2.0\n  classes: {}\n", "assets.repo"),
+            ("assets:\n  repo: https://x/y\n  tag: latest\n  classes: {}\n", "assets.tag"),
+            ("assets:\n  repo: https://x/y\n  tag: v0.2.0\n  classes: {}\n", "classes"),
+            (
+                "assets:\n  repo: https://x/y\n  tag: v0.2.0\n  bogus: 1\n"
+                "  classes: {}\n",
+                "unknown keys",
+            ),
+        ],
+    )
+    def test_assets_kind_invalid_pin_block_rejected(
+        self, tmp_path: Path, block: str, match: str
+    ) -> None:
+        path = tmp_path / "assets.yaml"
+        path.write_text(
+            "kind: assets\n" + block + "entries: []\n", encoding="utf-8"
+        )
+        with pytest.raises(ManifestReadError, match=match):
+            READER.read(path)
+
+    def test_pin_block_rejected_on_other_kinds(self, tmp_path: Path) -> None:
+        path = tmp_path / "packages.yaml"
+        path.write_text(
+            "kind: packages\nassets:\n  repo: https://x/y\n  tag: v0.2.0\n"
+            "  classes: {}\nentries: []\n",
+            encoding="utf-8",
+        )
+        with pytest.raises(ManifestReadError, match="unknown keys"):
             READER.read(path)
 
     def test_config_copies_kind_requires_target(self, tmp_path: Path) -> None:

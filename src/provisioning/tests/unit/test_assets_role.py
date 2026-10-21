@@ -255,15 +255,16 @@ class TestAssetsTasks:
         assert dirs == expected
 
     def test_wallpapers_unpacked_via_unarchive(self) -> None:
-        """AC 2: an `ansible.builtin.unarchive` task unpacks
-        `{{ assets_repo_root }}/{{ assets_wallpapers_tarball }}` into
-        `{{ assets_wallpapers_dest }}` with `remote_src: true`."""
+        """AC 2 / S1: an `ansible.builtin.unarchive` task unpacks the tarball
+        INSIDE the pinned assets checkout (`{{ assets_wallpapers_tarball }}`,
+        already absolute) into `{{ assets_wallpapers_dest }}` with
+        `remote_src: true`."""
         matches = _tasks_with_module("ansible.builtin.unarchive")
         assert len(matches) == 1, (
             f"expected exactly one unarchive task (wallpapers); found {len(matches)}"
         )
         module = _module(matches[0])
-        assert module["src"] == "{{ assets_repo_root }}/{{ assets_wallpapers_tarball }}"
+        assert module["src"] == "{{ assets_wallpapers_tarball }}"
         assert module["dest"] == "{{ assets_wallpapers_dest }}"
         assert module["remote_src"] is True
 
@@ -281,21 +282,21 @@ class TestAssetsTasks:
             )
 
     def test_directory_kinds_deployed_via_single_mirror_loop(self) -> None:
-        """AC 3-5: the repo-authored directory kinds deploy through ONE
+        """AC 3-5 / S1: the directory kinds deploy through ONE
         `ansible.posix.synchronize` task looping `{{ assets_copies }}` with
-        `delete: true`, src `{{ assets_repo_root }}/{{ item.source }}`, dest
+        `delete: true`, src `{{ item.source }}` (an absolute path into the
+        pinned assets checkout since S1), dest
         `{{ install_dir | trim }}/{{ item.target }}` — icon-mappings included
         (converge semantics restored 2026-09-07; the brief seed-once
         experiment was reverted: the authoring model is repo-authoritative).
         (2026-09-07: replaced ansible.builtin.copy with a mirror — files
-        deleted from the repo (e.g. replaced icon template groups) must be
-        pruned from the spine on the next apply, exactly as fresh installs
-        see them; copy merged only and left stale templates behind.)
+        deleted from the pinned corpus (e.g. replaced icon template groups)
+        must be pruned from the spine on the next apply, exactly as fresh
+        installs see them; copy merged only and left stale templates behind.)
 
         S6 adds a SECOND mirror loop for the one kind that lives in a pinned
-        CLI checkout (`csg-templates`, spine AD-10). It must be the same module
-        with the same delete/dest semantics and NO repo-root prefix, because
-        its source is already absolute."""
+        CLI checkout (`csg-templates`, spine AD-10). Same module, same
+        delete/dest semantics — every source is already absolute."""
         loop_matches = [
             task
             for task in _tasks_with_module("ansible.posix.synchronize")
@@ -307,7 +308,7 @@ class TestAssetsTasks:
         )
         task = loop_matches[0]
         module = _module(task)
-        assert module["src"] == "{{ assets_repo_root }}/{{ item.source }}"
+        assert module["src"] == "{{ item.source }}"
         assert module["dest"] == "{{ install_dir | trim }}/{{ item.target }}"
         assert module["delete"] is True, (
             "synchronize must carry delete: true — the deploy is a mirror of "
@@ -331,7 +332,7 @@ class TestAssetsTasks:
         checkout_module = _module(checkout_matches[0])
         assert checkout_module["src"] == "{{ item.source }}", (
             "a pinned-checkout source is already absolute — it must NOT be "
-            "prefixed with assets_repo_root"
+            "prefixed with a repo root"
         )
         assert checkout_module["dest"] == "{{ install_dir | trim }}/{{ item.target }}"
         assert checkout_module["delete"] is True
@@ -454,6 +455,75 @@ class TestAssetsTasks:
                 "default.png assert must be gated when: not ansible_check_mode"
             )
 
+    def test_pinned_checkout_is_fetched_before_every_copy(self) -> None:
+        """S1/AD-6: the corpus is fetched ONCE, before any copy.
+
+        A shallow `ansible.builtin.git` clone of `{{ assets_repo }}` at
+        `{{ assets_pinned_tag }}` into `{{ assets_checkout_root }}` (depth 1),
+        the clone's .git removed, `{{ assets_pinned_file }}` written with the
+        tag, and a stat+assert on the checkout's icons/schema.json before the
+        first copy. The task ORDER is the point: a copy from a missing checkout
+        would silently deploy nothing.
+        """
+        tasks = _load_tasks()
+        clones = [
+            task
+            for task in _tasks_with_module("ansible.builtin.git")
+            if str(_module(task).get("dest", "")) == "{{ assets_checkout_root }}"
+        ]
+        assert len(clones) == 1, f"expected exactly one pinned assets clone; got {len(clones)}"
+        clone = clones[0]
+        module = _module(clone)
+        assert module["repo"] == "{{ assets_repo }}"
+        assert module["version"] == "{{ assets_pinned_tag }}"
+        assert module["depth"] == 1, "the fetch must be shallow (AD-6: once, not history)"
+        when = clone.get("when")
+        assert isinstance(when, list) and "not ansible_check_mode" in when, (
+            "the clone must be gated when: not ansible_check_mode"
+        )
+        assert any("assets_checkout.stat.exists" in str(item) for item in when), (
+            "the clone must be skipped when the checkout is already present"
+        )
+
+        git_removals = [
+            task
+            for task in _tasks_with_module("ansible.builtin.file")
+            if str(_module(task).get("path", "")) == "{{ assets_checkout_root }}/.git"
+        ]
+        assert git_removals, "the pinned checkout's .git must be removed (deploy as data)"
+        assert _module(git_removals[0]).get("state") == "absent"
+
+        pin_copies = [
+            task
+            for task in _tasks_with_module("ansible.builtin.copy")
+            if str(_module(task).get("dest", "")) == "{{ assets_pinned_file }}"
+        ]
+        assert len(pin_copies) == 1, "the tag must be recorded in {{ assets_pinned_file }}"
+        assert str(_module(pin_copies[0]).get("content")) == "{{ assets_pinned_tag }}\n"
+
+        checkout_stats = [
+            task
+            for task in _tasks_with_module("ansible.builtin.stat")
+            if str(_module(task).get("path", "")) == "{{ assets_checkout_root }}/icons/schema.json"
+        ]
+        assert checkout_stats, "the checkout must be stat-probed (before and after the clone)"
+        assert any(
+            "assets_checkout_present.stat.isreg" in str(_module(task).get("that", ""))
+            for task in _tasks_with_module("ansible.builtin.assert")
+        ), "a fail-loud assert must guard the checkout before the first copy"
+
+        # ORDER: every copy task comes after the clone.
+        clone_index = tasks.index(clone)
+        copy_indexes = [
+            index
+            for index, task in enumerate(tasks)
+            if _module_key(task) in ("ansible.builtin.unarchive", "ansible.posix.synchronize")
+        ]
+        assert copy_indexes, "no copy task found"
+        assert all(index > clone_index for index in copy_indexes), (
+            "every copy must run AFTER the pinned checkout is fetched"
+        )
+
     def test_no_become_anywhere_in_role(self) -> None:
         """User-scoped privilege context (AC 12): NO become/become_user anywhere
         — everything the role writes lives under the user's install_dir."""
@@ -464,14 +534,25 @@ class TestAssetsTasks:
             assert "become_user" not in task
 
     def test_no_absolute_repo_paths_hardcoded(self) -> None:
-        """AC 13: a REPO-authored source reference is interpolated via
-        `{{ assets_repo_root }}/`, never an absolute repo path baked into the
-        task. Checks every task's module body (not a substring scan that skips
-        tasks). S6 exception: the pinned-checkout task's src is
-        `{{ item.source }}`, whose value is an ABSOLUTE install-spine path
-        derived from `{{ install_dir | trim }}` and the csg pin — asserted
-        separately by `test_csg_templates_source_resolves_to_pinned_checkout`,
-        and still never a hardcoded home path."""
+        """AC 13 / S1: no source is a literal path into the composition repo.
+
+        Every corpus source is a var that derives from the install spine:
+        `{{ item.source }}` (both copy loops; the values are
+        `<install>/assets/<tag>/...`), `{{ assets_wallpapers_tarball }}`,
+        `{{ assets_csg_templates_source }}`, or `{{ assets_checkout_root }}` /
+        `{{ assets_pinned_file }}` on the fetch tasks. A source that starts
+        with a literal `/` or names `dotfiles/` is the failure this locks
+        (AC 13). Checks every task's module body, not a substring scan that
+        skips tasks.
+        """
+        allowed_prefixes = (
+            "{{ item.source }}",
+            "{{ assets_wallpapers_tarball }}",
+            "{{ assets_csg_templates_source }}",
+            "{{ assets_checkout_root }}",
+            "{{ install_dir | trim }}",
+            "{{ assets_pinned_file }}",
+        )
         for task in _load_tasks():
             module_key = _module_key(task)
             assert module_key is not None
@@ -480,32 +561,24 @@ class TestAssetsTasks:
                 raw = {module_key: raw}
             assert isinstance(raw, dict)
             src = raw.get("src")
-            argv = raw.get("argv")
-            if isinstance(argv, list):
-                argv = " ".join(str(item) for item in argv)
             if src is not None:
-                if str(src) == "{{ item.source }}":
-                    assert task.get("loop") == "{{ assets_checkout_copies }}", (
-                        f"task {task.get('name')!r} uses a bare item.source — only "
-                        "the pinned-checkout loop may do that"
-                    )
-                else:
-                    assert str(src).startswith("{{ assets_repo_root }}/"), (
-                        f"task {task.get('name')!r} must interpolate sources via "
-                        "'{{ assets_repo_root }}/' (AC 13)"
-                    )
-            if isinstance(argv, str):
-                for token in str(raw).split():
-                    if token.startswith("/") and "assets_repo_root" not in token:
-                        raise AssertionError(
-                            f"task {task.get('name')!r} argv must not hardcode "
-                            f"an absolute path: {token!r} (AC 13)"
-                        )
+                assert str(src).startswith(allowed_prefixes), (
+                    f"task {task.get('name')!r} source must derive from the install "
+                    f"spine (AC 13); got {src!r}"
+                )
+                assert "dotfiles/" not in str(src), (
+                    f"task {task.get('name')!r} still names a composition-repo tree: "
+                    f"{src!r}"
+                )
 
 
 class TestAssetsVars:
     _REQUIRED_KEYS = {
-        "assets_repo_root",
+        "assets_repo",
+        "assets_pinned_tag",
+        "assets_classes",
+        "assets_checkout_root",
+        "assets_pinned_file",
         "assets_weg_bin_dir",
         "assets_deploy_dirs",
         "assets_wallpapers_tarball",
@@ -518,9 +591,20 @@ class TestAssetsVars:
         data = _vars()
         assert self._REQUIRED_KEYS.issubset(set(data))
 
-    def test_repo_root_mirrors_cli_tools(self) -> None:
+    def test_pin_block_mirrors_the_manifest(self) -> None:
+        """AD-6: repo + tag + class map are mirrored from `assets:`."""
         data = _vars()
-        assert str(data["assets_repo_root"]) == "{{ playbook_dir }}/../../../.."
+        manifest = yaml.safe_load(_MANIFEST_PATH.read_text())
+        block = manifest["assets"]
+        assert str(data["assets_repo"]) == block["repo"]
+        assert str(data["assets_pinned_tag"]) == block["tag"]
+        assert data["assets_classes"] == block["classes"], (
+            "the role's class map must equal the manifest's `assets.classes`"
+        )
+        assert str(data["assets_checkout_root"]) == (
+            "{{ install_dir | trim }}/assets/{{ assets_pinned_tag }}"
+        )
+        assert str(data["assets_pinned_file"]) == "{{ install_dir | trim }}/assets/pinned"
 
     def test_weg_bin_dir_defaults_under_home(self) -> None:
         """uv's bin-dir resolution: UV_TOOL_BIN_DIR -> XDG_BIN_HOME ->
@@ -564,10 +648,13 @@ class TestAssetsVars:
         has kind weg-effects and no source.
 
         S6: `csg-templates` reads the pinned csg checkout, so its source is an
-        ABSOLUTE `<install>/cli-tools/csg/<tag>/...` path. Parity compares the
-        NORMALIZED path (install root and pin replaced by placeholders) and then
-        asserts the role's pin mirror equals the manifest tag — so a drifted
-        tag fails here, not only at provision time.
+        ABSOLUTE `<install>/cli-tools/csg/<tag>/...` path. S1: the three corpus
+        entries read the pinned assets checkout (`{{ assets_checkout_root }}` →
+        `<install>/assets/<tag>/...`), and the manifest carries the `assets:`
+        block that names that pin. Parity compares the NORMALIZED paths
+        (install root and both pins replaced by placeholders), asserts the
+        role's pin mirrors equal the manifest tags, and asserts repo/tag/classes
+        agree — so a drifted pin fails here, not only at provision time.
         """
         data = _vars()
         copies = [dict(item) for item in data["assets_copies"]] + [
@@ -588,14 +675,20 @@ class TestAssetsVars:
         )
 
         def _normalize(source: str, pin: str) -> str:
-            """Replace the install root, the role var and the pin with placeholders."""
+            """Replace the install root, the role vars and the pins with placeholders."""
             text = str(source).rstrip("/")
             text = text.replace(
                 "{{ assets_csg_templates_source }}",
                 str(data["assets_csg_templates_source"]).rstrip("/"),
             )
+            text = text.replace(
+                "{{ assets_checkout_root }}",
+                "{{ install_dir | trim }}/assets/{{ assets_pinned_tag }}",
+            )
             text = text.replace("{{ assets_csg_pinned_tag }}", "<tag>")
+            text = text.replace("{{ assets_pinned_tag }}", "<tag>")
             text = text.replace("{{ install_dir | trim }}", "<install>")
+            text = text.replace(str(data["assets_pinned_tag"]), "<tag>")
             if pin:
                 text = text.replace(pin, "<tag>")
             return text
@@ -630,7 +723,9 @@ class TestAssetsVars:
             "csg-templates source is derived from it (spine AD-10/AD-11)"
         )
 
-        assert str(data["assets_wallpapers_tarball"]) == manifest["wallpapers"]["source"]
+        assert _normalize(
+            str(data["assets_wallpapers_tarball"]), ""
+        ) == _normalize(str(manifest["wallpapers"]["source"]), "")
         assert manifest["wallpapers"]["kind"] == AssetKind.WALLPAPER.value, (
             "the manifest wallpapers entry kind must be the wallpaper kind"
         )
@@ -638,6 +733,18 @@ class TestAssetsVars:
         assert "source" not in manifest["weg-effects"], (
             "the manifest weg-effects entry must have no source (it is emitted, not copied)"
         )
+
+        # AD-6: the manifest's `assets:` block and the role mirror agree.
+        block = yaml.safe_load(_MANIFEST_PATH.read_text())["assets"]
+        assert str(data["assets_repo"]) == block["repo"]
+        assert str(data["assets_pinned_tag"]) == block["tag"]
+        assert data["assets_classes"] == block["classes"]
+        # The three corpus entries name the SAME pin the block declares, so a
+        # tag bump that edits `assets.tag` but not a source fails here.
+        for name in ("wallpapers", "icon-templates", "icon-mappings"):
+            assert str(manifest[name]["source"]).startswith(
+                f"{{{{ install_dir | trim }}}}/assets/{block['tag']}/"
+            ), f"manifest entry {name!r} does not name the manifest assets tag"
 
     def test_csg_templates_source_resolves_to_pinned_checkout(self) -> None:
         """S6/AD-10: the csg-templates asset is copied FROM the pinned csg

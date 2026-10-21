@@ -332,6 +332,7 @@ class TestBtopThemeDeployment:
             "btop_config_repo_root",
             "btop_config_active_theme_file",
             "btop_config_default_active_theme",
+            "btop_config_authored_themes_pinned_tag",
             "btop_config_authored_themes_repo_dir",
         ):
             assert key in data, f"missing deployment var {key}"
@@ -343,9 +344,24 @@ class TestBtopThemeDeployment:
         value = str(_vars()["btop_config_active_theme_file"])
         assert value == "{{ btop_config_repo_root }}/dotfiles/config/btop/active-theme"
 
-    def test_authored_themes_dir_is_repo_owned(self) -> None:
+    def test_authored_themes_dir_is_the_pinned_assets_checkout(self) -> None:
+        """S1: authored themes moved to the pinned assets corpus (content/
+        class), so this role reads the checkout the assets role materialized."""
         value = str(_vars()["btop_config_authored_themes_repo_dir"])
-        assert value == "{{ btop_config_repo_root }}/dotfiles/assets/btop-themes"
+        assert value == (
+            "{{ install_dir | trim }}/assets/"
+            "{{ btop_config_authored_themes_pinned_tag }}/content/btop-themes"
+        )
+        assert "dotfiles/assets" not in value, (
+            "the in-tree authored-themes tree was retired in S1"
+        )
+
+    def test_authored_themes_pin_mirrors_the_assets_manifest(self) -> None:
+        """AD-6: the role's pin mirror equals `assets.tag` in the manifest."""
+        manifest = yaml.safe_load(
+            (_ANSIBLE_DIR.parents[2] / "dotfiles" / "provisioning" / "assets.yaml").read_text()
+        )
+        assert str(_vars()["btop_config_authored_themes_pinned_tag"]) == manifest["assets"]["tag"]
 
     def test_reads_the_repo_setting_with_a_default(self) -> None:
         slurp = [t for t in _load_tasks() if _module_key(t) == "ansible.builtin.slurp"]

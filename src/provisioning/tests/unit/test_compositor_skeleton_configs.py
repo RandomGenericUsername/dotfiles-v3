@@ -165,14 +165,6 @@ class TestExistingDirsUnchanged:
                     f"expected {dir_name}/{name} to remain present (AC 5)"
                 )
 
-    def test_icon_mappings_dir_unchanged(self) -> None:
-        """AC 5: icon-template-color-scheme-mappings still holds at least one
-        *.yaml (it was present at authoring time and must remain unchanged)."""
-        mapping_dir = _CONFIG_DIR / "icon-template-color-scheme-mappings"
-        assert mapping_dir.is_dir()
-        assert list(mapping_dir.glob("*.yaml")), (
-            "icon-template-color-scheme-mappings must keep its *.yaml files"
-        )
 
 
 class TestSkeletonsAreStatic:

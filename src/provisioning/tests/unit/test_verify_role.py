@@ -1338,6 +1338,9 @@ class TestVerifyTasks:
             "verify_xdg_dirs",
             "verify_install_spine_dirs",
             "verify_install_spine_files",
+            "verify_assets_dir",
+            "verify_assets_tag_dir",
+            "verify_assets_pinned_file",
             "verify_settings_files",
             "verify_settings_spine_keys",
             "verify_itr_list_target",
@@ -1397,6 +1400,22 @@ class TestVerifyVars:
     def test_vars_parse_with_required_keys(self) -> None:
         data = _vars()
         assert self._REQUIRED_KEYS.issubset(set(data))
+
+    def test_assets_pin_mirrors_the_manifest(self) -> None:
+        """AD-6: verify's pin mirror equals `assets.tag`, and the class dirs are
+        the five class names under the tag dir."""
+        data = _vars()
+        manifest = yaml.safe_load(
+            (
+                _ANSIBLE_DIR.parents[2] / "dotfiles" / "provisioning" / "assets.yaml"
+            ).read_text()
+        )
+        assert str(data["verify_assets_pinned_tag"]) == manifest["assets"]["tag"]
+        assert str(data["verify_assets_pinned_file"]) == "{{ verify_assets_dir }}/pinned"
+        dirs = [str(item) for item in data["verify_assets_class_dirs"]]
+        assert len(dirs) == 5
+        for name in ("icons", "templates", "configs", "content", "desktop"):
+            assert f"{{{{ verify_assets_tag_dir }}}}/{name}" in dirs
 
     def test_xdg_config_home_honors_xdg_and_defaults_to_home(self) -> None:
         """The check targets must resolve to the SAME location the filesystem
@@ -2573,6 +2592,9 @@ class TestVerifyVars:
             "verify_xdg_dirs",
             "verify_install_spine_dirs",
             "verify_install_spine_files",
+            "verify_assets_dir",
+            "verify_assets_tag_dir",
+            "verify_assets_pinned_file",
             "verify_settings_files",
             "verify_settings_spine_keys",
             "verify_itr_list_target",
@@ -3410,17 +3432,16 @@ def _build_provisioned_layout(
 
     (install / "wallpapers" / "default.png").write_bytes(b"\x89PNG")
     (install / "icon-mappings" / "icons.yaml").write_text("variants: []\n")
-    # R-3: verify asserts derivation-input CONTENT, so populate the inputs.
-    for name in (
-        "battery",
-        "defaults",
-        "email-client",
-        "network",
-        "power-menu",
-        "wallpaper-selector",
-        "wlogout",
-    ):
-        (install / "icon-mappings" / f"{name}.yaml").write_text("{}\n")
+    # S1: the six per-concern duplicates were retired; only the vocabulary ships
+    # beside the single group map.
+    (install / "icon-mappings" / "defaults.yaml").write_text("{}\n")
+    # S1: the pinned assets checkout the assets role materializes (AD-6/AD-7).
+    # verify asserts the pin file and the five class dirs.
+    assets_tag = "v0.2.0"
+    (install / "assets").mkdir(parents=True, exist_ok=True)
+    (install / "assets" / "pinned").write_text(f"{assets_tag}\n")
+    for class_name in ("icons", "templates", "configs", "content", "desktop"):
+        (install / "assets" / assets_tag / class_name).mkdir(parents=True, exist_ok=True)
     nested_icon = install / "icon-templates" / "status-bar" / "battery"
     nested_icon.mkdir(parents=True, exist_ok=True)
     (nested_icon / "icon.svg").write_text("<svg/>\n")

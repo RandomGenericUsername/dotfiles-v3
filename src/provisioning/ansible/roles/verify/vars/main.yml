@@ -27,8 +27,9 @@
 #       divergence would make verify check the wrong layout. The parity tests
 #       lock them.
 #   (e) vs 2.6 assets (asset kind → spine-segment mapping): verify re-checks
-#       the five deployed asset outcomes (default.png, icon-templates/,
-#       icon-mappings/, csg-templates/, weg-effects.yaml) read-only.
+#       the deployed asset outcomes (default.png, icon-templates/, icon-mappings/,
+#       csg-templates/, weg-effects.yaml) read-only, plus the pinned assets
+#       checkout (`assets/pinned` + the five class dirs, spine AD-6/AD-7).
 #   (f) vs 2.9 compositor_configs (skeleton/fragment target map): verify
 #       re-checks the placed skeletons + fragments read-only; the AGS
 #       fragment is colors.css (renamed from colors.gtk.css on copy).
@@ -117,20 +118,35 @@ verify_install_spine_dirs:
   # subdir). It is asserted by verify_btop_spine_dir / verify_btop_themes_dir
   # instead.
 
+# verify_assets_dir / verify_assets_pinned_file / verify_assets_pinned_tag:
+#   the PINNED assets checkout (spine AD-6/AD-7). The assets role fetches
+#   repo@tag once into <install>/assets/<tag>/ and records the tag in
+#   <install>/assets/pinned; verify re-checks the pin and the five class dirs
+#   read-only. `verify_assets_pinned_tag` is the mirror of the manifest
+#   `assets.tag` (locked by TestVerifyAssetsPinParity); S5 adds the assertion
+#   that the pin FILE equals this tag, so this slice only asserts presence.
+verify_assets_dir: "{{ install_dir | trim }}/assets"
+verify_assets_pinned_file: "{{ verify_assets_dir }}/pinned"
+verify_assets_pinned_tag: v0.2.0
+verify_assets_tag_dir: "{{ verify_assets_dir }}/{{ verify_assets_pinned_tag }}"
+verify_assets_class_dirs:
+  - "{{ verify_assets_tag_dir }}/icons"
+  - "{{ verify_assets_tag_dir }}/templates"
+  - "{{ verify_assets_tag_dir }}/configs"
+  - "{{ verify_assets_tag_dir }}/content"
+  - "{{ verify_assets_tag_dir }}/desktop"
+
 # verify_install_spine_files: the file node(s) that must exist IN the spine
 #   (criterion 1 + 4). weg-effects.yaml is a FILE emitted by the assets role
 #   (2.6) via `weg dump-effects` into the config-in-spine home
 #   (mirror of filesystem_file_nodes).
+#   S1: the six per-concern mapping duplicates were retired in assets v0.2.0
+#   (icons.yaml is the single group map; defaults.yaml is the vocabulary), so
+#   the required-member set names only the two files that actually ship.
 verify_install_spine_files:
   - config/weg/effects.yaml
   - icon-mappings/icons.yaml
-  - icon-mappings/battery.yaml
   - icon-mappings/defaults.yaml
-  - icon-mappings/email-client.yaml
-  - icon-mappings/network.yaml
-  - icon-mappings/power-menu.yaml
-  - icon-mappings/wallpaper-selector.yaml
-  - icon-mappings/wlogout.yaml
 
 # verify_derivation_template_dirs: derivation-input DIRECTORIES that must be
 #   NON-EMPTY in the spine (R-3/AD-43: `verify` asserts input CONTENT, not just

@@ -1,22 +1,36 @@
-# Assets role vars (Story 2.6).
+# Assets role vars (Story 2.6; pinned corpus since S1).
 #
-# The role deploys the five asset kinds from the repo into the install spine
-# that the filesystem role (2.5) created (FR-17, chaining-spine.md): the
-# wallpaper tarball (unarchive), the three directory-based kinds
-# (icon-templates / icon-mappings / csg-templates via synchronize, mirror
-# semantics with prune), and the weg-effects catalog (command emit).
+# The role deploys the asset kinds into the install spine that the filesystem
+# role (2.5) created (FR-17, chaining-spine.md). Since S1 the corpus is a PINNED
+# DATA REPO (spine AD-6/AD-13): the role shallow-clones `assets.repo` at
+# `assets.tag` ONCE into <install>/assets/<tag>/, drops the clone's .git, records
+# the tag in <install>/assets/pinned, and every copy reads that checkout. No task
+# reads a composition-repo tree or the network after the clone.
 #
-# The desired asset list lives in dotfiles/provisioning/assets.yaml (Story
-# 2.1): five {name, kind, source} entries, the `weg-effects` entry having NO
-# source (it is emitted, not copied). Ansible does NOT read manifests — the
-# role mirrors the manifest here and a structural test locks parity (resolves
-# the Story 2.1 deferred item: key off `kind` + `spine_segment()`, not `name`).
+# The desired asset list lives in dotfiles/provisioning/assets.yaml (Story 2.1),
+# whose `assets:` block is the single source of truth for repo/tag/classes. Ansible
+# does NOT read manifests — the role mirrors the pin here and a structural test
+# locks parity (TestAssetsVars.test_parity_with_manifest).
 
-# assets_repo_root: repo root derived from this playbook's location.
-#   assets.yaml lives at <repo>/src/provisioning/ansible/playbooks/, so
-#   <repo> = {{ playbook_dir }}/../../../.. (mirror cli_tools_repo_root
-#   exactly).
-assets_repo_root: "{{ playbook_dir }}/../../../.."
+# assets_repo / assets_pinned_tag / assets_classes: the mirror of the manifest's
+#   `assets:` block (spine AD-6). `assets_classes` is the destination class map:
+#   class name -> {dest, schema}, class-local and never an absolute path.
+assets_repo: https://github.com/RandomGenericUsername/dotfiles-assets
+assets_pinned_tag: v0.2.0
+assets_classes:
+  icons: { dest: icons, schema: icons/schema.json }
+  templates: { dest: templates, schema: "**/vars.schema.json" }
+  configs: { dest: configs, schema: null }
+  content: { dest: content, schema: null }
+  desktop: { dest: desktop, schema: desktop/desktop.yaml }
+
+# assets_checkout_root / assets_pinned_file: the fetched unit and its pin.
+#   The checkout lands at <install>/assets/<tag>/ (the only new spine path,
+#   AD-7) and the pin file sits BESIDE the tag dir, one line, exactly the
+#   cli-tools/<name>/pinned shape. Trim lock: both consume the same validated
+#   {{ install_dir | trim }} value the fail-loud assert enforces.
+assets_checkout_root: "{{ install_dir | trim }}/assets/{{ assets_pinned_tag }}"
+assets_pinned_file: "{{ install_dir | trim }}/assets/pinned"
 
 # assets_weg_bin_dir: uv's executable directory where the cli_tools role (2.4)
 #   installs `weg` via `uv tool install`. Resolved EXACTLY as uv does (and in
@@ -42,9 +56,9 @@ assets_deploy_dirs:
   - config/color-scheme-generator/templates
   - config/weg
 
-# assets_wallpapers_tarball: the bare manifest source value (the repo root is
-#   prefixed in the task as {{ assets_repo_root }}/...).
-assets_wallpapers_tarball: dotfiles/assets/wallpapers/wallpapers.tar.gz
+# assets_wallpapers_tarball: the wallpaper archive INSIDE the pinned checkout.
+#   Absolute (it derives from the install spine), so the task uses it verbatim.
+assets_wallpapers_tarball: "{{ assets_checkout_root }}/content/wallpapers/wallpapers.tar.gz"
 
 # assets_wallpapers_dest: the unarchive dest. Trim lock: consumes the same
 #   validated `{{ install_dir | trim }}` value the fail-loud assert enforces.
@@ -68,19 +82,14 @@ assets_csg_pinned_tag: v0.2.0
 assets_csg_templates_source: >-
   {{ install_dir | trim }}/cli-tools/csg/{{ assets_csg_pinned_tag }}/src/color_scheme_generator/defaults/templates
 
-# assets_copies: the three directory-based asset kinds as (name, kind, source,
-#   target) mirroring the manifest. Every `source` ENDS WITH `/` so
-#   synchronize (like copy) lands the contents directly in the target — rsync
-#   trailing-slash contents semantics (no accidental nested dir), with
-#   delete: true making the deploy an exact mirror of the repo tree. `target` IS the AssetKind.spine_segment() of the
-#   kind — parity-locked by the structural test. The csg-templates source has a
-#   trailing `/` ADDED here (the manifest source has none); the parity test
-#   normalizes with rstrip("/").
-#
-# sources: the two `dotfiles/...` kinds are REPO-relative (the synchronize task
-#   prefixes `{{ assets_repo_root }}/`); `csg-templates` is an ABSOLUTE
-#   install-spine path INTO the pinned csg checkout (see the vars above), so it
-#   lives in `assets_checkout_copies` below and is NOT repo-root-prefixed.
+# assets_copies: the directory-based asset kinds as (name, kind, source,
+#   target) mirroring the manifest. Since S1 every `source` is an ABSOLUTE path
+#   INTO the pinned assets checkout, so the synchronize task uses it verbatim
+#   (no repo-root prefix). Every `source` ENDS WITH `/` so synchronize lands the
+#   contents directly in the target — rsync trailing-slash semantics (no
+#   accidental nested dir), with delete: true making the deploy an exact mirror
+#   of the pinned tree. `target` IS the AssetKind.spine_segment() of the kind —
+#   parity-locked by the structural test.
 #
 # config-in-spine (2026-08-16): the csg-templates target moved from
 #   <install>/csg-templates to <install>/config/color-scheme-generator/templates
@@ -89,9 +98,15 @@ assets_csg_templates_source: >-
 #   so csg's native XDG discovery finds them through the link). icon-templates
 #   and icon-mappings stay under the spine root (machine assets, not tool
 #   configs — they have no XDG stop to satisfy).
+#
+# btop authored themes are NOT in this list: they are shipped into
+#   <install>/config/btop/themes/ by the btop_config role (its with_fileglob
+#   seam), which reads the same pinned checkout via
+#   btop_config_authored_themes_repo_dir. There is no AssetKind for them, and
+#   the destination is owned by that role — see AD-7.
 assets_copies:
-  - { name: icon-templates, kind: icon-template, source: dotfiles/assets/icon-templates/, target: icon-templates }
-  - { name: icon-mappings, kind: icon-mapping, source: dotfiles/config/icon-template-color-scheme-mappings/, target: icon-mappings }
+  - { name: icon-templates, kind: icon-template, source: "{{ assets_checkout_root }}/icons/templates/", target: icon-templates }
+  - { name: icon-mappings, kind: icon-mapping, source: "{{ assets_checkout_root }}/icons/mappings/", target: icon-mappings }
 
 # assets_checkout_copies: the copies whose source is already an ABSOLUTE
 #   install-spine path (a pinned CLI checkout), deployed by the same

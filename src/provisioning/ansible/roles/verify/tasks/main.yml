@@ -912,6 +912,28 @@
       them; run the assets playbook first
   when: not ansible_check_mode
 
+# S1 (spine AD-6/AD-7): the corpus is a pinned checkout, so verify asserts the
+# pin FILE and the five class dirs the assets role materialized. S5 adds the
+# stronger assertion that the pin file's CONTENT equals the manifest tag; this
+# slice asserts presence (the shape the next slice builds on).
+- name: Check the pinned assets checkout is present
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop: "{{ [verify_assets_pinned_file, verify_assets_tag_dir] + verify_assets_class_dirs }}"
+  register: verify_assets_checks
+
+- name: Assert the pinned assets pin and class dirs are present
+  ansible.builtin.assert:
+    that:
+      - verify_assets_checks.results | selectattr('stat.isreg') | list | length == 1
+      - verify_assets_checks.results | selectattr('stat.isdir') | list | length == (verify_assets_class_dirs | length) + 1
+    fail_msg: >-
+      the pinned assets checkout is incomplete under {{ verify_assets_dir }}
+      (expected the `pinned` file and the five class dirs under
+      {{ verify_assets_tag_dir }}). The assets role fetches repo@tag before
+      copying; re-run the assets playbook and check the pin.
+  when: not ansible_check_mode
+
 - name: Check runtime palette files exist under the runtime current dir
   ansible.builtin.stat:
     path: "{{ verify_state_current_dir }}/{{ item }}"

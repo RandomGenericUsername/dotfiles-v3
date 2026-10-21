@@ -13,7 +13,7 @@
 #
 # hypr/hyprpaper/ags are DELIBERATELY absent: those skeletons land in Story
 # 2.8 and are PLACED BY COPY in Story 2.9 (compositor_configs role). The
-# icon-template-color-scheme-mappings/ dir is an ASSET deployed to
+# icon mappings are ASSETS (pinned corpus) deployed to
 # <install>/icon-mappings/ (Story 2.6).
 #
 # Mirror-and-adapt discipline (Epic 1 retro action item) — what differs from
@@ -31,7 +31,7 @@
 #       content, so the source guard is ungated. 2.10's RESOLVE assert IS
 #       check-gated (dests absent under --check).
 #   (c) vs 2.6 assets (copy + repo_root): 2.6 copies from
-#       <repo>/dotfiles/assets/** into the install spine; 2.10 copies from
+#       the pinned assets checkout into the install spine; 2.10 copies from
 #       <repo>/dotfiles/config/* into the user config home. Both use
 #       `ansible.builtin.copy` with `remote_src: true` and a trailing-`/` src
 #       (contents-into-dest semantics).

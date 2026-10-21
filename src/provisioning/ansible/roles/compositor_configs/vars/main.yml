@@ -10,7 +10,7 @@
 # Mirror-and-adapt discipline (Epic 1 retro action item) — what differs from
 # each mirror:
 #   (a) vs 2.6 assets (copy + repo_root): 2.6 copies from
-#       <repo>/dotfiles/assets/** into the install spine; 2.9 copies from
+#       the pinned assets checkout into the install spine; 2.9 copies from
 #       <repo>/dotfiles/config/{hypr,hyprpaper,ags}/ into the spine config
 #       dirs. `remote_src: true` + trailing-`/` src applies to the skeleton copies.
 #   (b) vs 2.5 filesystem (XDG config home): 2.5 CREATES the dirs; 2.9 COPIES

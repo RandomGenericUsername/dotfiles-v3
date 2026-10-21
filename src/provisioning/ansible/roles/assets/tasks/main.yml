@@ -1,7 +1,15 @@
-# Assets role (Story 2.6) — deploys the five asset kinds from the repo into the
-# install spine that the filesystem role (2.5) created (FR-17, chaining-spine.md):
+# Assets role (Story 2.6; pinned corpus since S1) — deploys the asset kinds into
+# the install spine that the filesystem role (2.5) created (FR-17, chaining-spine.md):
 # the wallpaper tarball, the icon-template / icon-mapping / csg-template
 # directories, and the weg-effects catalog.
+#
+# S1 CUT-OVER (spine AD-6/AD-13): the icon/content corpus is no longer read from
+# this checkout. The FIRST corpus task shallow-clones `assets_repo` at
+# `assets_pinned_tag` into `<install>/assets/<tag>/`, removes the clone's .git,
+# and writes `<install>/assets/pinned`; every corpus copy reads that checkout.
+# A missing or mis-pinned checkout fails loud BEFORE the first copy (stat+assert),
+# because synchronize against a missing src copies nothing and would leave the
+# previous catalog in place.
 #
 # Design (locked in Story 2.6 Dev Notes):
 # - The FIRST task is the fail-loud install_dir seam assert, copied verbatim
@@ -37,7 +45,10 @@
 #   `when: not ansible_check_mode` (under --check the unarchive is skipped so
 #   the file is not yet present; an assert alone cannot check file existence).
 # - User-scoped privilege context: NO become/become_user anywhere (AC 12).
-# - No absolute repo paths: every source is {{ assets_repo_root }}/... (AC 13).
+# - No composition-repo paths: every corpus source is an absolute path into the
+#   pinned assets checkout ({{ assets_checkout_root }}/...), asserted present
+#   before the first copy. The csg-templates source is the same shape for the
+#   pinned csg checkout (spine AD-10).
 
 - name: Assert install_dir seam is provided
   ansible.builtin.assert:
@@ -65,6 +76,69 @@
       prerequisite, AC 9)
   when: not ansible_check_mode
 
+# ── Pinned assets checkout (spine AD-6/AD-13) ──
+# Shallow-clone repo@tag into <install>/assets/<tag>/, drop the clone's .git
+# (it is deployed as data, not a working copy — the ags_apps unit discipline),
+# and record the tag in <install>/assets/pinned. Check-mode discipline mirrors
+# cli_tools/ags_apps: the stat probe runs under --check, the clone and .git
+# removal are gated `when: not ansible_check_mode`, and the pin-file copy
+# supports check mode (would-change, never writes).
+- name: Ensure the pinned assets root exists
+  ansible.builtin.file:
+    path: "{{ install_dir | trim }}/assets"
+    state: directory
+    mode: "0755"
+
+- name: Check whether the pinned assets checkout is already present
+  ansible.builtin.stat:
+    path: "{{ assets_checkout_root }}/icons/schema.json"
+  register: assets_checkout
+
+- name: Clone the pinned assets corpus at its tag (shallow, anonymous HTTPS)
+  ansible.builtin.git:
+    repo: "{{ assets_repo }}"
+    dest: "{{ assets_checkout_root }}"
+    version: "{{ assets_pinned_tag }}"
+    depth: 1
+    single_branch: true
+  register: assets_clone
+  retries: 3
+  delay: 5
+  until: assets_clone is succeeded
+  when:
+    - not ansible_check_mode
+    - not assets_checkout.stat.exists
+
+- name: Remove the pinned assets checkout's .git (deploy as data, not a working copy)
+  ansible.builtin.file:
+    path: "{{ assets_checkout_root }}/.git"
+    state: absent
+  when: not ansible_check_mode
+
+- name: Record the pinned assets tag beside the checkout
+  ansible.builtin.copy:
+    content: "{{ assets_pinned_tag }}\n"
+    dest: "{{ assets_pinned_file }}"
+    mode: "0644"
+    force: true
+
+- name: Check the pinned assets corpus is present before any copy
+  ansible.builtin.stat:
+    path: "{{ assets_checkout_root }}/icons/schema.json"
+  register: assets_checkout_present
+  when: not ansible_check_mode
+
+- name: Assert the pinned assets corpus is present before any copy
+  ansible.builtin.assert:
+    that: assets_checkout_present.stat.isreg | default(false)
+    fail_msg: >-
+      the pinned assets corpus is missing at {{ assets_checkout_root }} (no
+      icons/schema.json) — the assets role clones
+      {{ assets_repo }} at {{ assets_pinned_tag }} before copying, so a missing
+      checkout means the clone failed or the pin is wrong. A copy from a missing
+      src would silently deploy nothing.
+  when: not ansible_check_mode
+
 - name: Ensure asset deploy targets exist
   ansible.builtin.file:
     path: "{{ install_dir | trim }}/{{ item }}"
@@ -72,7 +146,7 @@
   loop: "{{ assets_deploy_dirs }}"
 
 - name: Verify wallpapers tarball contains default.png
-  ansible.builtin.shell: "tar -tzf '{{ assets_repo_root }}/{{ assets_wallpapers_tarball }}' | grep -qx default.png"
+  ansible.builtin.shell: "tar -tzf '{{ assets_wallpapers_tarball }}' | grep -qx default.png"
   register: assets_wallpapers_tarball_check
   changed_when: false
   failed_when: false
@@ -89,14 +163,14 @@
 
 - name: Unpack wallpapers tarball
   ansible.builtin.unarchive:
-    src: "{{ assets_repo_root }}/{{ assets_wallpapers_tarball }}"
+    src: "{{ assets_wallpapers_tarball }}"
     dest: "{{ assets_wallpapers_dest }}"
     remote_src: true
   when: not ansible_check_mode
 
 - name: Deploy directory asset kinds (mirror, prune deleted files)
   ansible.posix.synchronize:
-    src: "{{ assets_repo_root }}/{{ item.source }}"
+    src: "{{ item.source }}"
     dest: "{{ install_dir | trim }}/{{ item.target }}"
     delete: true
   loop: "{{ assets_copies }}"
