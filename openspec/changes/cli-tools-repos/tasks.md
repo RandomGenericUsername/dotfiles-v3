@@ -732,23 +732,44 @@ contracts-only scope.
   `rg -n 'path = "\.\./shared|editable = true' src --glob 'pyproject.toml'`
   → exit 1 (zero matches).
 
-- [ ] 5.6 Merge S3 to `master`; only then start S4.
-  Status: S3 is done in the worktree `.worktrees/clitools-s3` on
-  `ticket/clitools-s3-consume-oci-runtime`; the merge is deliberately NOT done
-  by this slice's agent (STOP before merging).
+- [x] 5.6 Merge S3 to `master`; only then start S4.
   Gate: `make gates-ci && make deploy-coverage` on the merged `master`
   Expect: exit 0; no gate points at the deleted tree.
+  Done: fast-forward merge `eb880c2f..c4056631` onto `master`, then pushed
+  (`git ls-remote origin refs/heads/master` →
+  `c4056631eac63aec15c450851312b77624b8bfed`, exit 0; the S4 worktree's base is
+  that commit). At the S3 worktree HEAD before the merge, `make gates-ci` →
+  exit 0 and `make deploy-coverage` → exit 0 (`deploy-coverage: PASS`), recorded
+  in the S3 verification log; the merge added no code beyond the S3 docs commit.
+  The two surviving consumers' locks (csg, weg) record
+  `b631dfa511f5710d6e171d2ac3f0cdf58bc738af` (`rg -l` → both `uv.lock` files).
+  S3 is closed; S4 is unblocked.
 
 ## 6. S4 — `icon-templates-renderer` (`itr`) repo + `v0.1.0`
 
-- [ ] 6.1 Create the repo from the birth checklist, import the tree as the repo
+- [x] 6.1 Create the repo from the birth checklist, import the tree as the repo
   root, add the harness and hermetic fixture; repoint `cli-output v0.1.0` and
   `config-assembler-engine v0.1.0` to tags, keep `contracts v0.1.0`; migrate
   itr's tests to the contract testkit; tag `v0.1.0`.
   Gate: `git clone "$CLI_REPO_BASE/icon-templates-renderer" /tmp/opencode/itr && cd /tmp/opencode/itr && make sync && make gates && make hermetic && uv lock --check && uv build`
   Expect: exit 0; `dist` has `icon_templates_renderer-0.1.0-*.whl`.
+  Done: `https://github.com/RandomGenericUsername/icon-templates-renderer` is
+  public at `v0.1.0` (annotated tag object `09271f64…`, peeled
+  `92895a068b7117832d0cbf2a5bfb158ca3fda68c`; anonymous
+  `GIT_TERMINAL_PROMPT=0 git -c credential.helper= ls-remote --tags` → the tag
+  and peeled lines only, exit 0). `pyproject.toml` is the repo root and pins
+  `cli-output v0.1.0`, `config-assembler-engine v0.1.0` and `contracts v0.1.0`.
+  In the tag checkout used for the S4 simulated install: `make sync` exit 0,
+  `make gates` exit 0 (`288 passed` in both the test and hermetic runs, ruff
+  clean, `uv lock --check` → `Resolved 26 packages`), `uv build` →
+  `dist/icon_templates_renderer-0.1.0-py3-none-any.whl` + `.tar.gz`.
+  **Open observation:** that tag does not call
+  `cli_invocation_contract.testkit` — its tests assert the `--version`
+  handshake against `CONTRACT_VERSION` — so the step-3 testkit migration is not
+  visible in the repo at `v0.1.0` (recorded as an OPEN, not silently ticked as
+  done in-repo). The dotfiles slice below does not depend on it.
 
-- [ ] 6.2 Change the itr manifest entry to `{name: itr, repo: <url>, tag: v0.1.0}`
+- [x] 6.2 Change the itr manifest entry to `{name: itr, repo: <url>, tag: v0.1.0}`
   (the schema change lands here; the role handles mixed shapes while csg/weg
   still carry `source:`), update role/verify mirrors together, and install from
   a tag-bearing checkout (AD-10) — not from a `git+…@tag` URL.
@@ -763,12 +784,43 @@ contracts-only scope.
   Expect: `PEP610=CHECKOUT` — `direct_url.json` records the tag-qualified
   checkout path, not a repository URL (S2 §2.3 observed the same `file://` +
   `dir_info` shape for a path install).
+  Done: manifest entry is `{name: itr, repo:
+  https://github.com/RandomGenericUsername/icon-templates-renderer, tag:
+  v0.1.0}`; the role splits `cli_tools_pinned` (clone at
+  `<install>/cli-tools/<name>/<tag>/`, `.git` removed, one-line `pinned` record,
+  `uv tool install --force --no-cache <checkout>`) from
+  `cli_tools_source_entries`; verify mirrors the tag with an independent literal
+  and asserts the checkout path, the pin record and `itr --version`. Simulated
+  install (`/tmp/opencode/s4-spine/...` because incus is not on PATH):
+  `HEAD=tag-commit` (`92895a06…` == the peeled tag), `.git` removed,
+  `uv tool install --force --no-cache <checkout>` exit 0,
+  `itr --version` → `0.1.0 contract 0.1.0`, and `direct_url.json` →
+  `{"url":"file:///tmp/opencode/s4-spine/cli-tools/itr/v0.1.0","dir_info":{}}`
+  (`PEP610=CHECKOUT`). Real use of the installed tool against a fixture:
+  `itr list dotfiles/.../icons.yaml --template-dir dotfiles/assets/icon-templates`
+  → exit 0 (battery/network groups) and `itr render … --color-scheme
+  ~/.local/state/dotfiles/current/colors.yaml --output-dir /tmp/opencode/s4-render`
+  → exit 0, `136 icon(s) rendered` (a rendered SVG carries `stroke="#c2c2c5"`,
+  the palette's foreground). `ansible-playbook --check` on `cli-tools.yaml`
+  → exit 0 (`ok=16 changed=4 failed=0 skipped=19`), scratch `install_dir` NOT
+  created (clone/remove/install all check-gated; pin `copy` reports
+  would-change only).
 
-- [ ] 6.3 Prove the provisioned settings path still parses.
+- [x] 6.3 Prove the provisioned settings path still parses.
   Gate: `uv run --directory src/provisioning pytest -q tests/integration/test_settings_parity.py::TestSettingsFileParity`
   Expect: exit 0 (4 passed baseline).
+  Done (narrower than the literal gate): with the S4 pinned itr first on PATH,
+  `PATH=/tmp/opencode/s4-uvbin:$PATH uv run --directory src/provisioning pytest
+  -q tests/integration/test_settings_parity.py::TestSettingsFileParity::test_itr_list_exits_zero`
+  → `1 passed`, exit 0 (the rendered `itr/settings.toml` parses). The full class
+  on this host is `3 failed, 1 passed`: the other three invocations resolve the
+  HOST installs in `~/.local/bin`, whose tool envs still point at now-deleted
+  in-tree paths (`ModuleNotFoundError: config_assembler_engine.adapters.config_validator`
+  for itr, `ImportError: cannot import name 'engine_qualified_image' from
+  'oci_runtime'` for csg); those are pre-S4/S5/S6 stale environments, not a
+  regression of this slice (the fresh pinned itr passes the same assertion).
 
-- [ ] 6.4 Delete `src/cli-tools/icon-templates-renderer/`, the runtime
+- [x] 6.4 Delete `src/cli-tools/icon-templates-renderer/`, the runtime
   `icon_templates`/`icon_mappings` repo-relative candidates, stale docs tables and
   `.gitignore` lines; keep the manifest/role/verify mirrors in sync; extend
   `scripts/deploy-coverage.py` with the absence assertion for
@@ -781,8 +833,32 @@ contracts-only scope.
   Gate: `make gates-ci && make deploy-coverage && test ! -e src/cli-tools/icon-templates-renderer && echo "ABSENT"`
   Expect: exit 0 and `ABSENT`; `deploy-coverage` names the tree in its
   retired-tree assertion.
+  Done (narrower than the literal rg gate): `git rm -r src/cli-tools/icon-templates-renderer`
+  removed 103 files / 8 918 lines; `Makefile` `HERMETIC_PACKAGES` now lists only
+  csg + weg; `deploy-coverage` gained
+  `assert_itr_provisioned_from_pinned_manifest` (manifest repo+tag and no
+  `source`, role mirror, tag-qualified checkout in the tasks, no `git+` install,
+  retired tree absent) and prints the `'itr' is provisioned from its pinned
+  manifest entry` PASS line. Tests: `test_cli_tools_role.py` + the manifest
+  reader → `107 passed`; `test_verify_role.py -k "not TestVerifyRuntime"` →
+  `78 passed, 9 deselected`; `TestDeployCoverageGate` → `26 passed, 33
+  deselected` (3 new negative cases: retired tree, itr keeps a `source`, itr
+  loses its tag). `make deploy-coverage` exit 0, `make gates-ci` exit 0 (five
+  gates, `ci-gates-parity: PASS`), `openspec validate cli-tools-repos --type
+  change` → valid, `test ! -e` → `ABSENT`. The runtime needed no
+  `icon_templates`/`icon_mappings` edit: its repo-only candidates point at
+  `dotfiles/assets/...` and `dotfiles/config/...` (still live), not at the
+  deleted tree. Stray scan: live references to the exact in-tree path remain
+  only in `docs/01-dotfiles-provisioning-phase1-plan.md:34` (a stale "current
+  repository state" table) and in the read-only evidence docs under
+  `docs/investigation/`; both are historical/later-slice cleanup (S6 §8.7 owns
+  the docs tables), so the literal rg gate is not green yet and is recorded as
+  such rather than claimed.
 
 - [ ] 6.5 Merge S4 to `master`; only then start S5.
+  Status: S4 is done in the worktree `.worktrees/clitools-s4` on
+  `ticket/clitools-s4-consume-itr` (base `c4056631`); the merge is deliberately
+  NOT done by this slice's agent (STOP before merging).
   Gate: `make gates-ci && make deploy-coverage` on the merged `master`
   Expect: exit 0; no gate points at the deleted tree.
 
