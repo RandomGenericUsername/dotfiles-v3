@@ -40,7 +40,7 @@ exactly one local manifest source, `dotfiles-runtime -> src/runtime`
 
 | The repo owns | The repo consumes |
 |---|---|
-| Ansible playbooks, roles, manifests (`src/provisioning/ansible/`, `dotfiles/provisioning/*.yaml`) | Six extracted packages + `contracts` as git-tag pins (section 4) |
+| Ansible playbooks, roles, manifests (`src/provisioning/ansible/`, `dotfiles/provisioning/*.yaml`) | `cli-output` + `cli-invocation-contract` as git-tag pins (`src/runtime`; `cli-output` also in `src/provisioning`); `config-assembler-engine` + `oci-runtime` as git-tag pins inside the CLI repos; the three CLIs as `{name,repo,tag}` manifest entries (section 4) |
 | `dotfiles-runtime` — CLI, daemon, clipboard watcher, cache/state (`src/runtime/`) | `ags-apps` monorepo as one pinned unit (seven AGS apps + the capture-tool backend) |
 | Inputs: configs, assets, icon mappings, Hyprland Lua (`dotfiles/config/`, `dotfiles/assets/`) | `ags-platform` as one pinned unit (bare specifier, `node_modules` shortcut) |
 | Gates and their scripts (`Makefile`, `scripts/*.py`) | System packages: pacman/apt + AUR (`roles/packages`) |
@@ -538,7 +538,7 @@ Do **not** register a bar file: the bar deploys whole from `ags-apps`, and a per
 - **`csg install` has no `--image-tag`** (the tag travels via `COLORSCHEME__CONTAINER__IMAGE_TAG`); `csg install --image-tag …` exits 2. The tag gate is clone + `verify`, not option parsing (`POST-MIGRATION.md` gap (c)).
 - **`openspec validate --all` keeps 27 failures** — 19 legacy change-level + 8 legacy spec-shape defects, none `cli-tools-repos` (`POST-MIGRATION.md` gap (e); re-measured 2026-10-21).
 - **Literal stale-path text remains** in the guard, its negative-test fixtures and read-only investigation docs — 338 lines in 9 files on 2026-10-21 (`POST-MIGRATION.md` gap (f)).
-- **Runtime residual (found while writing this document).** `src/runtime/src/runtime/adapters/csg_adapter.py:54-79` still discovers a templates dir under a repo-relative `src/cli-tools/color-scheme-generator/...`, used at `:220` when no `templates_dir` is passed. AD-10 required those fallbacks deleted with the tree, and `deploy-coverage` has no runtime-input assertion (`scripts/deploy-coverage.py` `assert_*` set). UNVERIFIED — intentional dev-only fallback or a leftover; check `src/runtime/src/runtime/adapters/csg_adapter.py`.
+- **Latent leftover: the csg templates fallback.** `_find_default_templates_dir` (`src/runtime/src/runtime/adapters/csg_adapter.py:54-79`) still searches the retired `src/cli-tools/color-scheme-generator/...` paths, and `generate` falls back to it at `:220` when no `templates_dir` was passed. Every production construction supplies one — seven `CsgAdapter(...)` sites at `src/runtime/src/runtime/cli/main.py:275, 648, 671, 966, 1287, 1518, 1611`, plus the two invalidation queries at `:1328, :1418` — so the fallback cannot fire on a provisioned host; it only affects a bare `CsgAdapter()` call such as the integration test at `src/runtime/tests/integration/test_csg_adapter_integration.py:143-145`. No gate asserts it (`scripts/deploy-coverage.py` has no runtime-input check). **Recommendation:** delete the fallback (and that test's discovery branch) in a small follow-up change — behaviour-neutral, but the retired path must not remain the discovery path.
 - **Per-app repo split is deferred** (GUIDE §7 exit gate unmet); `ags-apps` stays a monorepo consumed as one unit (`docs/HANDOFF-ags-platform.md` §2).
 
 ## 13. Documentation index
