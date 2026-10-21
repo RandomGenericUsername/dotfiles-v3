@@ -424,7 +424,7 @@ The six extracted repos run `test lint hermetic lock-check docs-check` (plus `im
 | Failure | Count / shape | Status |
 |---|---|---|
 | `src/runtime` suite | `tests/unit/test_recording_indicator.py::TestNoPollingInvariant::test_bar_widget_has_no_poll_loop` — `FileNotFoundError` on the retired `dotfiles/config/ags/bar/widgets/recording.tsx` | pre-existing; the bar moved to the unit, the test's hard-coded path did not |
-| `src/runtime` integration | `test_weg_adapter_integration_real_binary` fails against a stale host `weg`; **skips** once the stale `~/.local/bin` dir is off `PATH` | environment-dependent |
+| `src/runtime` integration | `test_weg_adapter_integration_real_binary` **passes** on a provisioned host (verified 2026-10-21: `1 passed` in ~18 s) and **skips** when the CLI binary is unavailable (e.g. `~/.local/bin` off `PATH`) — that skip is the designed behaviour, not a failure | environment-dependent by design |
 | `src/provisioning` | `pytest tests/unit/test_verify_role.py -k TestVerifyRuntime` → `6 failed, 3 passed` — the simulated layout lacks `<install>/cli-tools/itr/pinned`, which verify now reads | pre-existing (same six at base `6e0633ba`) |
 | `openspec validate --all` | `104 passed, 27 failed (131 items)`, exit 1; identical failing set at base `6e0633ba` (19 legacy change-level + 8 legacy spec-shape defects) | pre-existing, none of them `cli-tools-repos` |
 
