@@ -1,4 +1,4 @@
-.PHONY: bootstrap contracts-check contract-pin-check gates gates-ci ci-gates-parity hermetic ags-platform-dev dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-verify vm-help per-app-drift-symbol-suites
+.PHONY: bootstrap contracts-check runtime-architecture contract-pin-check gates gates-ci ci-gates-parity hermetic ags-platform-dev dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-verify vm-help per-app-drift-symbol-suites
 
 # Bootstrap the host machine (full provisioning).
 # Pass become/check flags through, e.g. `make bootstrap ARGS="--ask-become-pass"`.
@@ -12,6 +12,18 @@ bootstrap:
 # Runs by execution, never by reading prose.
 contracts-check:
 	uv run --directory src/runtime pytest tests/unit/test_contract_schema_conformance.py tests/unit/test_event_contract_conformance.py tests/unit/test_event_contract_drift.py tests/unit/test_history_trigger_enum.py tests/unit/test_contract_pin_check.py -q
+
+# Runtime architecture guard: the mechanical hexagonal-layering rules
+# (`tests/architecture/test_layering.py`) and the no-retired-source guard
+# (`tests/architecture/test_no_retired_sources.py`) — a runtime source may not
+# reference the retired `cli-tools`/`shared`/`gui-tools` trees; resolve inputs
+# from the spine or the pinned repo instead. Pure pytest over `src/runtime`
+# (stdlib + pytest only, no desktop stack, no sibling checkout, no network), so
+# it is stock-runner capable and lives in `gates-ci`. This is the structural
+# counterpart to `contracts-check`: that gate proves the contract data agrees,
+# this one proves the code still obeys the hexagon and carries no stale paths.
+runtime-architecture:
+	uv run --directory src/runtime pytest tests/architecture -q
 
 # Cross-repo pin gate (REQ-004, spine AD-6). The generated bindings are
 # VENDORED into this repo (committed copies) so the runtime needs no cross-repo
@@ -32,10 +44,11 @@ contract-pin-check:
 	python3 scripts/contract-pin-check.py
 
 # Every executable gate, in the order a reviewer should read them: contract
-# first (it is the source of truth), then the Ansible embedded-template lint,
-# then the provisioning-shape coverage gate, then the per-app contract
-# drift/symbol suites, then the check that keeps the CI workflow's job set equal
-# to this list.
+# first (it is the source of truth), then the runtime architecture guard (the
+# structural counterpart: layering + no retired-source references), then the
+# Ansible embedded-template lint, then the provisioning-shape coverage gate,
+# then the per-app contract drift/symbol suites, then the check that keeps the
+# CI workflow's job set equal to this list.
 #
 # The capture-tool GUI gates (capture-test / capture-typecheck /
 # capture-hexagonal-gate) were RETIRED with the in-repo GUI (ags-apps-bar-first
@@ -45,7 +58,7 @@ contract-pin-check:
 #
 # `gates` is the DEVELOPER gate set and runs ALL of them. Nothing is dropped for
 # convenience: a gate that is not run here is a gate nobody runs.
-GATES := contracts-check ansible-embedded-template-lint \
+GATES := contracts-check runtime-architecture ansible-embedded-template-lint \
          deploy-coverage ci-gates-parity per-app-drift-symbol-suites
 gates: $(GATES)
 

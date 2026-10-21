@@ -65,6 +65,23 @@ jobs:
       - name: Run the event-contract drift gate
         run: make contracts-check
 
+  # The runtime architecture guard: hexagonal layering plus the no-retired-source
+  # guard (a runtime source may not name the deleted `cli-tools`/`shared`/
+  # `gui-tools` trees; resolve inputs from the spine or the pinned repo instead).
+  # Pure pytest over `src/runtime` — stdlib + pytest, no desktop stack, no sibling
+  # checkout, no network — so it runs on a stock runner and is in gates-ci.
+  # `contracts-check` proves the contract data agrees; this proves the code obeys
+  # the hexagon and carries no stale paths. Without this job the guard was
+  # dormant: `gates-ci` did not run the runtime architecture suite at all.
+  runtime-architecture:
+    name: runtime-architecture
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Runtime layering + no retired-source references
+        run: make runtime-architecture
+
   ansible-embedded-template-lint:
     name: ansible-embedded-template-lint
     runs-on: ubuntu-latest
