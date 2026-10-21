@@ -245,7 +245,7 @@ passwordless sudo.
 
 | Tool | Package | Role in the chain |
 |---|---|---|
-| `csg` | `color-scheme-generator` | wallpaper → palette; **runs in container mode** (podman/docker) via `src/shared/oci-runtime` |
+| `csg` | `color-scheme-generator` | wallpaper → palette; **runs in container mode** (podman/docker) via the pinned `oci-runtime` repo tag |
 | `weg` | `wallpaper-effects-generator` | emits the effects catalog at install time |
 | `itr` | `icon-templates-renderer` | SVG templates + color scheme → resolved icons (pure Python, local) |
 
@@ -1027,10 +1027,11 @@ Examples:
 | `IDesktopReloader` | Hyprland reload adapter |
 | `IMonitorSource` | Hyprland monitor adapter (`hyprctl monitors -j`) |
 
-> **Implemented today (provisioning side):** `src/shared/oci-runtime` already
-> provides the container-mode runtime adapter (`podman`/`docker`, netavark
-> engine detection, image build/run managers) used by `csg` for palette
-> generation. The runtime-core adapters above remain Phase 2+.
+> **Implemented today (provisioning side):** `oci-runtime` (consumed from its
+> pinned repo tag `v0.5.0`) already provides the container-mode runtime adapter
+> (`podman`/`docker`, netavark engine detection, image build/run managers) used
+> by `csg` for palette generation, and resolves each CLI's own package root as
+> the image build context. The runtime-core adapters above remain Phase 2+.
 
 ---
 

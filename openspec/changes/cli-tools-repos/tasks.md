@@ -615,18 +615,36 @@ contracts-only scope.
   its gate tests → `20 passed, 33 deselected`; `make gates-ci` → exit 0 with
   `'config-assembler-engine' is consumed from its pinned repo`.
 
-- [ ] 4.4 Merge S2 to `master`; only then start S3.
+- [x] 4.4 Merge S2 to `master`; only then start S3.
   Gate: `make gates-ci && make deploy-coverage` on the merged `master`
   Expect: exit 0; no gate points at the deleted tree.
+  Done: fast-forward merge `d1f92e6c..eb880c2f` onto `master`, then pushed
+  (`git ls-remote origin refs/heads/master` → `eb880c2f`, exit 0). At the S2
+  worktree HEAD before the merge, `make gates-ci` → exit 0 (five gates,
+  `deploy-coverage: PASS` incl. the `'config-assembler-engine' is consumed from
+  its pinned repo` line, `ci-gates-parity: PASS`) and `make deploy-coverage` →
+  exit 0 (recorded in the S2 verification log; the merge adds no code — `git
+  diff --stat d1f92e6c eb880c2f` → `tasks.md` only). The three surviving
+  consumers' locks (csg, weg, itr) record
+  `cad8a91c6bcbc4087209911bc36d82f8b6349f66`; S2 is closed and S3 is unblocked.
 
 ## 5. S3 — `oci-runtime` repo + `v0.5.0` and the build-context cutover
 
-- [ ] 5.1 Create the repo from the birth checklist, import
+- [x] 5.1 Create the repo from the birth checklist, import
   `src/shared/oci-runtime` as the repo root (package version 0.4.0), add the
   harness, add `resolve_build_context` (marker `pyproject.toml` +
   `src/<import_name>`) and keep `resolve_source_root` as a deprecated alias that
   accepts either marker set; migrate the locator tests (legacy + single-repo-root
   fixtures); bump to `0.5.0` and tag `v0.5.0`.
+  Done: `https://github.com/RandomGenericUsername/oci-runtime` is public at
+  `v0.5.0` (tag object `38ce267c…`, peeled
+  `b631dfa511f5710d6e171d2ac3f0cdf58bc738af`); `pyproject.toml:3` is
+  `version = "0.5.0"` and `src/oci_runtime/__init__.py` exports both
+  `resolve_build_context` and the deprecated `resolve_source_root`. Fresh clone
+  at the tag → `make sync` exit 0, `make gates` → `1107 passed, 2 skipped`
+  (Lima parser and Windows-only skip; engine-dependent tests stay
+  marked/skipped), `uv lock --check` → `Resolved 10 packages`, exit 0. The
+  locator gate from `SLICES.md` also passes (see 5.2).
   Gate: `git clone "$CLI_REPO_BASE/oci-runtime" /tmp/opencode/oci && cd /tmp/opencode/oci && make sync && make gates && uv lock --check`
   Expect: exit 0 (engine-dependent tests marked/skipped, never silently absent).
   Gate:
@@ -635,7 +653,7 @@ contracts-only scope.
   Gate: `uv run --directory src/cli-tools/color-scheme-generator python -c "from oci_runtime import resolve_source_root; print(resolve_source_root.__name__)"`
   Expect: `resolve_source_root` (deprecated alias still importable).
 
-- [ ] 5.2 Pin csg and weg to `oci-runtime v0.5.0`; rewrite both in-tree
+- [x] 5.2 Pin csg and weg to `oci-runtime v0.5.0`; rewrite both in-tree
   Dockerfiles to the single-package context (`COPY pyproject.toml uv.lock` and
   `COPY src ./src`, pinned `uv` + `git` + CA certificates); remove every
   `COPY src/shared/...` and `COPY src/cli-tools/...`; change the build verb to
@@ -645,23 +663,55 @@ contracts-only scope.
   Gate: `rg -n 'oci-runtime = \{ path = "\.\./shared/oci-runtime"' src --glob 'pyproject.toml'`
   Expect: exit 1 — this is the S3-scoped removal of the last editable path
   source. The catch-all runs in 5.5.
+  Done: both consumers now declare `oci-runtime = { git =
+  "https://github.com/RandomGenericUsername/oci-runtime", tag = "v0.5.0" }`;
+  both locks record `#b631dfa511f5710d6e171d2ac3f0cdf58bc738af` and
+  `uv lock --check` is green ×2. The Dockerfiles copy only `pyproject.toml`,
+  `uv.lock` and `src/`, install `uv==0.9.22` in the fetching stage (with git +
+  CA certificates) and `uv sync --frozen --no-dev --no-editable` from the lock —
+  no sibling path. The build verb takes `--context` (`--source-root` alias;
+  `CONTEXT_OPT`). Locator gate: `resolve_build_context(package='x',
+  override=<tmp>)` → `BuildContextRoot(root=…, source='override')`; the
+  deprecated alias is still importable. Both `rg` gates → exit 1.
+  Provisioning passes `--context {{ cli_tools_repo_root }}/{{ item.source }}`
+  (`roles/cli_tools/tasks/main.yml:337-338`, package dirs in
+  `vars/main.yml:49-50`); role tests → `43 passed`.
 
-- [ ] 5.3 Prove both images build from a single package dir and the tools still
+- [x] 5.3 Prove both images build from a single package dir and the tools still
   run.
   Gate:
   `for p in color-scheme-generator wallpaper-effects-generator; do case $p in color-scheme-generator) df=src/color_scheme_generator/adapters/docker/Dockerfile.base ;; wallpaper-effects-generator) df=src/wallpaper_effects_generator/adapters/docker/Dockerfile.imagemagick ;; esac; ( cd "src/cli-tools/$p" && podman build -t "${p}-local:test" -f "$df" . ) || exit 1; done`,
   then `podman run --rm color-scheme-generator-local:test csg --version` and
   `podman run --rm wallpaper-effects-generator-local:test weg --version`.
   Expect: both builds exit 0; both print `0.1.0 contract 0.1.0`.
+  Done: both builds exit 0 from the package dirs —
+  `color-scheme-generator-local:test` = `a68a0fe379c5`,
+  `wallpaper-effects-generator-local:test` = `07a2d7ef6415`. Each build log
+  shows the four pinned commits fetched (`oci-runtime b631dfa`,
+  `cli-output ddae372`, `config-assembler-engine cad8a91`,
+  `contracts 48cf3cf`). `podman run … csg --version` and `… weg --version` both
+  print `0.1.0 contract 0.1.0` (exit 0), and
+  `podman run … python -c "import oci_runtime, cli_output,
+  config_assembler_engine, cli_invocation_contract"` exits 0 (module resolved
+  under `/opt/venv/lib/python3.14/site-packages`).
 
-- [ ] 5.4 Prove real generation in container mode and the build verb against the
+- [x] 5.4 Prove real generation in container mode and the build verb against the
   package-root context.
   Gate: `cd src/cli-tools/color-scheme-generator && uv run csg install --container-engine podman --context "$WT/src/cli-tools/color-scheme-generator"`
   Expect: exit 0; base + backend images exist.
   Gate: `uv run --directory src/runtime pytest tests/integration/test_csg_determinism.py -q -rs`
   Expect: no failures (record the JSON: `container_mode` true, engine podman).
+  Done: `uv run csg install --container-engine podman --context "$PWD"` → exit
+  0, base + all three backend images built (`csg-base-podman:latest`,
+  `csg-custom-podman:latest`, `csg-pywal-podman:latest`,
+  `csg-wallust-podman:latest`). `uv run --directory src/runtime pytest
+  tests/integration/test_csg_determinism.py -q -rs` → `2 passed`, and
+  `.csg_determinism.json` records `"deterministic": true`,
+  `"container_mode": true`, `"engine": "podman"`. The run used the freshly
+  installed `/tmp/opencode/s3-uvbin/csg` (the host's stale pre-S0b tool was
+  kept off PATH).
 
-- [ ] 5.5 Delete `src/shared/oci-runtime/` and the now-empty `src/shared/`;
+- [x] 5.5 Delete `src/shared/oci-runtime/` and the now-empty `src/shared/`;
   extend `scripts/deploy-coverage.py` with the absence assertion for
   `src/shared/oci-runtime`.
   Gate: `make gates-ci && make deploy-coverage && test ! -e src/shared/oci-runtime && test ! -e src/shared && echo "ABSENT"`
@@ -670,8 +720,22 @@ contracts-only scope.
   Expect: exit 1 — with the last shared lib moved, no path/editable sibling
   source remains anywhere in `src/`. This is the post-S3 catch-all; do not run
   it as an S1/S2 gate (CAE/OCI are legitimately editable until 4.2/5.2).
+  Done: `git rm -r src/shared/oci-runtime` removed 184 files / 19 848 lines and
+  the empty `src/shared/` root; `Makefile` `HERMETIC_PACKAGES` now lists the
+  three CLIs and `docs/99-…` carries no `shared/` node. `deploy-coverage`
+  gained `assert_no_in_tree_oci_runtime` (package absent, `src/shared/` absent,
+  and no `path =` source in any authored `src/**/pyproject.toml`); its gate
+  tests → `23 passed, 33 deselected`. Gate run →
+  `make gates-ci && make deploy-coverage` exit 0, `deploy-coverage: PASS`, the
+  new line `'oci-runtime' is consumed from its pinned repo`, and both
+  `test ! -e` checks → `ABSENT`. The post-S3 catch-all
+  `rg -n 'path = "\.\./shared|editable = true' src --glob 'pyproject.toml'`
+  → exit 1 (zero matches).
 
 - [ ] 5.6 Merge S3 to `master`; only then start S4.
+  Status: S3 is done in the worktree `.worktrees/clitools-s3` on
+  `ticket/clitools-s3-consume-oci-runtime`; the merge is deliberately NOT done
+  by this slice's agent (STOP before merging).
   Gate: `make gates-ci && make deploy-coverage` on the merged `master`
   Expect: exit 0; no gate points at the deleted tree.
 
