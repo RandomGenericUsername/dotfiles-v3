@@ -25,22 +25,31 @@ The project is a **Desktop State Reconciliation Engine** (§3). Provisioning is 
 
 ## 2. Current Repository State (verified)
 
-### Already built (compute providers + shared libs, §9/§21)
+### Already built (in-repo Python + assets)
+
+> **Post-migration (cli-tools-repos S6):** the three CLIs (`csg`, `weg`, `itr`)
+> and the three shared libraries (`cli-output`, `config-assembler-engine`,
+> `oci-runtime`) are **consumed from their pinned repos**, not authored here.
+> the `cli-tools/` and `shared/` package roots are retired; the only in-repo
+> Python is `src/runtime/` and `src/provisioning/`. The manifest pins are
+> `dotfiles/provisioning/cli-tools.yaml` (+ the tag pins in each `pyproject.toml`).
 
 | Path | Contents |
 |---|---|
-| `src/cli-tools/color-scheme-generator/` | `csg` CLI, full uv package (pyproject, src, tests, docs) |
-| `src/cli-tools/wallpaper-effects-generator/` | `weg` CLI, full uv package |
-| `src/cli-tools/icon-templates-renderer/` | icon-renderer CLI, full uv package |
-| `src/shared/cli-output/` | Hexagonal renderer (ports/adapters, json/plain/rich output) |
-| `src/shared/config-assembler-engine/` | Hexagonal config resolution engine (strategies, env reader, override rules, pydantic coercion) |
-| `src/shared/oci-runtime/` | Docker/podman execution layer (used by CSG/WEG `--runtime container`) |
+| `src/runtime/` | `dotfiles-runtime` — desktop-state reconciliation CLIs + adapters |
+| `src/provisioning/` | `dotfiles-provision` — the Ansible-driving hexagonal package |
 | `dotfiles/assets/wallpapers/` | Wallpaper assets |
 | `dotfiles/assets/icon-templates/` | SVG icon templates |
 | `dotfiles/config/icon-template-color-scheme-mappings/` | Per-app icon color-mapping YAMLs (battery, network, power-menu, wallpaper-selector, wlogout, icons, etc.) |
 | `dotfiles/config/{nvim,starship,wlogout,zsh}/` | Existing static configs |
 | `scripts/orchestrate-v5.sh` | Existing openspec change-wave orchestrator |
-| `openspec/` | Specs + changes (csg-*, weg-* config-resolution-chain & settings-schema specs exist) |
+| `openspec/` | Specs + changes (cross-repo contract + provisioning specs) |
+
+Pinned external repos (clone at the tag, install from the checkout):
+`color-scheme-generator` (`csg`), `wallpaper-effects-generator` (`weg`),
+`icon-templates-renderer` (`itr`), `cli-output`, `config-assembler-engine`,
+`oci-runtime` — all under `https://github.com/RandomGenericUsername/`, plus the
+`contracts` repo that owns `cli-invocation-contract`.
 
 ### Missing / not started
 
@@ -290,8 +299,9 @@ Chosen over Option A (XDG `~/.config/color-scheme/templates/`) to preserve spine
 
 ## 11. Implementation Order
 
-1. Scaffold `src/provisioning/pyproject.toml` (uv package; deps: `typer`, `pydantic`, `cli-output`, `ansible-core`; dev: `pytest`, `ruff`, `mypy`; `uv.sources` for `cli-output`). Mirror `src/shared/cli-output/pyproject.toml`.
-2. `domain/` + `ports/` (pure, no Ansible, no I/O) + `tests/unit/` + `tests/architecture/test_layering.py` to lock the §11 boundary from day one — in-package hexagon (domain ← ports ← adapters ← application ← cli; domain stdlib allowlist; banned `subprocess`/`os`/`shutil` in domain; ports must be ABCs; no Path FS calls in domain) plus Rule 5: cross-package forbidden set (`core`, `infrastructure`, `color_scheme_generator`, `wallpaper_effects_generator`, `icon_templates_renderer`, `config_assembler_engine`, `oci_runtime`); only `provisioning` + `cli_output` allowed.
+1. Scaffold `src/provisioning/pyproject.toml` (uv package; deps: `typer`, `pydantic`, `cli-output`, `ansible-core`; dev: `pytest`, `ruff`, `mypy`; `uv.sources` for `cli-output`). Mirror the `cli-output` repo's `pyproject.toml`
+   (it was in-repo when this plan was written; it is now a pinned dependency).
+2. `domain/` + `ports/` (pure, no Ansible, no I/O) + `tests/unit/` + `tests/architecture/test_layering.py` to lock the §11 boundary from day one — in-package hexagon (domain ← ports ← adapters ← application ← cli; domain stdlib allowlist; banned `subprocess`/`os`/`shutil` in domain; ports must be ABCs; no Path FS calls in domain) plus Rule 5: cross-package forbidden set for in-repo layers (`core`, `infrastructure`); the six extracted packages are external pinned dependencies (cli-tools-repos S6), so importing one is governed by the declared-dependency rule; only `provisioning` + `cli_output` allowed.
 3. `adapters/{yaml_manifest_reader,ansible_executor,ansible_fact_reader}.py` + unit tests with fakes.
 4. `application/use_cases.py` wiring ports → use cases (`ProvisionMachineUseCase` with `check` flag, `VerifyCapabilityUseCase`, `BootstrapUseCase`); unit tests with fakes.
 5. `cli/main.py` (Typer) — `plan`, `apply`, `verify`, `bootstrap`; uses `cli-output` for rendering.

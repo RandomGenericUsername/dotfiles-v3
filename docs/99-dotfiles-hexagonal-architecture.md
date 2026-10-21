@@ -358,7 +358,7 @@ single reference keeps the load-bearing choices.
 |---|---|---|
 | **Provisioning backend** | **Ansible** | Python orchestrates; Ansible owns every side effect |
 | **Distro support** | Arch (pacman + AUR) + Debian family (apt) | Branching is Ansible-native (`group_vars/{arch,debian-family}.yml`); Python stays distro-agnostic |
-| **CLI tool install** | Ansible `cli_tools` role: `uv tool install` against repo paths | csg/weg/itr |
+| **CLI tool install** | Ansible `cli_tools` role: clone each CLI at its pin, `uv tool install` from that checkout | csg/weg/itr |
 | **Bootstrap** | `scripts/bootstrap.sh` pre-seeds Python+uv → `uv run --directory ./src/provisioning dotfiles-provision bootstrap` | Solves the chicken-and-egg |
 | **Ansible install** | `ansible-core` is a runtime dep of `src/provisioning` | Collections in `ansible/requirements.yml`, installed via `ansible-galaxy` at bootstrap |
 | **AUR helper (Arch)** | `packages` role self-bootstraps `yay` (base-devel+git → guarded `makepkg -si yay-bin` → `kewlfft.aur.aur`) | Distro logic in `vars/arch.yml` only |
@@ -651,14 +651,11 @@ dotfiles-repo-v3/
 │   │   ├── tests/               ←   unit + architecture-layering tests
 │   │   └── pyproject.toml       ←   uv package `dotfiles-provision`
 │   │
-│   └── cli-tools/               ← Standalone compute providers (being extracted
-│       │                          to pinned repos one slice at a time)
-│       └── color-scheme-generator/    (csg)
-│
-│   (no shared/ layer: cli-output, config-assembler-engine, cli-invocation-contract
-│    and oci-runtime are consumed from their pinned repo tags; the extracted CLIs
-│    `weg` and `itr` are consumed the same way — cloned at their pinned tag into
-│    <install>/cli-tools/<name>/<tag>/, never a local package tree)
+│   └── (no cli-tools/ and no shared/ layer: the three CLIs `csg`, `weg`, `itr`
+│        and the shared libraries cli-output, config-assembler-engine,
+│        cli-invocation-contract and oci-runtime are consumed from their pinned
+│        repo tags — cloned at the tag into <install>/cli-tools/<name>/<tag>/,
+│        never a local package tree)
 │
 ├── dotfiles/                    ← declarative manifests + config + assets sources
 ├── docs/
@@ -668,9 +665,10 @@ dotfiles-repo-v3/
 > **Drift from v2 plan:** the original plan had `core/`, `infrastructure/`,
 > and a flat `provisioning/{packages,assets,filesystem,bootstrap}`. The
 > implemented provisioning domain is a **hexagonal Python package driving
-> Ansible** (the hexagon lives in provisioning, not runtime); `cli-tools` uses
-> the actual tool names; cross-tool libraries are consumed as pinned git tags,
-> so no `shared/` layer remains in-repo.
+> Ansible** (the hexagon lives in provisioning, not runtime); the CLI-tools tree
+> uses the actual tool names and is now GONE (each CLI is consumed from its
+> pinned repo); cross-tool libraries are consumed as pinned git tags, so no
+> shared-library layer remains in-repo.
 > `src/core/` and `src/infrastructure/` (runtime) remain future work.
 
 ---
@@ -1064,9 +1062,9 @@ CLI tools should:
 > (wallpaper-effects-generator), `itr` (icon-templates-renderer). Provisioning
 > installs them via `uv tool install` and invokes them at apply time — `csg
 > generate` (container mode) and `itr render` (local) are real provisioning
-> steps, not future work. `weg` and `itr` are consumed from their pinned repo
-> tags (shallow clone at the tag into `<install>/cli-tools/<name>/<tag>/`);
-> `csg` is the last package still authored under `src/cli-tools/`.
+> steps, not future work. All three are consumed from their pinned repo tags
+> (shallow clone at the tag into `<install>/cli-tools/<name>/<tag>/`, installed
+> from that checkout); no CLI is authored in this repo anymore.
 
 ---
 

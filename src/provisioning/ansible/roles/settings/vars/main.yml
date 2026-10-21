@@ -92,6 +92,18 @@ settings_config_dirs:
 #   the template follows the value rather than a literal.
 settings_weg_image_tag: v0.1.0
 
+# settings_csg_image_tag: the container image tag the rendered CSG settings
+#   resolve (`[container] image_tag`). AD-7: the tag IS the pin — never
+#   `latest` — so a pin bump can never silently reuse the previous image. The
+#   cli_tools role builds csg's images at exactly this tag (its build passes
+#   the pin as `COLORSCHEME__CONTAINER__IMAGE_TAG`, the same value).
+#
+#   Same single-source discipline as the WEG var above: the manifest `csg` tag
+#   is authoritative; this is the AD-11 mirror, and `TestSettingsImageTag`
+#   fails if the manifest, this var and `roles/verify`'s `verify_csg_version`
+#   drift. A two-pin render test proves the template follows the value.
+settings_csg_image_tag: v0.1.0
+
 # settings_files: the three rendered settings files, one entry per tool.
 #   `template` is the .j2 filename resolved by the template module relative to
 #   roles/settings/templates/ (templates live INSIDE the role — no repo_root);

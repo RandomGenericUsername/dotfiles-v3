@@ -97,7 +97,15 @@ ci-gates-parity:
 # cannot change the result. It is deliberately NOT part of GATES: it is the
 # reproduction command for "the suite is green because the code is green", not a
 # CI runner gate.
-HERMETIC_PACKAGES := src/cli-tools/color-scheme-generator
+#
+# EMPTY since cli-tools-repos S6: all six packages (cli-output,
+# config-assembler-engine, oci-runtime, itr, weg, csg) are consumed from their
+# pinned repos and run their own `make hermetic` there. This repo authors NO
+# in-repo package sources anymore — only `src/runtime` and `src/provisioning`,
+# which `make gates-ci` covers. The target stays (and PASSes explicitly) so a
+# future in-repo package can be added by listing it here; it must never be a
+# loop that silently does nothing.
+HERMETIC_PACKAGES :=
 
 hermetic:
 	@set -eu; \
@@ -112,7 +120,16 @@ hermetic:
 	}; \
 	trap cleanup EXIT; \
 	mkdir -p "$$root/home" "$$root/tmp"; \
-	for p in $(HERMETIC_PACKAGES); do \
+	packages="$(strip $(HERMETIC_PACKAGES))"; \
+	if [ -z "$$packages" ]; then \
+		echo "hermetic: PASS -- no in-repo package sources; the six extracted"; \
+		echo "  packages (cli-output, config-assembler-engine, oci-runtime,"; \
+		echo "  itr, weg, csg) run their own 'make hermetic' in their pinned"; \
+		echo "  repos; this repo's src/runtime + src/provisioning are covered"; \
+		echo "  by 'make gates-ci'"; \
+		exit 0; \
+	fi; \
+	for p in $$packages; do \
 		echo "== hermetic: $$p"; \
 		env -u XDG_CONFIG_HOME -u XDG_CACHE_HOME -u XDG_DATA_HOME \
 			-u XDG_STATE_HOME -u DOTFILES_INSTALL_SPINE \

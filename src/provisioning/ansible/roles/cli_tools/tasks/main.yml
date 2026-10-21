@@ -292,8 +292,14 @@
 # - `--image-tag <pin>` is passed for a PINNED CLI (AD-7): the image tag is the
 #   repo tag from the manifest entry — never `latest` — so a pin bump can never
 #   silently reuse the previous image, and the rendered `image_tag` in
-#   roles/settings resolves the image this task built. csg is still source-only
-#   (S6 moves it), so its build passes no tag and keeps the CLI default.
+#   roles/settings resolves the image this task built. Since S6 BOTH
+#   container-mode CLIs are pinned; they differ only in transport (weg takes
+#   `--image-tag` on argv, csg reads COLORSCHEME__CONTAINER__IMAGE_TAG from the
+#   settings env because its v0.1.0 verb has no such flag). The tag value in
+#   both cases is `{{ item.tag }}` — the manifest pin, never a literal.
+#   The legacy source-path build task stays for a future in-repo container-mode
+#   entry; today its loop selects nothing (dotfiles-runtime has no container
+#   mode).
 # - NO `creates:` on these tasks: image EXISTENCE does not imply FRESHNESS.
 #   A stale image (built before the current CLI source) must be rebuilt, so the
 #   task runs every apply; the container engine's content-addressed cache makes
@@ -424,7 +430,7 @@
     state: absent
   when: not ansible_check_mode
 
-- name: Build container images for the pinned container-mode CLIs (tag = the pin)
+- name: Build container images for the pinned container-mode CLIs that take the tag on argv (tag = the pin)
   ansible.builtin.command:
     argv:
       - "{{ item.name }}"
@@ -435,11 +441,35 @@
       - "{{ cli_tools_checkout_root }}/{{ item.name }}/{{ item.tag }}"
       - --image-tag
       - "{{ item.tag }}"
-  loop: "{{ cli_tools_image_builds | selectattr('tag', 'defined') | list }}"
+  loop: "{{ cli_tools_image_tag_flag_builds }}"
   loop_control:
     label: "{{ item.name }}"
   environment:
     PATH: "{{ cli_tools_bin_dir }}:{{ ansible_facts.env.PATH }}"
+  when: not ansible_check_mode
+
+# csg's `install` verb has no `--image-tag` (v0.1.0): it reads
+# `container.image_tag` through its settings resolver, whose env prefix is
+# `COLORSCHEME`. Passing the pin as that env var is the SAME AD-7 contract —
+# the image tag is the manifest pin, never `latest` — just a different
+# transport. `deploy-coverage` asserts this exact key carries `{{ item.tag }}`
+# (and that no literal tag appears in the task code), so a renamed key cannot
+# quietly let the build fall back to the CLI default `latest`.
+- name: Build container images for the pinned CLIs that read the tag from settings env
+  ansible.builtin.command:
+    argv:
+      - "{{ item.name }}"
+      - install
+      - --container-engine
+      - "{{ container_runtime_engine }}"
+      - --context
+      - "{{ cli_tools_checkout_root }}/{{ item.name }}/{{ item.tag }}"
+  loop: "{{ cli_tools_image_tag_env_builds }}"
+  loop_control:
+    label: "{{ item.name }}"
+  environment:
+    PATH: "{{ cli_tools_bin_dir }}:{{ ansible_facts.env.PATH }}"
+    COLORSCHEME__CONTAINER__IMAGE_TAG: "{{ item.tag }}"
   when: not ansible_check_mode
 
 - name: Build container images for the source-path container-mode CLIs

@@ -281,16 +281,21 @@ class TestAssetsTasks:
             )
 
     def test_directory_kinds_deployed_via_single_mirror_loop(self) -> None:
-        """AC 3-5: exactly one `ansible.posix.synchronize` task loops
-        `{{ assets_copies }}` with `delete: true`, src
-        `{{ assets_repo_root }}/{{ item.source }}`, dest
+        """AC 3-5: the repo-authored directory kinds deploy through ONE
+        `ansible.posix.synchronize` task looping `{{ assets_copies }}` with
+        `delete: true`, src `{{ assets_repo_root }}/{{ item.source }}`, dest
         `{{ install_dir | trim }}/{{ item.target }}` — icon-mappings included
         (converge semantics restored 2026-09-07; the brief seed-once
         experiment was reverted: the authoring model is repo-authoritative).
         (2026-09-07: replaced ansible.builtin.copy with a mirror — files
         deleted from the repo (e.g. replaced icon template groups) must be
         pruned from the spine on the next apply, exactly as fresh installs
-        see them; copy merged only and left stale templates behind.)"""
+        see them; copy merged only and left stale templates behind.)
+
+        S6 adds a SECOND mirror loop for the one kind that lives in a pinned
+        CLI checkout (`csg-templates`, spine AD-10). It must be the same module
+        with the same delete/dest semantics and NO repo-root prefix, because
+        its source is already absolute."""
         loop_matches = [
             task
             for task in _tasks_with_module("ansible.posix.synchronize")
@@ -314,14 +319,32 @@ class TestAssetsTasks:
             "aborts on a fresh target"
         )
 
+        checkout_matches = [
+            task
+            for task in _tasks_with_module("ansible.posix.synchronize")
+            if task.get("loop") == "{{ assets_checkout_copies }}"
+        ]
+        assert len(checkout_matches) == 1, (
+            "expected exactly one synchronize task looping the pinned-checkout "
+            f"copies; found {len(checkout_matches)}"
+        )
+        checkout_module = _module(checkout_matches[0])
+        assert checkout_module["src"] == "{{ item.source }}", (
+            "a pinned-checkout source is already absolute — it must NOT be "
+            "prefixed with assets_repo_root"
+        )
+        assert checkout_module["dest"] == "{{ install_dir | trim }}/{{ item.target }}"
+        assert checkout_module["delete"] is True
+        assert checkout_matches[0].get("when") == "not ansible_check_mode"
+
         # The old merge-only copy deploy must not linger alongside the mirror.
         copy_matches = [
             task
             for task in _tasks_with_module("ansible.builtin.copy")
-            if task.get("loop") == "{{ assets_copies }}"
+            if task.get("loop") in ("{{ assets_copies }}", "{{ assets_checkout_copies }}")
         ]
         assert not copy_matches, (
-            "no ansible.builtin.copy task may loop assets_copies — the "
+            "no ansible.builtin.copy task may loop the copy sets — the "
             "directory kinds deploy via the mirror synchronize"
         )
 
@@ -343,12 +366,15 @@ class TestAssetsTasks:
         )
 
     def test_every_copy_source_ends_with_slash(self) -> None:
-        """AC 13 contents semantics: every assets_copies source ends with `/`
-        so copy lands the directory contents directly in the target — without
-        the slash the source dir itself would nest under the target."""
+        """AC 13 contents semantics: every copy source ends with `/` so copy
+        lands the directory contents directly in the target — without the slash
+        the source dir itself would nest under the target."""
         data = _vars()
-        copies = [dict(item) for item in data["assets_copies"]]
-        assert copies, "assets_copies must not be empty"
+        copies = [
+            dict(item)
+            for item in list(data["assets_copies"]) + list(data["assets_checkout_copies"])
+        ]
+        assert copies, "the copy sets must not be empty"
         for entry in copies:
             assert str(entry["source"]).endswith("/"), (
                 f"copy source {entry['name']!r} must end with '/' (AC 13)"
@@ -438,10 +464,14 @@ class TestAssetsTasks:
             assert "become_user" not in task
 
     def test_no_absolute_repo_paths_hardcoded(self) -> None:
-        """AC 13: every `src`/`argv` source reference is interpolated via
+        """AC 13: a REPO-authored source reference is interpolated via
         `{{ assets_repo_root }}/`, never an absolute repo path baked into the
         task. Checks every task's module body (not a substring scan that skips
-        tasks)."""
+        tasks). S6 exception: the pinned-checkout task's src is
+        `{{ item.source }}`, whose value is an ABSOLUTE install-spine path
+        derived from `{{ install_dir | trim }}` and the csg pin — asserted
+        separately by `test_csg_templates_source_resolves_to_pinned_checkout`,
+        and still never a hardcoded home path."""
         for task in _load_tasks():
             module_key = _module_key(task)
             assert module_key is not None
@@ -454,10 +484,16 @@ class TestAssetsTasks:
             if isinstance(argv, list):
                 argv = " ".join(str(item) for item in argv)
             if src is not None:
-                assert str(src).startswith("{{ assets_repo_root }}/"), (
-                    f"task {task.get('name')!r} must interpolate sources via "
-                    "'{{ assets_repo_root }}/' (AC 13)"
-                )
+                if str(src) == "{{ item.source }}":
+                    assert task.get("loop") == "{{ assets_checkout_copies }}", (
+                        f"task {task.get('name')!r} uses a bare item.source — only "
+                        "the pinned-checkout loop may do that"
+                    )
+                else:
+                    assert str(src).startswith("{{ assets_repo_root }}/"), (
+                        f"task {task.get('name')!r} must interpolate sources via "
+                        "'{{ assets_repo_root }}/' (AC 13)"
+                    )
             if isinstance(argv, str):
                 for token in str(raw).split():
                     if token.startswith("/") and "assets_repo_root" not in token:
@@ -519,15 +555,24 @@ class TestAssetsVars:
     def test_parity_with_manifest(self) -> None:
         """AC 15 parity lock (resolves deferred #164 — key off kind +
         spine_segment(), not name): the role's partition exactly mirrors the
-        manifest. assets_copies names ∪ {wallpapers, weg-effects} == manifest
-        entry names; copies match by (name, kind, source.rstrip("/")); every
-        copy target equals the kind→spine-segment mapping (with the
-        config-in-spine relocation: csg-templates → config/color-scheme-
-        generator/templates); the wallpaper tarball var equals the manifest
-        wallpapers source; the manifest weg-effects entry has kind weg-effects
-        and no source."""
+        manifest. (assets_copies ∪ assets_checkout_copies) names ∪
+        {wallpapers, weg-effects} == manifest entry names; copies match by
+        (name, kind, source); every copy target equals the kind→spine-segment
+        mapping (with the config-in-spine relocation: csg-templates →
+        config/color-scheme-generator/templates); the wallpaper tarball var
+        equals the manifest wallpapers source; the manifest weg-effects entry
+        has kind weg-effects and no source.
+
+        S6: `csg-templates` reads the pinned csg checkout, so its source is an
+        ABSOLUTE `<install>/cli-tools/csg/<tag>/...` path. Parity compares the
+        NORMALIZED path (install root and pin replaced by placeholders) and then
+        asserts the role's pin mirror equals the manifest tag — so a drifted
+        tag fails here, not only at provision time.
+        """
         data = _vars()
-        copies = [dict(item) for item in data["assets_copies"]]
+        copies = [dict(item) for item in data["assets_copies"]] + [
+            dict(item) for item in data["assets_checkout_copies"]
+        ]
         manifest_entries = _manifest_entries()
         manifest = {item["name"]: item for item in manifest_entries}
 
@@ -538,28 +583,52 @@ class TestAssetsVars:
 
         copy_names = {entry["name"] for entry in copies}
         assert copy_names | {"wallpapers", "weg-effects"} == set(manifest), (
-            "assets_copies names ∪ {wallpapers, weg-effects} must equal the "
+            "the copy sets' names ∪ {wallpapers, weg-effects} must equal the "
             "manifest entry names (single source of truth)"
         )
+
+        def _normalize(source: str, pin: str) -> str:
+            """Replace the install root, the role var and the pin with placeholders."""
+            text = str(source).rstrip("/")
+            text = text.replace(
+                "{{ assets_csg_templates_source }}",
+                str(data["assets_csg_templates_source"]).rstrip("/"),
+            )
+            text = text.replace("{{ assets_csg_pinned_tag }}", "<tag>")
+            text = text.replace("{{ install_dir | trim }}", "<install>")
+            if pin:
+                text = text.replace(pin, "<tag>")
+            return text
 
         kind_to_segment = {
             kind.value: _deploy_segment(kind)
             for kind in AssetKind
             if kind is not AssetKind.WALLPAPER and kind is not AssetKind.WEG_EFFECTS
         }
+        csg_manifest_source = str(manifest["csg-templates"]["source"])
+        csg_pin = csg_manifest_source.split("/cli-tools/csg/")[1].split("/", 1)[0]
         for entry in copies:
             manifest_entry = manifest[entry["name"]]
             assert entry["kind"] == manifest_entry["kind"], (
                 f"copy {entry['name']!r} kind diverges from the manifest"
             )
-            assert str(entry["source"]).rstrip("/") == str(manifest_entry["source"]).rstrip("/"), (
-                f"copy {entry['name']!r} source diverges from the manifest"
+            pin = csg_pin if entry["name"] == "csg-templates" else ""
+            assert _normalize(entry["source"], pin) == _normalize(
+                manifest_entry["source"], pin
+            ), (
+                f"copy {entry['name']!r} source diverges from the manifest "
+                f"(role={entry['source']!r}, manifest={manifest_entry['source']!r})"
             )
             assert entry["target"] == kind_to_segment[entry["kind"]], (
                 f"copy {entry['name']!r} target must equal the kind→spine-segment "
                 "mapping (deferred #164 lock, derived from AssetKind with the "
                 "config-in-spine relocation for csg-templates)"
             )
+
+        assert str(data["assets_csg_pinned_tag"]) == csg_pin, (
+            "assets_csg_pinned_tag must mirror the manifest csg pin — the "
+            "csg-templates source is derived from it (spine AD-10/AD-11)"
+        )
 
         assert str(data["assets_wallpapers_tarball"]) == manifest["wallpapers"]["source"]
         assert manifest["wallpapers"]["kind"] == AssetKind.WALLPAPER.value, (
@@ -569,6 +638,74 @@ class TestAssetsVars:
         assert "source" not in manifest["weg-effects"], (
             "the manifest weg-effects entry must have no source (it is emitted, not copied)"
         )
+
+    def test_csg_templates_source_resolves_to_pinned_checkout(self) -> None:
+        """S6/AD-10: the csg-templates asset is copied FROM the pinned csg
+        checkout, not from the (deleted) in-tree package.
+
+        The catalog lives in the cli_tools checkout at
+        `<install>/cli-tools/csg/<tag>/src/color_scheme_generator/defaults/templates/`,
+        which exists by the time this role runs because cli-tools.yaml precedes
+        assets.yaml. This case renders the role vars with the csg pin and asserts
+        the resolved source (a) is the tag-qualified checkout, (b) does NOT name
+        the retired in-tree path, and (c) is backed by a fail-loud existence
+        assert so a missing/mis-pinned checkout cannot deploy nothing silently.
+        """
+        data = _vars()
+        manifest_entries = _manifest_entries()
+        csg_entry = next(e for e in manifest_entries if e["name"] == "csg-templates")
+        cli_manifest = yaml.safe_load(
+            (_ANSIBLE_DIR.parents[2] / "dotfiles" / "provisioning" / "cli-tools.yaml").read_text()
+        )
+        csg_cli = next(e for e in cli_manifest["entries"] if e.get("name") == "csg")
+        pin = str(csg_cli["tag"])
+
+        assert str(data["assets_csg_pinned_tag"]) == pin, (
+            "the assets role must mirror the csg pin from the CLI manifest"
+        )
+
+        install = "/tmp/opencode/assets-pin-check"
+        source = str(data["assets_csg_templates_source"])
+        source = source.replace("{{ install_dir | trim }}", install)
+        source = source.replace("{{ assets_csg_pinned_tag }}", str(data["assets_csg_pinned_tag"]))
+        assert source == (
+            f"{install}/cli-tools/csg/{pin}/src/color_scheme_generator/defaults/templates"
+        ), f"resolved csg-templates source is wrong: {source!r}"
+        assert "src/cli-tools" not in source, (
+            "the csg-templates source must not name the retired in-tree tree"
+        )
+        assert "src/cli-tools" not in str(csg_entry["source"]), (
+            "the manifest csg-templates source must not name the retired tree"
+        )
+
+        checkout_copy = next(
+            e for e in data["assets_checkout_copies"] if e["name"] == "csg-templates"
+        )
+        assert str(checkout_copy["source"]).startswith("{{ assets_csg_templates_source }}"), (
+            "the copy must read the resolved checkout var (single source for the path)"
+        )
+        assert str(checkout_copy["target"]) == "config/color-scheme-generator/templates"
+
+        # The dependency is explicit: a stat + assert on the resolved dir, so a
+        # missing checkout (cli-tools never ran) fails loud instead of
+        # synchronizing nothing over the previous catalog.
+        asserts = [
+            task
+            for task in _tasks_with_module("ansible.builtin.assert")
+            if "assets_csg_templates_dir.stat.isdir" in str(_module(task).get("that", ""))
+        ]
+        assert asserts, (
+            "the assets role must assert the pinned csg template catalog exists "
+            "before copying from it (spine AD-10)"
+        )
+        stats = [
+            task
+            for task in _tasks_with_module("ansible.builtin.stat")
+            if str(_module(task).get("path", "")) == "{{ assets_csg_templates_source }}"
+        ]
+        assert stats, "the existence probe must stat the resolved checkout source"
+        for task in asserts:
+            assert task.get("when") == "not ansible_check_mode"
 
 
 class TestAssetsPlaybook:

@@ -250,6 +250,27 @@ verify_weg_image_name: weg
 verify_weg_image_reference: >-
   {{ verify_weg_image_name }}-{{ container_runtime_engine }}:{{ verify_weg_version }}
 
+# verify_csg_*: the same four legs for `csg` (S6), plus FOUR images.
+#   csg builds one base image plus one per backend (`csg install` with no
+#   `--backend` builds all of `Backend`): `base`, `custom`, `pywal`, `wallust`,
+#   each engine-qualified — `<prefix>-<suffix>-<engine>:<tag>` via
+#   oci_runtime.naming.engine_qualified_image, with `image_prefix` "csg" from
+#   the rendered settings and `container_runtime_engine` the same DECLARED
+#   value the build used. `verify_csg_image_references` spells all four out so
+#   a missing backend is a named failure, not a count. The pin is the manifest
+#   `csg.tag` (AD-7/AD-11) — never `latest`; the cli_tools role builds them at
+#   this tag by passing `COLORSCHEME__CONTAINER__IMAGE_TAG={{ pin }}`.
+verify_csg_version: v0.1.0
+verify_csg_checkout: "{{ verify_cli_tools_checkout_root }}/csg/{{ verify_csg_version }}"
+verify_csg_pin_file: "{{ verify_cli_tools_checkout_root }}/csg/pinned"
+verify_csg_contract_version: 0.1.0
+verify_csg_image_prefix: csg
+verify_csg_image_references:
+  - "{{ verify_csg_image_prefix }}-base-{{ container_runtime_engine }}:{{ verify_csg_version }}"
+  - "{{ verify_csg_image_prefix }}-custom-{{ container_runtime_engine }}:{{ verify_csg_version }}"
+  - "{{ verify_csg_image_prefix }}-pywal-{{ container_runtime_engine }}:{{ verify_csg_version }}"
+  - "{{ verify_csg_image_prefix }}-wallust-{{ container_runtime_engine }}:{{ verify_csg_version }}"
+
 # verify_notifd_binding_packages: the AUR packages backing the AstalNotifd
 #   binding the notifications overlay imports (capture-notifications
 #   implementation gate — the app is never scaffolded against a missing

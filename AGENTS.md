@@ -42,6 +42,19 @@ unit (the `ags_apps` role symlinks the unit's `bar/` subdir as the live
 live-bar link and diverge the live bar from the pinned tag) plus a missing unit /
 live-bar link / resolution shortcut. It is not optional.
 
+**CLI tools and shared libraries deploy from pinned repos — this repo authors NO
+in-repo package sources.** `csg`, `weg` and `itr` are consumed as
+`{name, repo, tag}` entries in `dotfiles/provisioning/cli-tools.yaml`
+(+ its `roles/cli_tools/vars/main.yml` mirror); `cli-output`,
+`config-assembler-engine`, `oci-runtime` and `cli-invocation-contract` are consumed
+as git-tag pins in each `pyproject.toml`. The in-repo `cli-tools/` and `shared/`
+package roots are retired and their absence is gated. The only in-repo Python is
+`src/runtime/` and `src/provisioning/`; `dotfiles-runtime -> src/runtime` is the
+ONE permitted local `source:` in that manifest. Do NOT re-add a per-file GUI/CLI source list or a
+`path`/`editable` pin — extend the pinned unit/repo and bump the tag. Because
+`HERMETIC_PACKAGES` is empty, `make hermetic` prints an explicit PASS (the six
+extracted packages run `make hermetic` in their own repos).
+
 ## 3. Evidence rule
 
 Every non-trivial claim carries evidence: a command + its observed result (exit

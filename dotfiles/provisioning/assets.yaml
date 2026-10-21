@@ -1,9 +1,12 @@
 # Assets to deploy into the install spine (verified repo inventory, plan §5).
 #
 # Each entry is tagged with an AssetKind; `AssetKind.spine_segment()` resolves
-# the deploy target under $XDG_DATA_HOME/dotfiles/. `source` is a repo-relative
-# path Ansible copies from. Rich keys are validated by YamlManifestReader but
-# not captured into the domain view — Ansible reads the full YAML directly.
+# the deploy target under $XDG_DATA_HOME/dotfiles/. `source` is the path Ansible
+# copies FROM: `dotfiles/...` for repo-authored assets, and an ABSOLUTE
+# install-spine path for an asset that lives inside a pinned CLI checkout
+# (`csg-templates`, spine AD-10 — see that entry). Rich keys are validated by
+# YamlManifestReader but not captured into the domain view — Ansible reads the
+# full YAML directly.
 kind: assets
 entries:
   - name: wallpapers
@@ -17,6 +20,13 @@ entries:
     source: dotfiles/config/icon-template-color-scheme-mappings/
   - name: csg-templates
     kind: csg-template
-    source: src/cli-tools/color-scheme-generator/src/color_scheme_generator/defaults/templates
+    # ABSOLUTE install-spine path INTO the pinned csg checkout (spine AD-10):
+    # csg is consumed from its pinned repo, so its template catalog is no
+    # longer a repo tree. The cli_tools role clones csg at the pin into
+    # <install>/cli-tools/csg/<tag>/ and cli-tools.yaml runs BEFORE assets.yaml
+    # (bootstrap order, locked by the dependency-order test). The role mirrors
+    # this path in `assets_csg_templates_source` (+ the `assets_csg_pinned_tag`
+    # mirror of this tag), and the parity test fails if they drift.
+    source: "{{ install_dir | trim }}/cli-tools/csg/v0.1.0/src/color_scheme_generator/defaults/templates"
   - name: weg-effects
     kind: weg-effects

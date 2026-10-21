@@ -102,6 +102,39 @@
   loop: "{{ assets_copies }}"
   when: not ansible_check_mode
 
+# csg-templates reads the PINNED csg checkout (spine AD-10), which the
+# cli_tools role materializes at <install>/cli-tools/csg/<tag>/ (bootstrap
+# order: cli-tools.yaml before assets.yaml). The source is already absolute, so
+# this loop is the same mirror WITHOUT the repo-root prefix. The stat/assert
+# pair above makes a missing or mis-pinned checkout a named failure here rather
+# than a silently empty deploy (synchronize against a missing src copies
+# nothing and would leave the previous catalog in place).
+- name: Check the pinned csg checkout template catalog exists
+  ansible.builtin.stat:
+    path: "{{ assets_csg_templates_source }}"
+  register: assets_csg_templates_dir
+  when: not ansible_check_mode
+
+- name: Assert the pinned csg checkout template catalog is deployed
+  ansible.builtin.assert:
+    that: assets_csg_templates_dir.stat.isdir | default(false)
+    fail_msg: >-
+      the pinned csg template catalog is missing at
+      {{ assets_csg_templates_source }} — the assets role copies it FROM the
+      cli_tools checkout (spine AD-10), so the cli-tools playbook must have
+      cloned csg at {{ assets_csg_pinned_tag }} first (bootstrap order:
+      cli-tools.yaml before assets.yaml). A missing checkout means the csg pin
+      was never fetched; re-run the cli-tools playbook
+  when: not ansible_check_mode
+
+- name: Deploy directory asset kinds that live in a pinned checkout (mirror, prune)
+  ansible.posix.synchronize:
+    src: "{{ item.source }}"
+    dest: "{{ install_dir | trim }}/{{ item.target }}"
+    delete: true
+  loop: "{{ assets_checkout_copies }}"
+  when: not ansible_check_mode
+
 - name: Check default.png was unpacked
   ansible.builtin.stat:
     path: "{{ install_dir | trim }}/wallpapers/default.png"

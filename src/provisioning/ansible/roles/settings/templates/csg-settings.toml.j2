@@ -23,6 +23,9 @@ mode = "container"
 [container]
 engine = "{{ container_runtime_engine }}"
 image_prefix = "csg"
-image_tag = "latest"
+# AD-7: the tag is the pinned repo tag (settings_csg_image_tag, mirror of the
+# cli-tools manifest `csg.tag`) — never "latest". The cli_tools role builds
+# csg's base + backend images at exactly this tag.
+image_tag = "{{ settings_csg_image_tag }}"
 timeout_seconds = 300
 memory_limit = "512m"

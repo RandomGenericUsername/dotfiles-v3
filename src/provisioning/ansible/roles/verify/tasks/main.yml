@@ -532,6 +532,79 @@
       cli-tools playbook
   when: not ansible_check_mode
 
+# S6: `csg` closes the pinned-CLI set. Same four legs as itr/weg, with FOUR
+# images instead of one: csg's `install` builds `base` + one per backend
+# (`custom`, `pywal`, `wallust`), each engine-qualified at the pin. The build
+# took the tag from `COLORSCHEME__CONTAINER__IMAGE_TAG` (its verb has no
+# `--image-tag`), so the images that exist at `<prefix>-<suffix>-<engine>:<pin>`
+# are exactly what the rendered settings resolve. A `latest`-only image (the
+# pre-S6 shape) or one left at the previous pin fails here.
+- name: Check the pinned csg checkout and its pin record
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - "{{ verify_csg_checkout }}"
+    - "{{ verify_csg_pin_file }}"
+  register: verify_csg_checkout_checks
+
+- name: Read the csg pin record
+  ansible.builtin.slurp:
+    src: "{{ verify_csg_pin_file }}"
+  register: verify_csg_pin
+  when: not ansible_check_mode
+
+- name: Read the installed csg version handshake
+  ansible.builtin.command:
+    argv:
+      - "{{ verify_cli_bin_dir | trim }}/csg"
+      - --version
+  register: verify_csg_version_check
+  changed_when: false
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Check every pinned csg image exists at its tag-qualified reference
+  ansible.builtin.command:
+    argv:
+      - "{{ container_runtime_engine }}"
+      - image
+      - inspect
+      - "{{ item }}"
+  loop: "{{ verify_csg_image_references }}"
+  register: verify_csg_image_checks
+  changed_when: false
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Assert the csg checkout, pin, contract and all four images are the pinned tag
+  ansible.builtin.assert:
+    that:
+      - verify_csg_checkout_checks.results[0].stat.isdir
+      - verify_csg_checkout_checks.results[1].stat.isreg
+      - verify_csg_checkout is search(verify_csg_version)
+      - verify_csg_pin.content | b64decode | trim == verify_csg_version
+      - verify_csg_version_check.rc == 0
+      - "'contract ' ~ verify_csg_contract_version in verify_csg_version_check.stdout"
+      - verify_csg_image_checks.results | selectattr('rc', 'equalto', 0) | list | length == verify_csg_image_references | length
+    fail_msg: >-
+      the pinned csg install is not the tag `verify` mirrors (spine
+      AD-10/AD-11). Expected the checkout at {{ verify_csg_checkout }}/ (path
+      naming {{ verify_csg_version }}), the pin record
+      {{ verify_csg_pin_file }} containing exactly {{ verify_csg_version }},
+      `csg --version` reporting `contract {{ verify_csg_contract_version }}`
+      (the `contracts` tag this repo pins, AD-4), and ALL FOUR images
+      ({{ verify_csg_image_references | join(', ') }}) present — base plus the
+      custom/pywal/wallust backends at the pin (AD-7: the image tag IS the pin,
+      never `latest`). Observed:
+      rc={{ verify_csg_version_check.rc | default('n/a', true) }},
+      stdout={{ verify_csg_version_check.stdout | default('', true) | trim }},
+      pin={{ verify_csg_pin.content | default('', true) | b64decode | trim }},
+      missing_images={{ verify_csg_image_checks.results | rejectattr('rc', 'equalto', 0) | map(attribute='item') | list }}.
+      A stale local-path install, a pin-file/checkout mismatch, or an image
+      left at another tag means provisioning never re-pinned csg; re-run the
+      cli-tools playbook
+  when: not ansible_check_mode
+
 # The notifications overlay imports AstalNotifd at startup — a provisioned
 # machine with the app dir deployed but the binding missing would ship a
 # daemon that crashes on launch. Gate on the AUR package the packages role

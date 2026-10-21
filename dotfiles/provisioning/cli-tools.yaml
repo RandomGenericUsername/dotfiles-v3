@@ -2,23 +2,28 @@
 #
 # csg/weg/itr are the three compute-provider CLIs; dotfiles-runtime is the
 # desktop-state CLI (wallpaper set / reconcile / inspect) that the login
-# hook needs on PATH. src/cli-tools/openspec/ is NOT an install target and
-# must not be listed here.
+# hook needs on PATH. The old nested CLI-tools OpenSpec root was never an
+# install target and is gone (its only change moved into the csg repo, AD-15).
 #
-# TWO ADDRESSING SHAPES during the extraction window (spine AD-10):
-#   - `{name, repo, tag}` — a pinned external repo. The role shallow-clones
-#     `<repo>@<tag>` into `<install>/cli-tools/<name>/<tag>/`, removes `.git`,
-#     records the pin in `<install>/cli-tools/<name>/pinned`, and installs the
-#     tool FROM that checkout (never from a `git+…@tag` URL), so PEP 610
-#     records a tag-bearing path.
-#   - `{name, source}` — an in-repo package path (csg/runtime), installed
-#     from `{{ cli_tools_repo_root }}/<source>` as before. The remaining
-#     entries move to `repo`/`tag` in their own slices.
+# END STATE (spine AD-10/AD-11): every extracted CLI is addressed as
+#   `{name, repo, tag}` — a pinned external repo. The role shallow-clones
+#   `<repo>@<tag>` into `<install>/cli-tools/<name>/<tag>/`, removes `.git`,
+#   records the pin in `<install>/cli-tools/<name>/pinned`, and installs the
+#   tool FROM that checkout (never from a `git+…@tag` URL), so PEP 610 records
+#   a tag-bearing path.
+#
+# `dotfiles-runtime` is the ONE remaining `{name, source}` entry: it is the
+# runtime this repo still authors (`src/runtime`), not an extracted CLI. It is
+# the only permitted local source — `deploy-coverage` asserts exactly this
+# (exactly one `source:`, every other entry repo+tag). The three shared
+# libraries (cli-output, config-assembler-engine, oci-runtime) are pinned the
+# same way, in each consumer's `[tool.uv.sources]`.
 # Exactly one shape per entry: `source` XOR (`repo` + `tag`).
 kind: cli-tools
 entries:
   - name: csg
-    source: src/cli-tools/color-scheme-generator
+    repo: https://github.com/RandomGenericUsername/color-scheme-generator
+    tag: v0.1.0
   - name: weg
     repo: https://github.com/RandomGenericUsername/wallpaper-effects-generator
     tag: v0.1.0

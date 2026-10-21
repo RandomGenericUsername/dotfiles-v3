@@ -50,6 +50,24 @@ assets_wallpapers_tarball: dotfiles/assets/wallpapers/wallpapers.tar.gz
 #   validated `{{ install_dir | trim }}` value the fail-loud assert enforces.
 assets_wallpapers_dest: "{{ install_dir | trim }}/wallpapers"
 
+# assets_csg_pinned_tag / assets_csg_templates_source: the csg-templates asset
+#   reads the PINNED csg checkout, not a repo tree (spine AD-10). csg is
+#   consumed from its pinned repo (`dotfiles/provisioning/cli-tools.yaml`, S6),
+#   so the old repo-relative package path no longer exists: the template
+#   catalog lives in the checkout the cli_tools role materializes at
+#   `<install>/cli-tools/csg/<tag>/` BEFORE this role runs (bootstrap order:
+#   cli-tools.yaml → assets.yaml, locked by the dependency-order test).
+#
+#   `assets_csg_pinned_tag` is the AD-11 mirror of the manifest `csg.tag`
+#   (this role deliberately has no manifest reader, like roles/settings);
+#   `TestAssetsCsgTemplatesSource` fails if the manifest, the cli_tools mirror
+#   or this var drift, and the role asserts the resolved dir exists before the
+#   copy so a missing/mis-pinned checkout fails loud instead of silently
+#   deploying nothing.
+assets_csg_pinned_tag: v0.1.0
+assets_csg_templates_source: >-
+  {{ install_dir | trim }}/cli-tools/csg/{{ assets_csg_pinned_tag }}/src/color_scheme_generator/defaults/templates
+
 # assets_copies: the three directory-based asset kinds as (name, kind, source,
 #   target) mirroring the manifest. Every `source` ENDS WITH `/` so
 #   synchronize (like copy) lands the contents directly in the target — rsync
@@ -58,6 +76,11 @@ assets_wallpapers_dest: "{{ install_dir | trim }}/wallpapers"
 #   kind — parity-locked by the structural test. The csg-templates source has a
 #   trailing `/` ADDED here (the manifest source has none); the parity test
 #   normalizes with rstrip("/").
+#
+# sources: the two `dotfiles/...` kinds are REPO-relative (the synchronize task
+#   prefixes `{{ assets_repo_root }}/`); `csg-templates` is an ABSOLUTE
+#   install-spine path INTO the pinned csg checkout (see the vars above), so it
+#   lives in `assets_checkout_copies` below and is NOT repo-root-prefixed.
 #
 # config-in-spine (2026-08-16): the csg-templates target moved from
 #   <install>/csg-templates to <install>/config/color-scheme-generator/templates
@@ -69,7 +92,14 @@ assets_wallpapers_dest: "{{ install_dir | trim }}/wallpapers"
 assets_copies:
   - { name: icon-templates, kind: icon-template, source: dotfiles/assets/icon-templates/, target: icon-templates }
   - { name: icon-mappings, kind: icon-mapping, source: dotfiles/config/icon-template-color-scheme-mappings/, target: icon-mappings }
-  - { name: csg-templates, kind: csg-template, source: src/cli-tools/color-scheme-generator/src/color_scheme_generator/defaults/templates/, target: config/color-scheme-generator/templates }
+
+# assets_checkout_copies: the copies whose source is already an ABSOLUTE
+#   install-spine path (a pinned CLI checkout), deployed by the same
+#   synchronize module in its own loop so the repo-root prefix is never applied
+#   to it. Partition, not a duplicate list: the two loops together cover
+#   `assets_copies` ∪ `assets_checkout_copies` exactly (parity-locked).
+assets_checkout_copies:
+  - { name: csg-templates, kind: csg-template, source: "{{ assets_csg_templates_source }}/", target: config/color-scheme-generator/templates }
 
 # (2026-09-07) icon-mappings is CONVERGE again, like every other copy: the
 # authoring model is repo-authoritative — the editor targets the repo

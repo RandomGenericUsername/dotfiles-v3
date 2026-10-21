@@ -45,15 +45,36 @@ cli_tools_engine_smoke_image: "docker.io/library/alpine:3.20"
 #
 #   NOT a second hand-written list of paths/tags: the list SELECTS the named
 #   entries out of `cli_tools` (the manifest mirror above), so each build item
-#   carries exactly the addressing shape of its manifest entry — csg still has
-#   `source:` (in-repo package dir, S6 moves it), weg has `repo`/`tag` (the
-#   pin). The image tag therefore has ONE source: the manifest `tag` for weg.
-#   A pin bump edits the manifest (+ this mirror, locked by parity) and the
-#   build loop below picks the new tag up — there is no hardcoded tag to miss.
+#   carries exactly the addressing shape of its manifest entry — since S6 both
+#   are pinned `repo`/`tag` entries. The image tag therefore has ONE source:
+#   the manifest `tag`. A pin bump edits the manifest (+ this mirror, locked by
+#   parity) and the build loop below picks the new tag up — there is no
+#   hardcoded tag to miss.
 cli_tools_image_build_names:
   - csg
   - weg
 cli_tools_image_builds: "{{ cli_tools | selectattr('name', 'in', cli_tools_image_build_names) | list }}"
+
+# cli_tools_image_tag_flag_names: HOW each pinned container-mode CLI receives
+#   its image tag (spine AD-7) — the tag value is always the manifest pin; only
+#   the TRANSPORT differs, because the two build verbs do not share a flag:
+#     - `weg`'s `install` verb takes `--image-tag <tag>` on argv.
+#     - `csg`'s `v0.1.0` `install` verb has NO `--image-tag`: the tag comes from
+#       the settings env var `COLORSCHEME__CONTAINER__IMAGE_TAG` (csg's
+#       resolution policy prefix is `COLORSCHEME`, key `container.image_tag`).
+#       Its build task passes that env var instead of a flag.
+#   Both transports read `{{ item.tag }}`, so neither can carry a literal tag.
+cli_tools_image_tag_flag_names:
+  - weg
+cli_tools_image_tag_flag_builds: >-
+  {{ cli_tools_image_builds | selectattr('name', 'in', cli_tools_image_tag_flag_names) | list }}
+cli_tools_image_tag_env_builds: >-
+  {{ cli_tools_image_builds | rejectattr('name', 'in', cli_tools_image_tag_flag_names) | list }}
+# The env KEY csg's settings resolver reads for `container.image_tag` is
+# `COLORSCHEME__CONTAINER__IMAGE_TAG` (resolution policy prefix COLORSCHEME +
+# key container.image_tag). It is written literally in the build task because an
+# Ansible `environment:` key cannot be a var without obscuring the wiring;
+# `deploy-coverage` asserts that exact key carries `{{ item.tag }}`.
 
 # cli_tools_checkout_root: root of the PINNED external checkouts (spine AD-10).
 #   Each repo entry materializes at <install>/cli-tools/<name>/<tag>/ with its
@@ -65,22 +86,25 @@ cli_tools_checkout_root: "{{ install_dir | trim }}/cli-tools"
 #   the manifest, split so each install path is explicit instead of a single
 #   loop carrying undefined keys. `cli_tools_pinned` entries are shallow-cloned
 #   at their tag and installed FROM the checkout; `cli_tools_source_entries`
-#   are installed from `{{ cli_tools_repo_root }}/<source>` as before. The
-#   split is transient by design: csg/weg/dotfiles-runtime move to repo/tag in
-#   their own slices, after which `cli_tools_source_entries` is empty.
+#   are installed from `{{ cli_tools_repo_root }}/<source>`. Since S6 the only
+#   source entry is `dotfiles-runtime` (this repo still authors the runtime);
+#   every CLI is pinned. The door stays open for the runtime's own install
+#   path — it is NOT an extraction leftover.
 cli_tools_pinned: "{{ cli_tools | selectattr('repo', 'defined') | list }}"
 cli_tools_source_entries: "{{ cli_tools | rejectattr('repo', 'defined') | list }}"
 
 # cli_tools: install specs mirroring dotfiles/provisioning/cli-tools.yaml
-#   (csg -> repo source path, weg + itr -> pinned repo/tag, plus
-#   dotfiles-runtime -> src/runtime). The console-script name is the install
-#   target; `itr` IS the icon-renderer (no separate binary). itr has NO
-#   container mode and is NOT in cli_tools_image_builds (nor is
-#   dotfiles-runtime: host-side reconcile/inspect only).
+#   (csg + weg + itr -> pinned repo/tag, plus dotfiles-runtime -> src/runtime).
+#   The console-script name is the install target; `itr` IS the icon-renderer
+#   (no separate binary). itr has NO container mode and is NOT in
+#   cli_tools_image_builds (nor is dotfiles-runtime: host-side
+#   reconcile/inspect only).
 #   Parity with the manifest is locked by a structural test, including the
 #   one-shape-per-entry rule (source XOR repo+tag).
 cli_tools:
-  - { name: csg, source: src/cli-tools/color-scheme-generator }
+  - name: csg
+    repo: https://github.com/RandomGenericUsername/color-scheme-generator
+    tag: v0.1.0
   - name: weg
     repo: https://github.com/RandomGenericUsername/wallpaper-effects-generator
     tag: v0.1.0

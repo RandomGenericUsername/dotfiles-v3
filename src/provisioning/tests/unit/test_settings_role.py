@@ -1011,3 +1011,94 @@ class TestSettingsImageTag:
                     f"settings role; expected {tag!r}"
                 )
                 assert rendered["container"]["image_tag"] != "latest"
+
+
+class TestSettingsCsgImageTag:
+    """AD-7 for CSG: the rendered `[container] image_tag` is the PIN, never
+    `latest`. Same single-source discipline as WEG — the manifest `csg.tag` is
+    authoritative, `settings_csg_image_tag` and `verify_csg_version` are the
+    AD-11 mirrors, and the cli_tools role builds the images at that tag (via
+    `COLORSCHEME__CONTAINER__IMAGE_TAG`, since csg's verb has no --image-tag).
+    """
+
+    _PLAYBOOK = _ANSIBLE_DIR / "playbooks" / "settings.yaml"
+    _MANIFEST = _ANSIBLE_DIR.parents[2] / "dotfiles" / "provisioning" / "cli-tools.yaml"
+
+    @staticmethod
+    def _manifest_csg_tag() -> str:
+        manifest = yaml.safe_load(TestSettingsCsgImageTag._MANIFEST.read_text())
+        entry = next(e for e in manifest["entries"] if e.get("name") == "csg")
+        return str(entry["tag"])
+
+    def test_image_tag_mirrors_the_manifest_pin(self) -> None:
+        data = _vars()
+        assert data["settings_csg_image_tag"] == self._manifest_csg_tag(), (
+            "settings_csg_image_tag must mirror the `csg` tag in "
+            "dotfiles/provisioning/cli-tools.yaml (AD-7/AD-10/AD-11)"
+        )
+        template = (_TEMPLATES_DIR / "csg-settings.toml.j2").read_text()
+        assert 'image_tag = "{{ settings_csg_image_tag }}"' in template, (
+            "the CSG template must render the pin, not a literal"
+        )
+        assert 'image_tag = "latest"' not in template, (
+            "the CSG template must never hardcode `latest` (AD-7)"
+        )
+
+    def test_image_tag_verify_literal_mirrors_the_pin(self) -> None:
+        verify_vars = yaml.safe_load(
+            (_ANSIBLE_DIR / "roles" / "verify" / "vars" / "main.yml").read_text()
+        )
+        assert verify_vars["verify_csg_version"] == _vars()["settings_csg_image_tag"], (
+            "verify_csg_version must mirror the rendered image tag — verify "
+            "asserts csg's base + backend images exist at exactly that tag "
+            "(AD-11)"
+        )
+        references = " ".join(str(r) for r in verify_vars["verify_csg_image_references"])
+        assert "verify_csg_version" in references, (
+            "every csg image reference verify probes must be derived from the pin"
+        )
+        assert "latest" not in references, "no csg image reference may be `latest`"
+
+    def test_image_tag_renders_the_pin_and_follows_a_bump(self) -> None:
+        """Two renders with different pins: the rendered value equals the pin
+        each time — so a pin bump changes the tag end-to-end and the pre-S6
+        hardcoded `latest` can never survive it."""
+        ansible_playbook = shutil.which("ansible-playbook")
+        if ansible_playbook is None:
+            pytest.skip("ansible-playbook not installed; skipping render test")
+        for tag in ("v0.1.0", "v0.2.0"):
+            with tempfile.TemporaryDirectory() as tmp:
+                home = Path(tmp) / "home"
+                xdg = Path(tmp) / "xdg"
+                install = Path(tmp) / "install"
+                home.mkdir()
+                xdg.mkdir()
+                install.mkdir()
+                env = _test_env(
+                    HOME=str(home),
+                    XDG_CONFIG_HOME=str(xdg),
+                    XDG_STATE_HOME=str(Path(tmp) / "state-home"),
+                    XDG_CACHE_HOME=str(Path(tmp) / "cache-home"),
+                    ANSIBLE_CONFIG=str(_ANSIBLE_DIR / "ansible.cfg"),
+                )
+                result = subprocess.run(
+                    [
+                        ansible_playbook,
+                        str(self._PLAYBOOK),
+                        "-e",
+                        f"install_dir={install}",
+                        "-e",
+                        f"settings_csg_image_tag={tag}",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    env=env,
+                    timeout=120,
+                )
+                assert result.returncode == 0, result.stdout + result.stderr
+                rendered = tomllib.loads(_expected_files(install)["csg"].read_text())
+                assert rendered["container"]["image_tag"] == tag, (
+                    "the rendered CSG image_tag must equal the pin passed to the "
+                    f"settings role; expected {tag!r}"
+                )
+                assert rendered["container"]["image_tag"] != "latest"
