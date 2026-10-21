@@ -59,10 +59,10 @@ exit 0 each).
 | 0.3 CI parity runs before the first push | open | **satisfied** | `make -C <repo> ci-gates-parity` → exit 0, `PASS gates=[...] jobs=[...] exempt=[...]` for all six (weg/csg declare `image` + `release` exempt). `.github/workflows/gates.yml` present in all six; latest runs above are green. |
 | 0.4 hermetic fixture and canary exist | open | **satisfied** | `rg -l 'XDG_CONFIG_HOME' <repo>/tests/conftest.py` → match (exit 0) in all six; `uv run pytest -q -k canary` at the pinned checkout → `1 passed` in each (`62`/`162`/`1108`/`287`/`348`/`638` deselected). |
 | 0.5 pin channel is anonymous | open | **satisfied** | `gh api repos/…/<r> --jq '{private,visibility}'` → `private:false, public` (table above), and the credential-free probe `GIT_TERMINAL_PROMPT=0 git -c credential.helper= ls-remote …/<r> 'refs/tags/<tag>'` → exit 0, exactly one line, for all six **and** `contracts`. |
-| 0.6 visibility decision + consequence recorded | open | **satisfied in the record, stale in the birth tickets** | This repo's S-slice logs + this file state the channel (anonymous `https`, no credential helper) and the consequence (a private repo would break `ansible.builtin.git`'s anonymous fetch). The per-repo birth tickets are **not** updated — see gap (g). |
+| 0.6 visibility decision + consequence recorded | open | **satisfied in the record, stale in the birth tickets** — *closed by addendum A2* | This repo's S-slice logs + this file state the channel (anonymous `https`, no credential helper) and the consequence (a private repo would break `ansible.builtin.git`'s anonymous fetch). The per-repo birth tickets are **not** updated — see gap (g). |
 | 8.8 Merge S6 to `master` | open | **done** | `master` = `1b2f644a` (`chore(openspec): archive the cli-tools-repos umbrella change`); `git rev-list --parents -n1 1b2f644a` → one parent `980365fc`, i.e. a single-commit-tip **fast-forward** of the S6 branch (`ticket/clitools-s6-consume-csg-final` = `1b2f644a`) over `6e0633ba`; the range `6e0633ba..1b2f644a` is 4 commits (`1d8d4fc8`, `8e8de381`, `980365fc`, `1b2f644a`). Push: `git ls-remote origin refs/heads/master` → `1b2f644ab38778a573cf1951d8870c411eb73a68  refs/heads/master`, exit 0. Post-merge gates on the merged tree: `make gates-ci` exit 0, `make hermetic` exit 0, `make deploy-coverage` exit 0. |
 | 9.1 terminal gates + reference scan | open | **satisfied, with one recorded deviation** | `make gates-ci` → exit 0 (five gates: `contracts-check`, `ansible-embedded-template-lint`, `deploy-coverage`, `ci-gates-parity`, `per-app-drift-symbol-suites`). `make deploy-coverage` → exit 0 and the terminal line quoted below. `rg -n '^    source:' dotfiles/provisioning/cli-tools.yaml` → **exactly one** match, `34:    source: src/runtime`. `test ! -e src/cli-tools && test ! -e src/shared` → exit 0. `git ls-files 'src/cli-tools/*' 'src/shared/*'` → 0 lines. The literal `rg -n "src/cli-tools\|src/shared" src dotfiles scripts Makefile .github bootstrap.sh AGENTS.md docs` is **exit 0, not 1** — 338 lines in 9 files, all of them either the guard, its negative tests/fixtures, or read-only investigation docs (gap (f)). |
-| 9.2 installed-tool + pin checks | open | **satisfied for the pins, host tools still stale** | `uv tool list` → `color-scheme-generator v0.1.0`, `icon-templates-renderer v0.1.0`, `wallpaper-effects-generator v0.1.0` (matching the manifest pins). But `command -v itr/weg/csg` resolve to `~/.local/bin/*` and each exits 1 at import (`ModuleNotFoundError: No module named 'cli_output'` / `'config_assembler_engine'` / `'oci_runtime'`) — gap (b). Contract-pin scan `rg -n 'cli-invocation-contract = .*contracts", tag = "v[0-9]' src --glob 'pyproject.toml'` → **1** match, `src/runtime/pyproject.toml:27` (the three CLI consumers left this repo; their own `pyproject.toml`s carry the same tag). |
+| 9.2 installed-tool + pin checks | open | **satisfied for the pins, host tools still stale** — *host tools closed by addendum A1* | `uv tool list` → `color-scheme-generator v0.1.0`, `icon-templates-renderer v0.1.0`, `wallpaper-effects-generator v0.1.0` (matching the manifest pins). But `command -v itr/weg/csg` resolve to `~/.local/bin/*` and each exits 1 at import (`ModuleNotFoundError: No module named 'cli_output'` / `'config_assembler_engine'` / `'oci_runtime'`) — gap (b). Contract-pin scan `rg -n 'cli-invocation-contract = .*contracts", tag = "v[0-9]' src --glob 'pyproject.toml'` → **1** match, `src/runtime/pyproject.toml:27` (the three CLI consumers left this repo; their own `pyproject.toml`s carry the same tag). |
 | 9.3 tag chain in one pass | open | **satisfied** | The seven-line output above, anonymous, exit 0. |
 
 ### Headline gate output (verbatim, on `1b2f644a`)
@@ -171,7 +171,14 @@ to gate, then run `make deploy-coverage` there before believing the merge.
 
 ## 3. Known gaps / follow-ups
 
-Each item is a real, observed limitation — none is redressed in this record.
+Each item is a real, observed limitation. As written, none was redressed in this
+record; the 2026-10-21 addendum later closed (b) and (g) and half of (a), so each
+item now opens with a **status line** naming the addendum section that changed
+it. The bodies below are left as written.
+
+**Status (addendum A1): PARTIALLY RESOLVED** — the real **host** run is done and
+recorded in A1; the disposable-**VM** run is still not done, so the VM half of
+this gap stays open.
 
 **(a) No real VM provisioning run (no incus on this host).** `command -v incus`
 → nothing. The roles' behaviour is proven by **simulation + `--check`** on the
@@ -195,6 +202,10 @@ the scrubbed `HOME` otherwise hides the installed collections. Syntax checks:
 both playbooks `--syntax-check` exit 0. Follow-up: run
 `playbooks/bootstrap.yaml` + `cli-tools.yaml` + `assets.yaml` for real on a
 disposable VM and record the recap.
+
+**Status (addendum A1): RESOLVED** — the host binaries were re-installed from the
+pinned checkouts by the host provisioning run; all three now print
+`0.1.0 contract 0.1.0` (A1). Body preserved as the "before" side of that record.
 
 **(b) The host's `~/.local/bin/{csg,weg,itr}` are stale pre-migration uv-tool
 envs.** `uv tool list` reports the right versions but the envs point at the
@@ -224,6 +235,10 @@ of scope here. Consequence while stale: `src/runtime`'s
 `test_weg_adapter_integration_real_binary` does not skip (it only checks
 `shutil.which("weg")`) and fails on the stale binary — see (d).
 
+**Status: STILL OPEN, re-measured on the fresh binary** — `csg install --image-tag
+v9.9.9` against the re-installed `v0.1.0` still exits with
+`No such option: --image-tag`. Unchanged by the host run.
+
 **(c) `csg install` has no `--image-tag` option.** The pin travels via the
 setting, `COLORSCHEME__CONTAINER__IMAGE_TAG`, which provisioning renders into
 `[container] image_tag`. So `csg install --image-tag v9.9.9` is rejected by
@@ -243,6 +258,11 @@ $ rg -n 'there is no separate' <csg checkout>/README.md
 reference, so a mistyped pin fails there rather than at install-time option
 parsing. Recorded so nobody "fixes" the missing flag without also adding a
 negative test for the setting path.
+
+**Status: STILL OPEN — unchanged and not re-measured for the addendum.** Failure
+1 (the moved-bar hard-coded path) is untouched. Failure 2's *cause* — the stale
+host `weg` — was removed by A1, so it should now skip; but this record did not
+re-run the suite, so do not quote a new count until someone does.
 
 **(d) Pre-existing failures unrelated to this migration.**
 `uv run --directory src/runtime pytest -q` → **exit 1, `2 failed, 2122
@@ -280,6 +300,10 @@ reads (`Task failed: Module failed: File not found:
 pinned-checkout artifacts verify now requires) so this execution guard is
 green again rather than permanently red.
 
+**Status: STILL OPEN — unchanged.** The addendum did not re-run
+`openspec validate --all`; the 27-item legacy set is untouched by either the
+host run or the ticket closure.
+
 **(e) `openspec validate --all` keeps 27 pre-existing failures.** `104 passed,
 27 failed (131 items)`, exit 1; identical failing-item set at base
 `6e0633ba` (`99 passed, 27 failed (126 items)`). Not delta-less-only: 19
@@ -287,6 +311,10 @@ legacy change-level defects **plus** 8 pre-existing spec shape defects (the
 names and the error mix are in the 9.1 row). None is `cli-tools-repos`; the
 archived specs validate. Follow-up: sweep them under their own change, or set
 `skip_specs: true` on the pure-docs changes.
+
+**Status: STILL OPEN — unchanged.** Re-measured on `master` at `56fc4b7e`:
+`rg -n "src/cli-tools|src/shared" …` → still **338 lines in 9 files**, same
+carve-outs (guard, negative tests/fixtures, historical investigation docs).
 
 **(f) Literal stale-path `rg` residue remains.** `rg -n "src/cli-tools|src/shared"
 src dotfiles scripts Makefile .github bootstrap.sh AGENTS.md docs` → exit 0,
@@ -300,6 +328,11 @@ src dotfiles scripts Makefile .github bootstrap.sh AGENTS.md docs` → exit 0,
   to prove rejection;
 - `docs/investigation/{S1,S2,S3,S4}-*.md` — read-only historical evidence, out
   of scope by rule (same carve-out the S4/S5 logs record).
+
+**Status (addendum A2): RESOLVED** — all six birth tickets are now `done`, with
+acceptance ticked, Closeout evidence, INDEX under Done, and `repo-birth` archived
+under `openspec/changes/archive/2026-10-21-repo-birth/`. Body preserved as the
+"before" side of that record.
 
 **(g) Birth-ticket bookkeeping is stale in five of six repos** (this is the
 one place 0.6's "recorded" half falls short). The tickets were written before
@@ -345,3 +378,309 @@ each birth ticket against section 1's table, and either add the wheel to the
 | `ansible-playbook … --check -e install_dir=<scratch>` | exit 0, `ok=16 changed=4 failed=0 skipped=21` / `ok=4 changed=1 failed=0 skipped=12`; scratch dir not created |
 | `command -v incus` | absent |
 | `uv tool list`; `{itr,weg,csg} --version` | three entries at `v0.1.0`; each binary exit 1 with `ModuleNotFoundError` |
+
+## Addendum — 2026-10-21 (host run + ticket closure)
+
+Appended after the record above was merged (`master` at `56fc4b7e`). Two of §3's
+gaps are now closed **by execution**, not by argument:
+
+- **gap (b)** — the host's stale `~/.local/bin/{csg,weg,itr}`. A real
+  provisioning run re-installed all three from the pinned checkouts; they now
+  serve actual work (A1).
+- **gap (g)** — the stale per-repo birth-ticket bookkeeping. All six birth
+  tickets are `done`, ticked, evidenced, indexed under Done, and their
+  `repo-birth` change is archived (A2).
+
+Gap (a) is now **half** resolved: the host run happened, the disposable-VM run
+still has not. Everything else in §3 is unchanged; the per-item status lines
+there say which. §4's table above is left as the pre-addendum measurement — this
+addendum carries its own evidence table at A4.
+
+### A1. Host provisioning run — resolves gap (b), and the non-VM half of gap (a)
+
+The playbooks were driven the way `AnsibleExecutor` drives them
+(`src/provisioning/src/provisioning/adapters/ansible_executor.py:269-287`:
+`ansible-playbook -i <inventory> --tags <tags> --extra-vars <json> <playbook>` —
+note the flags, and that the playbook path comes **last**), with the two locked
+seam extra-vars from `_seam_extra_vars()`
+(`src/provisioning/src/provisioning/application/use_cases.py:38-48`).
+`install_dir` is `resolve_install_dir()` = `$XDG_DATA_HOME/dotfiles`
+(`use_cases.py:27-35`), re-checked on this host:
+
+```text
+$ src/provisioning/.venv/bin/python -c \
+    'from provisioning.application import resolve_install_dir; print(resolve_install_dir())'
+/home/inumaki/.local/share/dotfiles      # the "<spine>" in the commands below
+```
+
+`ansible-playbook` is still not on `PATH` (gap (a)); the binary used is
+`src/provisioning/.venv/bin/ansible-playbook`. The shape, once per playbook:
+
+```text
+$ ANSIBLE_CONFIG=src/provisioning/ansible/ansible.cfg \
+    src/provisioning/.venv/bin/ansible-playbook \
+    -i src/provisioning/ansible/inventory/localhost.yaml \
+    --tags all \
+    --extra-vars '{"install_dir": "/home/inumaki/.local/share/dotfiles", "os_family": "arch"}' \
+    src/provisioning/ansible/playbooks/<playbook>.yaml
+```
+
+Order: `cli-tools`, `filesystem`, `assets`, `settings`, `config-links`,
+`verify`. The `become` stages (`packages`, `bootstrap`, `display-manager`, …)
+were **excluded on purpose**: sudo needs a password on this host and an
+unattended run cannot supply one.
+
+#### A1.1 First-run recaps (verbatim `PLAY RECAP` counters)
+
+| Playbook | ok | changed | failed | skipped |
+| --- | --- | --- | --- | --- |
+| `cli-tools` | 34 | 11 | 0 | 3 |
+| `assets` | 15 | 1 | 0 | 1 |
+| `settings` | 7 | 1 | 0 | 0 |
+| `config-links` | 155 | 0 | 0 | 162 |
+| `verify` | 153 | 0 | 0 | 2 |
+
+`verify` exited 0 only after the Bluetooth fix in A1.6. `filesystem` also ran
+(second in the order); its first-run recap was not transcribed, so the assertion
+used for it is the second run's `changed=0` below.
+
+#### A1.2 Before / after on the host binaries
+
+Before (gap (b) restated — this is why no real request could be served on this
+host before the run):
+
+```text
+$ csg --version   # exit 1
+ModuleNotFoundError: No module named 'oci_runtime'
+$ weg --version   # exit 1
+ModuleNotFoundError: No module named 'cli_output'
+$ itr --version   # exit 1
+ModuleNotFoundError: No module named 'config_assembler_engine'
+```
+
+After the run (re-measured 2026-10-21 on the live host):
+
+```text
+$ csg --version; weg --version; itr --version    # all exit 0
+0.1.0 contract 0.1.0
+0.1.0 contract 0.1.0
+0.1.0 contract 0.1.0
+```
+
+Checkouts and pin records:
+
+```text
+$ ls -d ~/.local/share/dotfiles/cli-tools/*/
+…/cli-tools/csg/  …/cli-tools/itr/  …/cli-tools/weg/
+$ ls ~/.local/share/dotfiles/cli-tools/csg
+pinned
+v0.1.0
+$ cat ~/.local/share/dotfiles/cli-tools/{csg,weg,itr}/pinned
+v0.1.0
+v0.1.0
+v0.1.0
+```
+
+Precision worth keeping: `pinned` sits at `<install>/cli-tools/<name>/pinned`,
+**next to** the `<tag>/` checkout directory — not inside it. That is the exact
+path gap (d)'s verify-role follow-up reads, and the reason its simulated layout
+must create it.
+
+#### A1.3 Images and settings carry the pin, never `latest`
+
+The configured engine is podman (`[container] engine = "podman"` in the rendered
+csg settings), and it holds exactly five tag-qualified images:
+
+```text
+$ podman images --format '{{.Repository}}:{{.Tag}}' | rg 'csg|weg'
+localhost/csg-base-podman:v0.1.0
+localhost/csg-custom-podman:v0.1.0
+localhost/csg-pywal-podman:v0.1.0
+localhost/csg-wallust-podman:v0.1.0
+localhost/weg-podman:v0.1.0
+```
+
+Four `csg` + one `weg`, every one at `:v0.1.0`. No new `:latest` was produced:
+`docker images` still shows only the pre-run `*-docker:latest` set, all six days
+old, untouched by this run (the two runtimes are separate stores on this host).
+
+Settings agree with the images (AD-7: the tag *is* the pin):
+
+```text
+$ rg -n '^image_tag' ~/.config/color-scheme-generator/settings.toml \
+      ~/.local/share/dotfiles/config/weg/settings.toml
+/home/inumaki/.config/color-scheme-generator/settings.toml:29:image_tag = "v0.1.0"
+/home/inumaki/.local/share/dotfiles/config/weg/settings.toml:32:image_tag = "v0.1.0"
+```
+
+`csg`'s templates were deployed **from the pinned checkout**, byte-identical:
+
+```text
+$ diff -r \
+    ~/.local/share/dotfiles/cli-tools/csg/v0.1.0/src/color_scheme_generator/defaults/templates \
+    ~/.local/share/dotfiles/config/color-scheme-generator/templates
+# exit 0, no output — identical (12 templates)
+```
+
+#### A1.4 The binaries do real work (not just `--version`)
+
+| Command | Observed |
+| --- | --- |
+| `csg generate` | exit 0, **8/8** artifacts: `colors.adw.css`, `colors.btop.theme`, `colors.conf`, `colors.gtk.css`, `colors.kitty`, `colors.rasi`, `colors.sequences`, `colors.yaml` |
+| `weg batch all` | exit 0, **20** files under `default/{composite,effect,preset}` |
+| `itr render` | exit 0, **136** SVGs |
+| `itr list <manifest>` | exit 0 (re-run against `icon-mappings/*.yaml`) |
+
+The artifact counts are reproducible from the run's output tree:
+
+```text
+$ ls /tmp/opencode/cli-proof/csg | wc -l            # 8
+$ ls /tmp/opencode/cli-proof/itr | wc -l            # 136
+$ find /tmp/opencode/cli-proof/weg -type f | wc -l  # 20
+```
+
+This is the difference between gap (b) as recorded ("the designed path is proven
+in isolated `UV_TOOL_DIR`s") and what is proven now: the **live** host binaries,
+against the **live** spine, produce the artifacts.
+
+#### A1.5 Idempotency: the second run
+
+A second pass of the same six playbooks is what separates "it worked" from "it
+converges". `cli-tools` reported `changed=7`, and all seven are enumerated,
+non-state changes:
+
+1. the three `pinned` record writes (the role rewrites the assertion on every
+   pass — by design, it is the claim being asserted);
+2. one `uv tool install --force` of `dotfiles-runtime` (`--force` means it always
+   reports changed);
+3. one transient smoke-probe tempfile, created and removed inside the run;
+4. the two by-design image build loops (`csg` base+backend, `weg`).
+
+Item 4 is the one that looks like a bug and is not; the role states the semantics
+in its own words
+(`src/provisioning/ansible/roles/cli_tools/tasks/main.yml:304-311`): *"NO
+`creates:` on these tasks: image EXISTENCE does not imply FRESHNESS. A stale
+image … must be rebuilt, so the task runs every apply; the container engine's
+content-addressed cache makes an unchanged rebuild cheap and correct. … (idempotency
+= no STATE drift, not no CHANGED report). Do NOT reintroduce an existence gate."*
+
+`filesystem`, `assets`, `settings` and `config-links` re-ran with **`changed=0`**,
+i.e. the deployed state converged. The first pass had `failed=0` everywhere; the
+second pass's only non-zero counter was `cli-tools`'s `changed=7` above.
+
+#### A1.6 One host change outside the migration's scope
+
+`verify` initially failed on the Bluetooth soft-block. It was cleared with an
+unprivileged `rfkill unblock bluetooth`, after which `verify` exited 0
+(`ok=153 changed=0 failed=0 skipped=2`). Recorded because it is a host-state
+change an auditor will otherwise trip over when re-running the sequence, and
+because "verify green" is only true **after** it.
+
+### A2. Birth tickets closed — resolves gap (g)
+
+All six repos now have their birth ticket at `status: done`, every acceptance box
+ticked, a Closeout with evidence, the ticket moved to the INDEX's Done section,
+and the `repo-birth` OpenSpec change archived under
+`openspec/changes/archive/2026-10-21-repo-birth/`. Active changes are now **zero**
+in each repo (`ls <repo>/openspec/changes` → `archive` only).
+
+Main HEADs at closure:
+
+| Repo | `main` HEAD | Ticket |
+| --- | --- | --- |
+| `cli-output` | `ec7defe` | `REQ-001-repo-birth` → `done` |
+| `config-assembler-engine` | `8896880` | `REQ-001-repo-birth` → `done` |
+| `oci-runtime` | `3aa88a2` | `REQ-001-repo-birth` → `done` |
+| `icon-templates-renderer` | `2543c00` | `REQ-001-repo-birth` → `done` |
+| `wallpaper-effects-generator` | `be0bbd6` | `REQ-001-repo-birth` → `done` |
+| `color-scheme-generator` | `1b235b5` | `REQ-001-repo-birth` → `done` |
+
+All six working trees were clean at closure (`git status --porcelain` → empty),
+and `rg -c '^\s*[-*] \[ \]' <archive>/2026-10-21-repo-birth/*.md` → no matches,
+so no unticked box survives in the archived change.
+
+**Two corrections this pass found.** Both were paperwork diverging from reality,
+not code problems:
+
+1. **`oci-runtime` was reported as closed but was not.** At `3aa88a2^` the ticket
+   still read `status: in-progress` and its `## Closeout` was a placeholder
+   ("Filled after the gates, CI and tag" — the evidence wall was empty). `3aa88a2`
+   filled it, flipped the status, moved the INDEX entry and archived the change.
+   The acceptance audit itself was re-run against the published repo, so the
+   closeout is measured, not transcribed. The failure mode here: reading "closed"
+   from the *narrative* (gates/CI/tag all existed) instead of from `status:`.
+2. **`wallpaper-effects-generator`'s closeout still said `pending (blocked: no
+   remote)`** for the CI runs, the annotated tag, the anonymous fetch and the
+   release assets — text written at `5a35456`, when there genuinely was no remote.
+   It was refreshed at `27305bd`/`94b6d5a`, then pinned to its measurement commit
+   at `be0bbd6`. `rg "pending \(blocked|blocked: no remote"` on the current ticket
+   matches only the sentence explaining that the old text belonged to `5a35456`
+   and no longer describes the tree.
+
+**Libraries have no console script — `uv tool install` exits 2 by design.** This
+looks like a failure and is not: `cli-output`, `config-assembler-engine` and
+`oci-runtime` are libraries, so they declare no `[project.scripts]` and uv
+refuses to cut a tool shim. Measured:
+
+```text
+$ UV_TOOL_DIR=/tmp/opencode/addendum-tooldir2 uv tool install /home/inumaki/Development/config-assembler-engine
+ + config-assembler-engine==0.1.0 (from file:///home/inumaki/Development/config-assembler-engine)
+No executables are provided by package `config-assembler-engine`; removing tool
+error: Failed to install entrypoints for `config-assembler-engine`     # uv exit 2
+```
+
+Install proof for a library therefore uses an isolated environment, not a tool
+shim (`uvx --from` / a throwaway venv):
+
+```text
+$ uvx --from /home/inumaki/Development/cli-output python -c \
+    "import cli_output, importlib.metadata as m; print('cli_output', m.version('cli-output'))"
+cli_output 0.1.0                                                        # exit 0
+```
+
+Anyone "fixing" the exit 2 by adding a console script would be changing the
+public surface of a library to satisfy a provisioning check; the right fix, if
+one is wanted, is for the check to use the venv form for libraries and the tool
+form for the three CLIs.
+
+### A3. Gap status after this addendum
+
+| Gap | Status | Closed by / note |
+| --- | --- | --- |
+| (a) no real provisioning run | **half closed** | Host run done (A1). Disposable-VM run **still not done** — `command -v incus` is still absent. |
+| (b) stale host `~/.local/bin/{csg,weg,itr}` | **closed** | A1: re-installed from the pinned checkouts; `0.1.0 contract 0.1.0` ×3, real artifacts produced. |
+| (c) `csg install` has no `--image-tag` | **open** | Re-measured on the fresh binary: still `No such option: --image-tag`. |
+| (d) pre-existing test failures | **open, unchanged** | Not re-run for this addendum. Failure 1 is untouched; failure 2's cause (stale `weg`) is gone, so expect it to skip — re-measure before quoting. |
+| (e) `openspec validate --all` 27 failures | **open, unchanged** | Not re-run. Legacy change-level + spec-shape set, none of it `cli-tools-repos`. |
+| (f) literal stale-path `rg` residue | **open, unchanged** | Re-measured on `56fc4b7e`: 338 lines in 9 files, same carve-outs. |
+| (g) stale birth-ticket bookkeeping | **closed** | A2: all six `done`, ticked, evidenced, indexed, archived; active changes zero. |
+
+The wheel-vs-sdist half of (g)'s closing paragraph is **not** addressed by A2:
+every release still attaches the sdist only, and the birth acceptance text still
+asks for wheel + sdist. Consumption is by git tag, so nothing is broken — but the
+expectation mismatch is still there for whoever reconciles the `release` job.
+
+### A4. Evidence re-measured while writing this addendum
+
+Everything below was re-executed on the merged `master` line and/or the live host
+on 2026-10-21, so the addendum does not rest on the transcript of the run alone.
+
+| Command | Observed |
+| --- | --- |
+| `src/provisioning/.venv/bin/python -c 'from provisioning.application import resolve_install_dir; …'` | `/home/inumaki/.local/share/dotfiles` |
+| `{csg,weg,itr} --version` | `0.1.0 contract 0.1.0` ×3, exit 0 each |
+| `cat <install>/cli-tools/{csg,weg,itr}/pinned` | `v0.1.0` ×3 |
+| `podman images … \| rg 'csg\|weg'` | exactly 4 `csg` + 1 `weg`, all `:v0.1.0` |
+| `docker images … \| rg 'csg\|weg'` | only the pre-existing `*-docker:latest` set, six days old |
+| `rg -n '^image_tag' <csg,weg settings>` | `v0.1.0` in both (`settings.toml:29`, `weg/settings.toml:32`) |
+| `diff -r <pinned csg templates> <deployed templates>` | exit 0, identical, 12 files |
+| `ls /tmp/opencode/cli-proof/{csg,itr}` / `find …/weg -type f` | 8 / 136 / 20 artifacts |
+| `itr list ~/.local/share/dotfiles/icon-mappings/icons.yaml` | exit 0 |
+| `UV_TOOL_DIR=… uv tool install <library>` | exit 2, `No executables are provided …` |
+| `uvx --from <cli-output> python -c '…version…'` | `cli_output 0.1.0`, exit 0 |
+| `csg install --image-tag v9.9.9` | `No such option: --image-tag` (gap (c) still open) |
+| `git -C <each of six> rev-parse --short HEAD` | `ec7defe`, `8896880`, `3aa88a2`, `2543c00`, `be0bbd6`, `1b235b5` |
+| `rg -n '^status:' <each>/tickets/REQ-001-repo-birth/ticket.md` | `status: done` ×6 |
+| `ls <each>/openspec/changes` | `archive` only in all six; archived dir = `2026-10-21-repo-birth` |
+| `rg -c '^\s*[-*] \[ \]' <archive>/2026-10-21-repo-birth/*.md` ×6 | no matches (nothing unticked) |
+| `rg -n "src/cli-tools\|src/shared" src dotfiles scripts Makefile .github bootstrap.sh AGENTS.md docs` | 338 lines in 9 files (gap (f) unchanged) |
