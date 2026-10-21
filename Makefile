@@ -97,8 +97,7 @@ ci-gates-parity:
 # cannot change the result. It is deliberately NOT part of GATES: it is the
 # reproduction command for "the suite is green because the code is green", not a
 # CI runner gate.
-HERMETIC_PACKAGES := src/cli-tools/wallpaper-effects-generator \
-                     src/cli-tools/color-scheme-generator
+HERMETIC_PACKAGES := src/cli-tools/color-scheme-generator
 
 hermetic:
 	@set -eu; \

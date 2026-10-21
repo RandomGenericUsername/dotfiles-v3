@@ -1055,6 +1055,7 @@ class TestDeployCoverageGate:
     _RETIRED_OCI_RUNTIME = "src/shared/oci-runtime"
     _RETIRED_SHARED_ROOT = "src/shared"
     _RETIRED_ITR = "src/cli-tools/icon-templates-renderer"
+    _RETIRED_WEG = "src/cli-tools/wallpaper-effects-generator"
     _CLI_MANIFEST = "dotfiles/provisioning/cli-tools.yaml"
     _APPS_VARS = "src/provisioning/ansible/roles/ags_apps/vars/main.yml"
 
@@ -1119,6 +1120,10 @@ class TestDeployCoverageGate:
         )
         assert "'itr' is provisioned from its pinned manifest entry" in result.stdout, (
             "the gate must report itr's pinned manifest entry and tag-bearing "
+            "checkout; recap:\n" + result.stdout
+        )
+        assert "'weg' is provisioned from its pinned manifest entry" in result.stdout, (
+            "the gate must report weg's pinned manifest entry and tag-bearing "
             "checkout; recap:\n" + result.stdout
         )
 
@@ -1366,7 +1371,15 @@ class TestDeployCoverageGate:
             self._seed_root(root, repo_root)
             manifest = root / self._CLI_MANIFEST
             manifest.write_text(
-                manifest.read_text().replace("    tag: v0.1.0\n", "")
+                manifest.read_text().replace(
+                    "  - name: itr\n"
+                    "    repo: https://github.com/RandomGenericUsername/"
+                    "icon-templates-renderer\n"
+                    "    tag: v0.1.0\n",
+                    "  - name: itr\n"
+                    "    repo: https://github.com/RandomGenericUsername/"
+                    "icon-templates-renderer\n",
+                )
             )
             result = self._run(root)
             assert result.returncode != 0, (
@@ -1375,6 +1388,114 @@ class TestDeployCoverageGate:
             )
             assert "tag" in result.stdout, (
                 "the failure must name the missing tag; recap:\n" + result.stdout
+            )
+
+    def test_gate_fails_when_the_retired_weg_tree_returns(self) -> None:
+        """cli-tools-repos S5: `weg` is consumed from its pinned repo (v0.1.0),
+        so the in-tree package is retired. A surviving copy is a second source
+        of truth that no consumer installs — it must FAIL even when the
+        manifest and every pin still resolve the tag."""
+        repo_root = _ANSIBLE_DIR.parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._seed_root(root, repo_root)
+            stray = root / self._RETIRED_WEG
+            stray.mkdir(parents=True)
+            (stray / "pyproject.toml").write_text(
+                '[project]\nname = "wallpaper-effects-generator"\nversion = "0.1.0"\n'
+            )
+            result = self._run(root)
+            assert result.returncode != 0, (
+                "the gate must FAIL when the retired in-tree weg package "
+                f"returns; recap:\n{result.stdout}"
+            )
+            assert "src/cli-tools/wallpaper-effects-generator" in result.stdout, (
+                "the failure must name the retired in-tree weg dir; recap:\n"
+                + result.stdout
+            )
+
+    def test_gate_fails_when_weg_keeps_a_source_path(self) -> None:
+        """AD-10: an entry with BOTH a source and repo/tag lets the local path
+        silently shadow the pin for one consumer. The gate must reject it."""
+        repo_root = _ANSIBLE_DIR.parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._seed_root(root, repo_root)
+            manifest = root / self._CLI_MANIFEST
+            manifest.write_text(
+                manifest.read_text().replace(
+                    "  - name: weg\n",
+                    "  - name: weg\n"
+                    "    source: src/cli-tools/wallpaper-effects-generator\n",
+                )
+            )
+            result = self._run(root)
+            assert result.returncode != 0, (
+                "the gate must FAIL when weg carries a source path AND a pin; "
+                f"recap:\n{result.stdout}"
+            )
+            assert "source" in result.stdout and "weg" in result.stdout, (
+                "the failure must name the offending source path; recap:\n"
+                + result.stdout
+            )
+
+    def test_gate_fails_when_weg_loses_its_tag(self) -> None:
+        """A repo without a tag has no pin: the role would clone a branch head,
+        the image tag could not be the pin, and verify could never assert it.
+        The gate must fail closed."""
+        repo_root = _ANSIBLE_DIR.parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._seed_root(root, repo_root)
+            manifest = root / self._CLI_MANIFEST
+            manifest.write_text(
+                manifest.read_text().replace(
+                    "  - name: weg\n"
+                    "    repo: https://github.com/RandomGenericUsername/"
+                    "wallpaper-effects-generator\n"
+                    "    tag: v0.1.0\n",
+                    "  - name: weg\n"
+                    "    repo: https://github.com/RandomGenericUsername/"
+                    "wallpaper-effects-generator\n",
+                )
+            )
+            result = self._run(root)
+            assert result.returncode != 0, (
+                "the gate must FAIL when the weg entry has a repo but no tag; "
+                f"recap:\n{result.stdout}"
+            )
+            assert "tag" in result.stdout, (
+                "the failure must name the missing tag; recap:\n" + result.stdout
+            )
+            assert "weg" in result.stdout, (
+                "the failure must name weg; recap:\n" + result.stdout
+            )
+
+    def test_gate_fails_when_the_pinned_image_is_built_at_another_tag(self) -> None:
+        """AD-7: the image tag is the pin. A build that tags the image with a
+        literal (e.g. `latest`) while `verify`/settings resolve the pin would
+        ship a machine whose container mode pulls the wrong image — and a pin
+        bump could silently reuse the previous one. The gate must fail."""
+        repo_root = _ANSIBLE_DIR.parents[2]
+        tasks_rel = "src/provisioning/ansible/roles/cli_tools/tasks/main.yml"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._seed_root(root, repo_root)
+            tasks = root / tasks_rel
+            text = tasks.read_text()
+            replaced = text.replace(
+                "      - --image-tag\n      - \"{{ item.tag }}\"\n",
+                "      - --image-tag\n      - v0.1.0\n",
+            )
+            assert replaced != text, "seed did not contain the pinned --image-tag argv"
+            tasks.write_text(replaced)
+            result = self._run(root)
+            assert result.returncode != 0, (
+                "the gate must FAIL when the image build tags a literal instead "
+                f"of the manifest pin; recap:\n{result.stdout}"
+            )
+            assert "image-tag" in result.stdout or "image tagged" in result.stdout, (
+                "the failure must name the image tag; recap:\n" + result.stdout
             )
 
     def test_gate_passes_when_the_in_repo_bridge_is_absent(self) -> None:
