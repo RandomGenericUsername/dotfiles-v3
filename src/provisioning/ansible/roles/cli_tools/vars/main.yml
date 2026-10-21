@@ -49,14 +49,34 @@ cli_tools_image_builds:
   - { name: csg, source: src/cli-tools/color-scheme-generator }
   - { name: weg, source: src/cli-tools/wallpaper-effects-generator }
 
+# cli_tools_checkout_root: root of the PINNED external checkouts (spine AD-10).
+#   Each repo entry materializes at <install>/cli-tools/<name>/<tag>/ with its
+#   pin recorded next to it (<install>/cli-tools/<name>/pinned), so the
+#   installed tool can always be traced to the exact tag it came from.
+cli_tools_checkout_root: "{{ install_dir | trim }}/cli-tools"
+
+# cli_tools_pinned / cli_tools_source_entries: the two addressing shapes of
+#   the manifest, split so each install path is explicit instead of a single
+#   loop carrying undefined keys. `cli_tools_pinned` entries are shallow-cloned
+#   at their tag and installed FROM the checkout; `cli_tools_source_entries`
+#   are installed from `{{ cli_tools_repo_root }}/<source>` as before. The
+#   split is transient by design: csg/weg/dotfiles-runtime move to repo/tag in
+#   their own slices, after which `cli_tools_source_entries` is empty.
+cli_tools_pinned: "{{ cli_tools | selectattr('repo', 'defined') | list }}"
+cli_tools_source_entries: "{{ cli_tools | rejectattr('repo', 'defined') | list }}"
+
 # cli_tools: install specs mirroring dotfiles/provisioning/cli-tools.yaml
-#   (csg/weg/itr -> repo source paths, plus dotfiles-runtime -> src/runtime).
-#   The console-script name is the install target; `itr` IS the icon-renderer
-#   (no separate binary). dotfiles-runtime has NO container mode and is NOT
-#   in cli_tools_image_builds (host-side reconcile/inspect only).
-#   Parity with the manifest is locked by a structural test.
+#   (csg/weg -> repo source paths, itr -> pinned repo/tag, plus
+#   dotfiles-runtime -> src/runtime). The console-script name is the install
+#   target; `itr` IS the icon-renderer (no separate binary). itr has NO
+#   container mode and is NOT in cli_tools_image_builds (nor is
+#   dotfiles-runtime: host-side reconcile/inspect only).
+#   Parity with the manifest is locked by a structural test, including the
+#   one-shape-per-entry rule (source XOR repo+tag).
 cli_tools:
   - { name: csg, source: src/cli-tools/color-scheme-generator }
   - { name: weg, source: src/cli-tools/wallpaper-effects-generator }
-  - { name: itr, source: src/cli-tools/icon-templates-renderer }
+  - name: itr
+    repo: https://github.com/RandomGenericUsername/icon-templates-renderer
+    tag: v0.1.0
   - { name: dotfiles-runtime, source: src/runtime }

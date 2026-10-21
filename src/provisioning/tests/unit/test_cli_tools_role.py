@@ -89,17 +89,61 @@ def _manifest_entries() -> list[dict[str, str]]:
 
 
 def _install_tasks() -> list[dict[str, object]]:
-    """The tasks that run `uv tool install` for each manifest entry.
+    """The tasks that run `uv tool install` for source-path entries.
 
     Only the FIRST-install task (the one carrying the `creates:` guard)
-    counts; the upgrade task (`--force`, 2026-09-07) is separate and has its
-    own locks."""
+    counts; the upgrade task (`--force`, 2026-09-07) and the pinned-checkout
+    install (which is `--force` by design, so a pin bump is never masked by
+    `creates:`) are separate and have their own locks."""
     return [
         task
         for task in _load_tasks()
         if "uv tool install" in str(task.get(_module_key(task) or "", ""))
         if "--force" not in str(task.get(_module_key(task) or "", ""))
     ]
+
+
+def _force_install_tasks() -> list[dict[str, object]]:
+    """The tasks that re-pin a tool env on every run (`uv tool install --force`)."""
+    return [
+        task
+        for task in _load_tasks()
+        if "uv tool install --force" in str(task.get(_module_key(task) or "", ""))
+    ]
+
+
+def _role_vars() -> dict[str, object]:
+    data = yaml.safe_load((_ROLES_DIR / "vars" / "main.yml").read_text())
+    assert isinstance(data, dict)
+    return data
+
+
+def _role_entries() -> list[dict[str, object]]:
+    return [dict(item) for item in _role_vars()["cli_tools"]]
+
+
+def _entry_is_pinned(entry: dict[str, object]) -> bool:
+    return "repo" in entry or "tag" in entry
+
+
+def _assert_one_addressing_shape(entry: dict[str, object]) -> None:
+    """A cli_tools entry carries `source` XOR (`repo` + `tag`) — spine AD-10.
+
+    Both shapes are valid during the extraction window; an entry with neither
+    installs nothing while still passing name validation, and an entry with
+    both hides which address is authoritative (a local path would silently win
+    for one consumer while the others resolve the tag)."""
+    has_source = "source" in entry
+    has_repo = "repo" in entry
+    has_tag = "tag" in entry
+    assert not (has_source and (has_repo or has_tag)), (
+        f"{entry.get('name')!r} carries both source and repo/tag — a CLI-tools "
+        "entry addresses exactly one of an in-repo source or a pinned repo+tag"
+    )
+    assert has_source or (has_repo and has_tag), (
+        f"{entry.get('name')!r} carries neither a source nor a repo+tag pair — "
+        "the role could not install it"
+    )
 
 
 def _argv_of(task: dict[str, object]) -> list[str] | None:
@@ -190,26 +234,37 @@ class TestCliToolsTasks:
 
     def test_install_tasks_cover_all_manifest_entries(self) -> None:
         """Locks AC2: every manifest entry must be installed by a `uv tool
-        install` task. Accepts either a single loop task over cli_tools or the
-        spec-sanctioned three unrolled per-entry tasks."""
-        install_tasks = _install_tasks()
+        install` task. Since cli-tools-repos S4 there are TWO install paths —
+        a `creates:`-guarded source-path install (csg/weg/dotfiles-runtime) and
+        a `--force` install from the tag-bearing checkout (itr) — so the pair
+        must cover both addressing shapes."""
+        source_tasks = [
+            task
+            for task in _install_tasks()
+            if "uv tool install" in str(task.get(_module_key(task) or "", ""))
+        ]
+        assert len(source_tasks) == 1, "expected one source-path install task"
+        assert source_tasks[0].get("loop") == "{{ cli_tools_source_entries }}"
+
+        pinned_tasks = [
+            task
+            for task in _force_install_tasks()
+            if str(task.get("loop")) == "{{ cli_tools_pinned }}"
+        ]
+        assert len(pinned_tasks) == 1, "expected one pinned-checkout install task"
+
         manifest_entries = _manifest_entries()
-        if len(install_tasks) == 1:
-            task = install_tasks[0]
-            assert _module_key(task) == "ansible.builtin.command"
-            assert task.get("loop") == "{{ cli_tools }}"
-        else:
-            assert len(install_tasks) == len(manifest_entries), (
-                "expected one `uv tool install` task per manifest entry "
-                f"({len(manifest_entries)}), found {len(install_tasks)}"
-            )
-            for task in install_tasks:
-                assert _module_key(task) == "ansible.builtin.command"
+        assert any("source" in entry for entry in manifest_entries)
+        assert any(_entry_is_pinned(entry) for entry in manifest_entries), (
+            "the mixed-shape window must still carry at least one pinned entry"
+        )
 
     def test_install_task_creates_guard_is_dry_run_and_idempotent(self) -> None:
         """Locks AC5: `creates: {{ cli_tools_bin_dir }}/{{ item.name }}` is the
-        ONLY mechanism on the install task — check-mode-safe by construction
-        (filesystem check, not a registered rc)."""
+        ONLY mechanism on the source-path install task — check-mode-safe by
+        construction (filesystem check, not a registered rc). The pinned
+        install is `--force` on purpose: a pin bump must re-install even when
+        the binary already exists."""
         install_tasks = _install_tasks()
         assert install_tasks, "no uv tool install task found"
         for task in install_tasks:
@@ -217,6 +272,11 @@ class TestCliToolsTasks:
             assert creates == "{{ cli_tools_bin_dir }}/{{ item.name }}", (
                 f"install task {task.get('name')!r} must carry "
                 "creates: '{{ cli_tools_bin_dir }}/{{ item.name }}'"
+            )
+        for task in _force_install_tasks():
+            assert _creates_value(task) is None, (
+                f"force install task {task.get('name')!r} must NOT carry creates: "
+                "(a pin/version bump must re-install, not be masked by existence)"
             )
 
     def test_install_task_not_gated_on_presence_check_rc(self) -> None:
@@ -233,28 +293,26 @@ class TestCliToolsTasks:
 
     def test_upgrade_tasks_repin_from_current_source(self) -> None:
         """Upgrade-after-install lock (2026-09-07): a `--force` re-pin task
-        must exist for every manifest entry, WITHOUT a `creates:` guard (the
+        must exist for the source-path entries, WITHOUT a `creates:` guard (the
         first-install `creates:` guard alone let already-provisioned machines
         run stale tool envs forever), gated off check-mode, and pinned to the
-        same UV_TOOL_BIN_DIR as the install task."""
-        upgrade_tasks = [
-            task
-            for task in _load_tasks()
-            if "--force" in str(task.get(_module_key(task) or "", ""))
-        ]
-        manifest_entries = _manifest_entries()
-        assert len(upgrade_tasks) == len(manifest_entries) or (
-            len(upgrade_tasks) == 1
-        ), "expected one upgrade loop task (or one per entry)"
-        task = upgrade_tasks[0]
-        module = task.get(_module_key(task))
-        assert isinstance(module, str) and "--force" in module
-        environment = task.get("environment")
-        assert isinstance(environment, dict)
-        assert environment["UV_TOOL_BIN_DIR"] == "{{ cli_tools_bin_dir }}"
-        assert task.get("when") == "not ansible_check_mode"
-        creates = _creates_value(task)
-        assert creates is None, "upgrade task must NOT carry creates: (must re-pin every run)"
+        same UV_TOOL_BIN_DIR as the install task. Pinned repo entries re-pin
+        from their tag-bearing checkout the same way."""
+        upgrade_tasks = _force_install_tasks()
+        assert len(upgrade_tasks) == 2, (
+            "expected the source-path upgrade loop and the pinned-checkout "
+            f"install loop, found {len(upgrade_tasks)}"
+        )
+        loops = {str(task.get("loop")) for task in upgrade_tasks}
+        assert loops == {"{{ cli_tools_source_entries }}", "{{ cli_tools_pinned }}"}
+        for task in upgrade_tasks:
+            environment = task.get("environment")
+            assert isinstance(environment, dict)
+            assert environment["UV_TOOL_BIN_DIR"] == "{{ cli_tools_bin_dir }}"
+            assert task.get("when") == "not ansible_check_mode"
+            assert _creates_value(task) is None, (
+                "force task must NOT carry creates: (must re-pin every run)"
+            )
 
     def test_uv_presence_check_is_shell_based(self) -> None:
         """F1 lock: `command -v uv` must run via ansible.builtin.shell — the
@@ -328,11 +386,11 @@ class TestCliToolsTasks:
             assert "become_user" not in task
 
     def test_no_absolute_repo_paths_hardcoded(self) -> None:
-        """Every source is `{{ cli_tools_repo_root }}/...`, never an absolute
-        repo path baked into the task."""
-        install_tasks = _install_tasks()
-        assert install_tasks, "no uv tool install task found"
-        for task in install_tasks:
+        """Every source is derived from a seam var, never an absolute repo
+        path baked into the task: in-repo entries use
+        `{{ cli_tools_repo_root }}/{{ item.source }}`, pinned entries use the
+        tag-qualified `{{ cli_tools_checkout_root }}/<name>/<tag>`."""
+        for task in _install_tasks():
             command = str(task.get("ansible.builtin.command", ""))
             assert "uv tool install" in command, (
                 f"install task {task.get('name')!r} must run `uv tool install`"
@@ -344,6 +402,24 @@ class TestCliToolsTasks:
             assert "{{ item.source }}" in command
             assert "{{ cli_tools_repo_root }}/" in command.replace("'", ""), (
                 "repo source must be interpolated, never an absolute literal"
+            )
+        pinned_tasks = [
+            task
+            for task in _force_install_tasks()
+            if str(task.get("loop")) == "{{ cli_tools_pinned }}"
+        ]
+        assert len(pinned_tasks) == 1, "expected one pinned-checkout install task"
+        command = str(pinned_tasks[0].get("ansible.builtin.command", ""))
+        assert "{{ cli_tools_checkout_root }}/{{ item.name }}/{{ item.tag }}" in command, (
+            "the pinned install must address the tag-bearing checkout"
+        )
+        assert "git+" not in command, (
+            "AD-10: install from the checkout, never a git+…@tag URL (PEP 610 "
+            "must record a path that names the tag)"
+        )
+        for task in _load_tasks():
+            assert "/home/" not in str(task), (
+                f"task {task.get('name')!r} hardcodes a home path"
             )
 
 
@@ -644,6 +720,155 @@ class TestCliToolsEngineAssertionBattery:
                 assert "become_user" not in task
 
 
+class TestCliToolsPinnedCheckout:
+    """cli-tools-repos S4 / spine AD-10: itr is consumed from its pinned repo.
+
+    The role shallow-clones `<repo>@<tag>` into `<install>/cli-tools/<name>/<tag>/`,
+    removes `.git`, records the tag in `<install>/cli-tools/<name>/pinned`, and
+    installs the tool FROM that checkout (never a `git+…@tag` URL, which would
+    make PEP 610 record a repository URL instead of the tag-bearing path).
+    The clone/remove/install mutations are check-gated exactly like the
+    ags_apps unit clone.
+    """
+
+    @staticmethod
+    def _pinned_install_task() -> dict[str, object]:
+        tasks = [
+            task
+            for task in _force_install_tasks()
+            if str(task.get("loop")) == "{{ cli_tools_pinned }}"
+        ]
+        assert len(tasks) == 1, "expected exactly one pinned-checkout install task"
+        return tasks[0]
+
+    @staticmethod
+    def _clone_task() -> dict[str, object]:
+        tasks = [
+            task
+            for task in _load_tasks()
+            if _module_key(task) == "ansible.builtin.git"
+        ]
+        assert len(tasks) == 1, "expected exactly one pinned clone task"
+        return tasks[0]
+
+    def test_pinned_entries_are_the_manifest_repo_entries(self) -> None:
+        data = _role_vars()
+        assert data["cli_tools_checkout_root"] == "{{ install_dir | trim }}/cli-tools", (
+            "AD-10 path shape is <install>/cli-tools/<name>/<tag>"
+        )
+        pinned = [e for e in data["cli_tools"] if _entry_is_pinned(e)]
+        assert [e["name"] for e in pinned] == ["itr"], (
+            "S4 moves exactly itr to the pinned shape; csg/weg follow in S5/S6"
+        )
+        assert pinned[0]["repo"] == (
+            "https://github.com/RandomGenericUsername/icon-templates-renderer"
+        )
+        assert pinned[0]["tag"] == "v0.1.0"
+
+    def test_pinned_clone_is_shallow_single_branch_and_tag_qualified(self) -> None:
+        task = self._clone_task()
+        module = task.get(_module_key(task), {})
+        assert isinstance(module, dict)
+        assert module.get("repo") == "{{ item.item.repo }}"
+        assert module.get("version") == "{{ item.item.tag }}", (
+            "the clone must check out the TAG, not a branch head"
+        )
+        assert module.get("depth") == 1, "the clone must be shallow"
+        assert module.get("single_branch") is True
+        assert module.get("dest") == (
+            "{{ cli_tools_checkout_root }}/{{ item.item.name }}/{{ item.item.tag }}"
+        ), "AD-10 path shape is <install>/cli-tools/<name>/<tag>/"
+
+    def test_pinned_clone_is_presence_guarded_and_check_gated(self) -> None:
+        task = self._clone_task()
+        when = task.get("when")
+        assert isinstance(when, list)
+        joined = " ".join(str(clause) for clause in when)
+        assert "not ansible_check_mode" in joined, "a clone must never run dry"
+        assert "item.stat.exists" in joined, (
+            "the clone must be presence-guarded by the pyproject.toml marker stat"
+        )
+        markers = [
+            task
+            for task in _load_tasks()
+            if task.get("register") == "cli_tools_checkouts"
+        ]
+        assert len(markers) == 1, "expected one checkout marker stat loop"
+        marker = markers[0].get(_module_key(markers[0]) or "", {})
+        assert marker.get("path") == (
+            "{{ cli_tools_checkout_root }}/{{ item.name }}/{{ item.tag }}/pyproject.toml"
+        ), "the marker must live inside the tag-qualified checkout"
+        assert markers[0].get("loop") == "{{ cli_tools_pinned }}"
+
+    def test_pinned_git_dir_is_removed_idempotently_and_check_gated(self) -> None:
+        removals = [
+            task
+            for task in _load_tasks()
+            if _module_key(task) == "ansible.builtin.file"
+            and task.get("ansible.builtin.file", {}).get("state") == "absent"
+            and str(task.get("ansible.builtin.file", {}).get("path", "")).endswith("/.git")
+        ]
+        assert len(removals) == 1, "expected exactly one .git removal task"
+        task = removals[0]
+        assert task.get("ansible.builtin.file", {}).get("path") == (
+            "{{ cli_tools_checkout_root }}/{{ item.name }}/{{ item.tag }}/.git"
+        )
+        assert task.get("when") == "not ansible_check_mode", (
+            "removal is idempotent (absent -> no change) but must not run dry"
+        )
+
+    def test_pinned_tag_is_recorded_next_to_the_checkout(self) -> None:
+        records = [
+            task
+            for task in _load_tasks()
+            if _module_key(task) == "ansible.builtin.copy"
+            and str(task.get("ansible.builtin.copy", {}).get("dest", "")).endswith(
+                "/pinned"
+            )
+        ]
+        assert len(records) == 1, "expected exactly one pin-record task"
+        module = records[0].get("ansible.builtin.copy", {})
+        assert module.get("dest") == "{{ cli_tools_checkout_root }}/{{ item.name }}/pinned"
+        assert module.get("content") == "{{ item.tag }}\n", (
+            "the pin record is a one-line tag (ags_apps 'pinned' precedent)"
+        )
+        assert records[0].get("loop") == "{{ cli_tools_pinned }}"
+
+    def test_pinned_install_is_from_the_checkout_and_force_reinstalls(self) -> None:
+        task = self._pinned_install_task()
+        command = str(task.get("ansible.builtin.command", ""))
+        assert "--force" in command, (
+            "a pin bump must re-install even when the binary already exists"
+        )
+        assert "--no-cache" in command
+        assert "{{ cli_tools_checkout_root }}/{{ item.name }}/{{ item.tag }}" in command
+        assert "git+" not in command
+        environment = task.get("environment")
+        assert isinstance(environment, dict)
+        assert environment["UV_TOOL_BIN_DIR"] == "{{ cli_tools_bin_dir }}"
+
+    def test_install_dir_seam_is_asserted(self) -> None:
+        asserts = [
+            task
+            for task in _load_tasks()
+            if _module_key(task) == "ansible.builtin.assert"
+            and "install_dir" in str(task.get("ansible.builtin.assert", ""))
+        ]
+        assert asserts, "the pinned path needs the install_dir seam asserted"
+        assert "install_dir is defined" in str(asserts[0].get("ansible.builtin.assert"))
+
+    def test_verify_path_check_still_covers_all_entries(self) -> None:
+        """No regression for csg/weg: the `command -v` post-check loops the
+        WHOLE cli_tools list, not just the pinned subset."""
+        checks = [
+            task
+            for task in _load_tasks()
+            if "command -v {{ item.name }}" in str(task.get(_module_key(task) or "", ""))
+        ]
+        assert len(checks) == 1
+        assert checks[0].get("loop") == "{{ cli_tools }}"
+
+
 class TestCliToolsVars:
     def test_vars_parse_with_required_keys(self) -> None:
         data = yaml.safe_load((_ROLES_DIR / "vars" / "main.yml").read_text())
@@ -696,15 +921,49 @@ class TestCliToolsVars:
             )
 
     def test_cli_tools_parity_with_manifest(self) -> None:
-        """Parity lock: the role var exactly mirrors the manifest by
-        (name, source) so they can never silently diverge (AC 2)."""
-        data = yaml.safe_load((_ROLES_DIR / "vars" / "main.yml").read_text())
-        role_entries = [dict(item) for item in data["cli_tools"]]
+        """Parity lock: the role var exactly mirrors the manifest, and every
+        entry on BOTH sides carries exactly one addressing shape — `source`
+        XOR `repo` + `tag` (spine AD-10). The role and the manifest are
+        hand-maintained mirrors, so both the values and the shape are asserted
+        together: a pinned entry that lost its tag would install nothing, and
+        an entry carrying both would let a local path shadow the pin."""
+        role_entries = _role_entries()
         manifest_entries = _manifest_entries()
         assert len(role_entries) == len(manifest_entries)
         assert {tuple(e.items()) for e in role_entries} == {
             tuple(e.items()) for e in manifest_entries
         }
+        for entry in role_entries + manifest_entries:
+            _assert_one_addressing_shape(entry)
+
+    def test_parity_rejects_a_pinned_entry_without_tag(self) -> None:
+        """A repo without a tag has no pin to install; the parity shape lock
+        must reject it instead of falling through to a branch head."""
+        with pytest.raises(AssertionError):
+            _assert_one_addressing_shape(
+                {"name": "itr", "repo": "https://example.invalid/itr"}
+            )
+
+    def test_parity_rejects_an_entry_with_neither_shape(self) -> None:
+        with pytest.raises(AssertionError):
+            _assert_one_addressing_shape({"name": "itr"})
+
+    def test_parity_rejects_an_entry_with_both_shapes(self) -> None:
+        with pytest.raises(AssertionError):
+            _assert_one_addressing_shape(
+                {
+                    "name": "itr",
+                    "source": "src/cli-tools/icon-templates-renderer",
+                    "repo": "https://example.invalid/itr",
+                    "tag": "v0.1.0",
+                }
+            )
+
+    def test_parity_accepts_both_valid_shapes(self) -> None:
+        _assert_one_addressing_shape({"name": "csg", "source": "src/cli-tools/x"})
+        _assert_one_addressing_shape(
+            {"name": "itr", "repo": "https://example.invalid/itr", "tag": "v0.1.0"}
+        )
 
     def test_cli_tools_bin_dir_defaults_under_home(self) -> None:
         """uv's bin-dir resolution, in order: UV_TOOL_BIN_DIR -> XDG_BIN_HOME ->

@@ -1,9 +1,20 @@
-# CLI tools installed via `uv tool install` from repo source paths (plan §3).
+# CLI tools installed by the `cli_tools` role (plan §3).
 #
 # csg/weg/itr are the three compute-provider CLIs; dotfiles-runtime is the
 # desktop-state CLI (wallpaper set / reconcile / inspect) that the login
 # hook needs on PATH. src/cli-tools/openspec/ is NOT an install target and
 # must not be listed here.
+#
+# TWO ADDRESSING SHAPES during the extraction window (spine AD-10):
+#   - `{name, repo, tag}` — a pinned external repo. The role shallow-clones
+#     `<repo>@<tag>` into `<install>/cli-tools/<name>/<tag>/`, removes `.git`,
+#     records the pin in `<install>/cli-tools/<name>/pinned`, and installs the
+#     tool FROM that checkout (never from a `git+…@tag` URL), so PEP 610
+#     records a tag-bearing path.
+#   - `{name, source}` — an in-repo package path (csg/weg/runtime), installed
+#     from `{{ cli_tools_repo_root }}/<source>` as before. The remaining
+#     entries move to `repo`/`tag` in their own slices.
+# Exactly one shape per entry: `source` XOR (`repo` + `tag`).
 kind: cli-tools
 entries:
   - name: csg
@@ -11,6 +22,7 @@ entries:
   - name: weg
     source: src/cli-tools/wallpaper-effects-generator
   - name: itr
-    source: src/cli-tools/icon-templates-renderer
+    repo: https://github.com/RandomGenericUsername/icon-templates-renderer
+    tag: v0.1.0
   - name: dotfiles-runtime
     source: src/runtime

@@ -240,7 +240,7 @@ class TestYamlManifestReaderPerKindSchemas:
         with pytest.raises(ManifestReadError, match="target"):
             READER.read(path)
 
-    def test_cli_tools_kind_requires_source(self, tmp_path: Path) -> None:
+    def test_cli_tools_kind_requires_source_or_repo_and_tag(self, tmp_path: Path) -> None:
         path = tmp_path / "cli-tools.yaml"
         path.write_text("kind: cli-tools\nentries:\n  - name: csg\n", encoding="utf-8")
         with pytest.raises(ManifestReadError, match="source"):
@@ -258,6 +258,79 @@ class TestYamlManifestReaderPerKindSchemas:
         manifest = READER.read(path)
         assert manifest.kind is ManifestKind.CLI_TOOLS
         assert manifest.entries == (Spec(name="csg"),)
+
+    def test_cli_tools_kind_parses_repo_and_tag(self, tmp_path: Path) -> None:
+        """The pinned shape (spine AD-10): {name, repo, tag} with no source."""
+        path = tmp_path / "cli-tools.yaml"
+        path.write_text(
+            "kind: cli-tools\n"
+            "entries:\n"
+            "  - name: itr\n"
+            "    repo: https://github.com/RandomGenericUsername/icon-templates-renderer\n"
+            "    tag: v0.1.0\n",
+            encoding="utf-8",
+        )
+        manifest = READER.read(path)
+        assert manifest.kind is ManifestKind.CLI_TOOLS
+        assert manifest.entries == (Spec(name="itr"),)
+
+    def test_cli_tools_kind_parses_mixed_shapes(self, tmp_path: Path) -> None:
+        """The extraction window carries both shapes at once (source XOR repo+tag)."""
+        path = tmp_path / "cli-tools.yaml"
+        path.write_text(
+            "kind: cli-tools\n"
+            "entries:\n"
+            "  - name: csg\n"
+            "    source: src/cli-tools/color-scheme-generator\n"
+            "  - name: itr\n"
+            "    repo: https://github.com/RandomGenericUsername/icon-templates-renderer\n"
+            "    tag: v0.1.0\n",
+            encoding="utf-8",
+        )
+        manifest = READER.read(path)
+        assert manifest.entries == (Spec(name="csg"), Spec(name="itr"))
+
+    @pytest.mark.parametrize("missing", ["repo", "tag"])
+    def test_cli_tools_kind_rejects_incomplete_pin(
+        self, tmp_path: Path, missing: str
+    ) -> None:
+        fields = {"repo": "https://example.invalid/repo", "tag": "v0.1.0"}
+        del fields[missing]
+        body = "".join(f"    {key}: {value}\n" for key, value in fields.items())
+        path = tmp_path / "cli-tools.yaml"
+        path.write_text(
+            f"kind: cli-tools\nentries:\n  - name: itr\n{body}", encoding="utf-8"
+        )
+        with pytest.raises(ManifestReadError, match="repo.*tag|source"):
+            READER.read(path)
+
+    def test_cli_tools_kind_rejects_both_shapes(self, tmp_path: Path) -> None:
+        path = tmp_path / "cli-tools.yaml"
+        path.write_text(
+            "kind: cli-tools\n"
+            "entries:\n"
+            "  - name: itr\n"
+            "    source: src/cli-tools/icon-templates-renderer\n"
+            "    repo: https://example.invalid/repo\n"
+            "    tag: v0.1.0\n",
+            encoding="utf-8",
+        )
+        with pytest.raises(ManifestReadError, match="both"):
+            READER.read(path)
+
+    @pytest.mark.parametrize("rich_key", ["repo", "tag"])
+    def test_cli_tools_kind_empty_pin_field_rejected(
+        self, tmp_path: Path, rich_key: str
+    ) -> None:
+        fields = {"repo": "https://example.invalid/repo", "tag": "v0.1.0"}
+        fields[rich_key] = "'   '"
+        body = "".join(f"    {key}: {value}\n" for key, value in fields.items())
+        path = tmp_path / "cli-tools.yaml"
+        path.write_text(
+            f"kind: cli-tools\nentries:\n  - name: itr\n{body}", encoding="utf-8"
+        )
+        with pytest.raises(ManifestReadError, match=rich_key):
+            READER.read(path)
 
     @pytest.mark.parametrize("bad_source", ["", "   ", "42"])
     def test_cli_tools_kind_empty_source_rejected(self, tmp_path: Path, bad_source: str) -> None:

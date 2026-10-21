@@ -39,8 +39,8 @@ _ENTRY_SCHEMAS: dict[ManifestKind, _EntrySchema] = {
         frozenset({"name", "target"}),
     ),
     ManifestKind.CLI_TOOLS: (
-        frozenset({"name", "source", "version"}),
-        frozenset({"name", "source"}),
+        frozenset({"name", "source", "version", "repo", "tag"}),
+        frozenset({"name"}),
     ),
 }
 
@@ -171,7 +171,43 @@ def _validate_rich_kind(index: int, raw: dict[str, object], path: Path, kind: Ma
                 f"manifest {path} entry {index} has unknown AssetKind "
                 f"{asset_kind.strip()!r}; supported: {supported}"
             ) from exc
+    if kind is ManifestKind.CLI_TOOLS:
+        _validate_cli_tools_addressing(index, raw, path)
     for rich_key in ("target", "source"):
+        if rich_key not in raw:
+            continue
+        rich_value = raw[rich_key]
+        if not isinstance(rich_value, str) or not rich_value.strip():
+            raise ManifestReadError(
+                f"manifest {path} entry {index} '{rich_key}' must be a non-empty string"
+            )
+
+
+def _validate_cli_tools_addressing(
+    index: int, raw: dict[str, object], path: Path
+) -> None:
+    """A CLI-tools entry carries exactly one addressing shape (spine AD-10).
+
+    ``source`` (an in-repo package path) XOR ``repo`` + ``tag`` (a pinned
+    external repo). Both fail loudly because a source path would silently win
+    over the pin for one consumer while others resolve the tag; neither means
+    the entry installs nothing yet still passes name validation.
+    """
+    has_source = "source" in raw
+    has_repo = "repo" in raw
+    has_tag = "tag" in raw
+    if has_source and (has_repo or has_tag):
+        raise ManifestReadError(
+            f"manifest {path} entry {index} has both 'source' and "
+            f"'repo'/'tag' — a CLI-tools entry addresses exactly one of an "
+            f"in-repo source or a pinned repo+tag"
+        )
+    if not has_source and not (has_repo and has_tag):
+        raise ManifestReadError(
+            f"manifest {path} entry {index} must carry either 'source' (an "
+            f"in-repo package path) or both 'repo' and 'tag' (a pinned repo)"
+        )
+    for rich_key in ("repo", "tag"):
         if rich_key not in raw:
             continue
         rich_value = raw[rich_key]

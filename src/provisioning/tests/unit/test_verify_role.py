@@ -496,6 +496,60 @@ class TestVerifyTasks:
             "cli-tool check PATH must prepend verify_cli_bin_dir"
         )
 
+    def test_itr_pin_is_asserted_by_execution(self) -> None:
+        """AD-11: `command -v itr` is green for ANY version, so verify must
+        assert the PIN: the tag-qualified checkout exists, the pin record
+        contains the tag, and `itr --version` reports the pinned contract
+        token. Mirrors the ags_apps `lnk_target is search(<tag>)` precedent."""
+        tasks = _load_tasks()
+        names = [str(task.get("name", "")) for task in tasks]
+
+        stat_name = "Check the pinned itr checkout and its pin record"
+        assert stat_name in names, f"missing task {stat_name!r}"
+        stat_task = tasks[names.index(stat_name)]
+        assert _module_key(stat_task) == "ansible.builtin.stat"
+        loop = str(stat_task.get("loop"))
+        assert "verify_itr_checkout" in loop and "verify_itr_pin_file" in loop, (
+            "the stat pair must cover the checkout dir and the pin record"
+        )
+        assert stat_task.get("register") == "verify_itr_checkout_checks"
+
+        slurp_name = "Read the itr pin record"
+        assert slurp_name in names, f"missing task {slurp_name!r}"
+        slurp_task = tasks[names.index(slurp_name)]
+        assert _module_key(slurp_task) == "ansible.builtin.slurp"
+        assert _module(slurp_task).get("src") == "{{ verify_itr_pin_file }}"
+        assert slurp_task.get("when") == "not ansible_check_mode"
+
+        version_name = "Read the installed itr version handshake"
+        assert version_name in names, f"missing task {version_name!r}"
+        version_task = tasks[names.index(version_name)]
+        assert _module_key(version_task) == "ansible.builtin.command"
+        argv = _module(version_task).get("argv")
+        assert isinstance(argv, list)
+        assert argv[0].endswith("/itr") and argv[1] == "--version"
+        assert version_task.get("when") == "not ansible_check_mode"
+        assert version_task.get("changed_when") is False
+        assert version_task.get("failed_when") is False
+
+        assert_name = "Assert the itr checkout is the pinned tag and reports the pinned contract"
+        assert assert_name in names, f"missing task {assert_name!r}"
+        assert_task = tasks[names.index(assert_name)]
+        assert _module_key(assert_task) == "ansible.builtin.assert"
+        that = str(_module(assert_task).get("that"))
+        assert "verify_itr_checkout_checks.results[0].stat.isdir" in that
+        assert "verify_itr_checkout_checks.results[1].stat.isreg" in that
+        assert "verify_itr_checkout is search(verify_itr_version)" in that, (
+            "the tag must appear in the checkout PATH (ags_apps lnk_target style)"
+        )
+        assert "b64decode | trim == verify_itr_version" in that, (
+            "the pin record content must EQUAL the tag, not merely mention it"
+        )
+        assert "verify_itr_version_check.rc == 0" in that
+        assert "'contract ' ~ verify_itr_contract_version in verify_itr_version_check.stdout" in that
+        assert assert_task.get("when") == "not ansible_check_mode"
+        assert names.index(stat_name) < names.index(assert_name)
+
     def test_shell_check_asserts_are_check_gated(self) -> None:
         """The assert halves of both shell checks must be gated
         `when: not ansible_check_mode` (a dry run must never fail on
@@ -1964,6 +2018,41 @@ class TestVerifyVars:
         data = _vars()
         assert [str(c) for c in data["verify_cli_tools"]] == ["csg", "weg", "itr"]
 
+    def test_itr_pin_mirrors_the_cli_tools_role(self) -> None:
+        """AD-11: verify carries INDEPENDENT literal pins mirroring the role so
+        a wrong-tag install cannot hide behind a green `command -v`. The
+        checkout path shape is <install>/cli-tools/<name>/<tag> (AD-10), the
+        pin record sits next to the checkout, and the contract token equals
+        the `contracts` tag dotfiles pins."""
+        data = _vars()
+        assert (
+            str(data["verify_cli_tools_checkout_root"])
+            == "{{ install_dir | trim }}/cli-tools"
+        )
+        assert str(data["verify_itr_version"]) == "v0.1.0"
+        assert str(data["verify_itr_checkout"]) == (
+            "{{ verify_cli_tools_checkout_root }}/itr/{{ verify_itr_version }}"
+        )
+        assert str(data["verify_itr_pin_file"]) == (
+            "{{ verify_cli_tools_checkout_root }}/itr/pinned"
+        )
+        assert str(data["verify_itr_contract_version"]) == "0.1.0"
+
+        role_vars = yaml.safe_load(
+            (_ROLES_DIR.parent / "cli_tools" / "vars" / "main.yml").read_text()
+        )
+        pinned = [
+            entry
+            for entry in role_vars["cli_tools"]
+            if "repo" in entry or "tag" in entry
+        ]
+        assert [(entry["name"], entry["tag"]) for entry in pinned] == [
+            ("itr", str(data["verify_itr_version"]))
+        ], "verify_itr_version must equal the role's itr pin"
+        assert str(role_vars["cli_tools_checkout_root"]) == str(
+            data["verify_cli_tools_checkout_root"]
+        )
+
     def test_notifd_binding_packages_pin_libastal_notifd(self) -> None:
         """Implementation gate (capture-notifications): verify pins the
         AstalNotifd binding package the overlay imports — mirror of the
@@ -2313,6 +2402,9 @@ class TestVerifyVars:
             "verify_btop_theme_files",
             "verify_btop_theme_paths",
             "verify_cli_bin_dir",
+            "verify_cli_tools_checkout_root",
+            "verify_itr_checkout",
+            "verify_itr_pin_file",
             "verify_bin_scripts",
             "verify_ags_platform_unit_dir",
             "verify_ags_platform_pin_file",

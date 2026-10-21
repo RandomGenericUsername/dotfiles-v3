@@ -400,6 +400,63 @@
       the cli-tools playbook first (direct-run prerequisite)
   when: not ansible_check_mode
 
+# AD-11: the CLI PATH gate above is necessary but not sufficient — `command -v
+# itr` is green for ANY installed version, including a stale local-path install.
+# itr is the first CLI consumed as a pinned repo, so verify asserts the pin by
+# EXECUTION, mirroring the ags_apps precedent (`lnk_target is search(<tag>)`):
+#   (a) the tag-qualified checkout exists at <install>/cli-tools/itr/<tag>/;
+#   (b) the pin record next to it contains exactly the tag;
+#   (c) `itr --version` reports the contract token the `contracts` pin names.
+# Layer (a) names the tag in the path, so a checkout materialized under a
+# different tag can never satisfy it; (b) catches a repointed/stale pin record;
+# (c) catches a tool env installed from a path that was later re-pinned.
+- name: Check the pinned itr checkout and its pin record
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - "{{ verify_itr_checkout }}"
+    - "{{ verify_itr_pin_file }}"
+  register: verify_itr_checkout_checks
+
+- name: Read the itr pin record
+  ansible.builtin.slurp:
+    src: "{{ verify_itr_pin_file }}"
+  register: verify_itr_pin
+  when: not ansible_check_mode
+
+- name: Read the installed itr version handshake
+  ansible.builtin.command:
+    argv:
+      - "{{ verify_cli_bin_dir | trim }}/itr"
+      - --version
+  register: verify_itr_version_check
+  changed_when: false
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Assert the itr checkout is the pinned tag and reports the pinned contract
+  ansible.builtin.assert:
+    that:
+      - verify_itr_checkout_checks.results[0].stat.isdir
+      - verify_itr_checkout_checks.results[1].stat.isreg
+      - verify_itr_checkout is search(verify_itr_version)
+      - verify_itr_pin.content | b64decode | trim == verify_itr_version
+      - verify_itr_version_check.rc == 0
+      - "'contract ' ~ verify_itr_contract_version in verify_itr_version_check.stdout"
+    fail_msg: >-
+      the pinned itr install is not the tag `verify` mirrors (spine
+      AD-10/AD-11). Expected the checkout at {{ verify_itr_checkout }}/ (path
+      naming {{ verify_itr_version }}), the pin record
+      {{ verify_itr_pin_file }} containing exactly {{ verify_itr_version }},
+      and `itr --version` reporting `contract {{ verify_itr_contract_version }}`
+      (the `contracts` tag this repo pins, AD-4). Observed:
+      rc={{ verify_itr_version_check.rc | default('n/a', true) }},
+      stdout={{ verify_itr_version_check.stdout | default('', true) | trim }},
+      pin={{ verify_itr_pin.content | default('', true) | b64decode | trim }}.
+      A stale local-path install or a pin-file/checkout mismatch means
+      provisioning never re-pinned itr; re-run the cli-tools playbook
+  when: not ansible_check_mode
+
 # The notifications overlay imports AstalNotifd at startup — a provisioned
 # machine with the app dir deployed but the binding missing would ship a
 # daemon that crashes on launch. Gate on the AUR package the packages role

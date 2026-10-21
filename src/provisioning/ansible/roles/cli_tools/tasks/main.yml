@@ -95,7 +95,93 @@
     dest: "{{ cli_tools_bin_dir }}/rofi-ui"
     mode: "0755"
 
-- name: Install csg/weg/itr via uv tool install
+# ── Pinned external checkouts (spine AD-10) ──
+# A repo entry is addressed as {name, repo, tag}: shallow-clone the tag into
+# <install>/cli-tools/<name>/<tag>/, drop the clone's .git (it is deployed as
+# a source tree, not a working copy — exactly the ags_apps unit discipline),
+# record the tag in <install>/cli-tools/<name>/pinned, then install the tool
+# FROM that checkout. Installing from the checkout (not a `git+…@tag` URL) is
+# what makes PEP 610 record a tag-bearing path, and it is the shape `verify`
+# asserts (checkout path contains the tag, pin file equals it).
+#
+# Check-mode discipline mirrors ags_apps: the stat probes run under --check,
+# every clone/remove/install is gated `when: not ansible_check_mode`, and the
+# pin-file `copy` supports check mode (it reports would-change, never writes).
+# The checkout-root `file` task also supports check mode and creates nothing
+# in a dry run.
+- name: Assert install_dir seam is provided for pinned CLI checkouts
+  ansible.builtin.assert:
+    that: install_dir is defined and install_dir | trim | length > 0
+    fail_msg: >-
+      install_dir is undefined or empty — the cli_tools role materializes
+      pinned checkouts under {{ cli_tools_checkout_root }} (spine AD-10), so it
+      requires the install_dir seam extra-var (the orchestrator resolves
+      $XDG_DATA_HOME/dotfiles/; direct runs pass -e install_dir=...)
+  when: cli_tools_pinned | length > 0
+
+- name: Ensure the pinned CLI checkout root exists
+  ansible.builtin.file:
+    path: "{{ cli_tools_checkout_root }}"
+    state: directory
+    mode: "0755"
+
+- name: Check whether each pinned CLI checkout is already present
+  ansible.builtin.stat:
+    path: "{{ cli_tools_checkout_root }}/{{ item.name }}/{{ item.tag }}/pyproject.toml"
+  loop: "{{ cli_tools_pinned }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: cli_tools_checkouts
+
+- name: Clone each pinned CLI checkout at its tag (shallow, anonymous HTTPS)
+  ansible.builtin.git:
+    repo: "{{ item.item.repo }}"
+    dest: "{{ cli_tools_checkout_root }}/{{ item.item.name }}/{{ item.item.tag }}"
+    version: "{{ item.item.tag }}"
+    depth: 1
+    single_branch: true
+  loop: "{{ cli_tools_checkouts.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+  register: cli_tools_clone
+  retries: 3
+  delay: 5
+  until: cli_tools_clone is succeeded
+  when:
+    - not ansible_check_mode
+    - not item.stat.exists
+
+- name: Remove the pinned checkouts' .git (deploy as source trees, not working copies)
+  ansible.builtin.file:
+    path: "{{ cli_tools_checkout_root }}/{{ item.name }}/{{ item.tag }}/.git"
+    state: absent
+  loop: "{{ cli_tools_pinned }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: not ansible_check_mode
+
+- name: Record each pinned CLI tag next to its checkout
+  ansible.builtin.copy:
+    content: "{{ item.tag }}\n"
+    dest: "{{ cli_tools_checkout_root }}/{{ item.name }}/pinned"
+    mode: "0644"
+    force: true
+  loop: "{{ cli_tools_pinned }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Install the pinned CLIs from their tag-bearing checkouts
+  ansible.builtin.command: "uv tool install --force --no-cache '{{ cli_tools_checkout_root }}/{{ item.name }}/{{ item.tag }}'"
+  environment:
+    # Same pinned bin dir as the source-path installs, the `creates` guard and
+    # the verify PATH prepend.
+    UV_TOOL_BIN_DIR: "{{ cli_tools_bin_dir }}"
+  loop: "{{ cli_tools_pinned }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: not ansible_check_mode
+
+- name: Install source-path CLIs via uv tool install
   ansible.builtin.command: "uv tool install --no-cache '{{ cli_tools_repo_root }}/{{ item.source }}'"
   args:
     creates: "{{ cli_tools_bin_dir }}/{{ item.name }}"
@@ -106,19 +192,25 @@
     # the binary can land somewhere cli_tools_bin_dir never points and the
     # verify task fails after a successful install (fixed 2026-08-19).
     UV_TOOL_BIN_DIR: "{{ cli_tools_bin_dir }}"
-  loop: "{{ cli_tools }}"
+  loop: "{{ cli_tools_source_entries }}"
+  loop_control:
+    label: "{{ item.name }}"
 
 # Upgrade-after-install (2026-09-07): the `creates:` guard above only fires on
 # FIRST install, so an already-provisioned machine kept running a stale itr
 # forever (this shipped without the `mapping` subcommands). uv tool install
 # --force re-pins the tool env from current repo source on every bootstrap;
 # it is naturally idempotent (no creates guard wanted) and check-mode safe
-# (command modules never run under --check).
-- name: Upgrade csg/weg/itr tool envs from current repo source
+# (command modules never run under --check). Pinned entries get the same
+# every-run re-pin from their checkout (the install task above already uses
+# --force, so a pin bump re-installs instead of being masked by `creates`).
+- name: Upgrade source-path CLI tool envs from current repo source
   ansible.builtin.command: "uv tool install --force --no-cache '{{ cli_tools_repo_root }}/{{ item.source }}'"
   environment:
     UV_TOOL_BIN_DIR: "{{ cli_tools_bin_dir }}"
-  loop: "{{ cli_tools }}"
+  loop: "{{ cli_tools_source_entries }}"
+  loop_control:
+    label: "{{ item.name }}"
   when: not ansible_check_mode
 
 - name: Verify csg/weg/itr resolve on PATH
