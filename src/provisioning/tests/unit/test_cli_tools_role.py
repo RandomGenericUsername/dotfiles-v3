@@ -167,9 +167,19 @@ def _image_build_tasks() -> list[dict[str, object]]:
     ]
 
 
-def _cli_tools_image_builds() -> list[dict[str, str]]:
+def _cli_tools_image_builds() -> list[dict[str, object]]:
+    """The role's image-build entries.
+
+    `cli_tools_image_builds` is a SELECTION over the manifest mirror
+    (`cli_tools | selectattr('name', 'in', cli_tools_image_build_names)`), not
+    a second hand-written list — so the build context and the image tag come
+    from the entry's own addressing shape (source XOR repo+tag). This helper
+    applies that same selection to the parsed mirror.
+    """
     data = yaml.safe_load((_ROLES_DIR / "vars" / "main.yml").read_text())
-    return [dict(item) for item in data["cli_tools_image_builds"]]
+    names = [str(name) for name in data["cli_tools_image_build_names"]]
+    entries = [dict(entry) for entry in data["cli_tools"]]
+    return [entry for entry in entries if str(entry.get("name")) in names]
 
 
 class TestCliToolsRoleTree:
@@ -492,41 +502,111 @@ class TestCliToolsImageBuildTasks:
     def test_image_build_task_loops_over_configured_clis(self) -> None:
         """Container mode (product decision 2026-08-12) requires the cli_tools
         role to build the csg AND weg container images — `uv tool install`
-        only installs the host-side launchers."""
+        only installs the host-side launchers. S5 split the loop by addressing
+        shape (a pinned CLI builds from its checkout with the pin as tag; a
+        source-path CLI builds from the in-repo package dir), so together the
+        two loops must cover exactly the configured names."""
         tasks = _image_build_tasks()
-        assert len(tasks) == 1, "expected a single image-build loop task"
-        assert tasks[0].get("loop") == "{{ cli_tools_image_builds }}", (
-            "image build must iterate the configured list so csg and weg are "
-            "both built"
+        assert len(tasks) == 2, (
+            "expected the pinned-build and source-build loops (AD-7)"
+        )
+        loops = " ".join(str(task.get("loop")) for task in tasks)
+        assert "cli_tools_image_builds" in loops, (
+            "image builds must select from the configured list so csg and weg "
+            "are both built"
+        )
+        assert "selectattr('tag', 'defined')" in loops, (
+            "one loop must take the pinned entries (they build from the checkout)"
+        )
+        assert "rejectattr('tag', 'defined')" in loops, (
+            "the other loop must take the source-path entries"
         )
         names = {b["name"] for b in _cli_tools_image_builds()}
         assert {"csg", "weg"} <= names, "csg and weg must both be image-built"
 
-    def test_image_build_task_passes_container_engine(self) -> None:
-        tasks = _image_build_tasks()
-        assert tasks, "expected an image-build task"
-        argv = _argv_of(tasks[0])
-        assert "--container-engine" in argv
-        declared = "{{ container_runtime_engine }}"
-        assert argv[argv.index("--container-engine") + 1] == declared, (
-            "image-build task must pass --container-engine from the DECLARED "
-            "engine {{ container_runtime_engine }} — the single source of truth "
-            "shared with the rendered settings"
+    def test_image_builds_derive_from_the_manifest_mirror(self) -> None:
+        """AD-7 'the tag is the pin, not latest', kept as ONE source: the image
+        build list is derived from the `cli_tools` mirror (which the parity test
+        locks to the manifest), so the `--image-tag` value is the manifest tag
+        — never a hardcoded duplicate. The only pin literal lives in the
+        `cli_tools` entry."""
+        data = yaml.safe_load((_ROLES_DIR / "vars" / "main.yml").read_text())
+        expression = str(data["cli_tools_image_builds"])
+        assert "cli_tools" in expression and "selectattr" in expression, (
+            "cli_tools_image_builds must select the entries from the manifest "
+            "mirror instead of restating paths/tags"
+        )
+        assert "v0.1.0" not in expression and "src/cli-tools" not in expression, (
+            "the image-build selection must not carry a path or tag literal — "
+            "those come from the cli_tools entry"
+        )
+        weg = next(e for e in _cli_tools_image_builds() if e["name"] == "weg")
+        assert weg.get("tag") == "v0.1.0", (
+            "the weg image tag must be the pinned repo tag from the manifest"
         )
 
-    def test_image_build_task_passes_package_context(self) -> None:
-        """AD-5/AD-7: the build context is the CLI's own package dir, not the
-        dotfiles repo root."""
+    def test_image_build_task_passes_container_engine(self) -> None:
         tasks = _image_build_tasks()
-        assert tasks, "expected an image-build task"
-        argv = _argv_of(tasks[0])
-        assert "--context" in argv, "the build verb now takes --context"
-        assert argv[argv.index("--context") + 1] == (
-            "{{ cli_tools_repo_root }}/{{ item.source }}"
-        ), "image-build task must pass the item's package dir as the context"
-        assert "--source-root" not in argv, (
+        assert len(tasks) == 2, "expected both image-build loops"
+        declared = "{{ container_runtime_engine }}"
+        for task in tasks:
+            argv = _argv_of(task)
+            assert "--container-engine" in argv
+            assert argv[argv.index("--container-engine") + 1] == declared, (
+                "image-build task must pass --container-engine from the DECLARED "
+                "engine {{ container_runtime_engine }} — the single source of truth "
+                "shared with the rendered settings"
+            )
+
+    def test_image_build_task_passes_package_context(self) -> None:
+        """AD-5/AD-7: the build context is the CLI's own repo, not the dotfiles
+        repo root — for a pinned CLI that is the tag-qualified CHECKOUT, and it
+        also passes `--image-tag <pin>`."""
+        tasks = _image_build_tasks()
+        assert len(tasks) == 2, "expected both image-build loops"
+        pinned = [
+            task
+            for task in tasks
+            if "selectattr('tag', 'defined')" in str(task.get("loop"))
+        ]
+        source = [
+            task
+            for task in tasks
+            if "rejectattr('tag', 'defined')" in str(task.get("loop"))
+        ]
+        assert len(pinned) == 1 and len(source) == 1
+
+        pinned_argv = _argv_of(pinned[0])
+        assert "--context" in pinned_argv, "the build verb now takes --context"
+        assert pinned_argv[pinned_argv.index("--context") + 1] == (
+            "{{ cli_tools_checkout_root }}/{{ item.name }}/{{ item.tag }}"
+        ), "a pinned CLI builds from its tag-qualified checkout (AD-5/AD-10)"
+        assert pinned_argv[pinned_argv.index("--image-tag") + 1] == "{{ item.tag }}", (
+            "the image tag must be the PIN from the manifest entry (AD-7)"
+        )
+        assert "--source-root" not in pinned_argv, (
             "--source-root is now a deprecated alias; provisioning uses --context"
         )
+
+        source_argv = _argv_of(source[0])
+        assert source_argv[source_argv.index("--context") + 1] == (
+            "{{ cli_tools_repo_root }}/{{ item.source }}"
+        ), "a source-path CLI builds from its in-repo package dir"
+        assert "--image-tag" not in source_argv, (
+            "a source-only CLI (csg until S6) has no pin to pass as its tag"
+        )
+
+    def test_image_build_tasks_have_no_hardcoded_image_tag(self) -> None:
+        """AD-7/AD-11: the tag comes from the manifest entry at task time, so a
+        pin bump needs no task edit and no task can silently build `latest`."""
+        for task in _image_build_tasks():
+            text = str(task)
+            assert "latest" not in text, (
+                f"image-build task {task.get('name')!r} must never name `latest`"
+            )
+            assert "v0.1.0" not in text, (
+                f"image-build task {task.get('name')!r} must not hardcode the pin"
+            )
 
     def test_image_build_task_is_check_mode_gated(self) -> None:
         """Command modules execute under --check, so the image build must be
@@ -757,13 +837,18 @@ class TestCliToolsPinnedCheckout:
             "AD-10 path shape is <install>/cli-tools/<name>/<tag>"
         )
         pinned = [e for e in data["cli_tools"] if _entry_is_pinned(e)]
-        assert [e["name"] for e in pinned] == ["itr"], (
-            "S4 moves exactly itr to the pinned shape; csg/weg follow in S5/S6"
+        assert [e["name"] for e in pinned] == ["weg", "itr"], (
+            "S4 moved itr and S5 moves weg to the pinned shape; only csg "
+            "(S6) and dotfiles-runtime stay source-path"
         )
         assert pinned[0]["repo"] == (
-            "https://github.com/RandomGenericUsername/icon-templates-renderer"
+            "https://github.com/RandomGenericUsername/wallpaper-effects-generator"
         )
         assert pinned[0]["tag"] == "v0.1.0"
+        assert pinned[1]["repo"] == (
+            "https://github.com/RandomGenericUsername/icon-templates-renderer"
+        )
+        assert pinned[1]["tag"] == "v0.1.0"
 
     def test_pinned_clone_is_shallow_single_branch_and_tag_qualified(self) -> None:
         task = self._clone_task()
@@ -910,15 +995,21 @@ class TestCliToolsVars:
 
     def test_image_builds_list_contains_only_container_mode_clis(self) -> None:
         """csg and weg are both container-mode CLIs and must be image-built;
-        itr has no container mode and must not be."""
-        data = yaml.safe_load((_ROLES_DIR / "vars" / "main.yml").read_text())
-        builds = [dict(item) for item in data["cli_tools_image_builds"]]
-        names = {b["name"] for b in builds}
+        itr has no container mode and must not be. Each selected entry carries
+        the addressing shape of its manifest entry (source for csg until S6,
+        repo+tag for weg)."""
+        builds = _cli_tools_image_builds()
+        names = {str(b["name"]) for b in builds}
         assert names == {"csg", "weg"}, "image builds must be exactly the container-mode CLIs"
-        for build in builds:
-            assert build.get("source"), (
-                f"{build['name']}: image build must name its package dir as the build context"
-            )
+        by_name = {str(b["name"]): b for b in builds}
+        assert by_name["csg"].get("source"), (
+            "csg is still source-only (S6 moves it) — its build context is the "
+            "in-repo package dir"
+        )
+        assert by_name["weg"].get("tag") == "v0.1.0" and by_name["weg"].get("repo"), (
+            "weg is pinned — its build context is the tag-qualified checkout and "
+            "its image tag is the pin"
+        )
 
     def test_cli_tools_parity_with_manifest(self) -> None:
         """Parity lock: the role var exactly mirrors the manifest, and every

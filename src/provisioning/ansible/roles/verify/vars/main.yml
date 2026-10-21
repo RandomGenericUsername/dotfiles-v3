@@ -234,6 +234,22 @@ verify_itr_checkout: "{{ verify_cli_tools_checkout_root }}/itr/{{ verify_itr_ver
 verify_itr_pin_file: "{{ verify_cli_tools_checkout_root }}/itr/pinned"
 verify_itr_contract_version: 0.1.0
 
+# verify_weg_*: the same four legs for `weg` (S5), plus the container image.
+#   weg is the first container-mode CLI consumed as a pinned repo, so verify
+#   additionally asserts the IMAGE exists at the tag-qualified reference
+#   (spine AD-7/AD-11). The reference is the CLI's own engine-qualified name —
+#   `<image_name>-<engine>:<tag>` (oci_runtime.naming.engine_qualified_image;
+#   the rendered settings carry image_name "weg"), with `container_runtime_engine`
+#   the same DECLARED value the build used and `verify_weg_version` the pin.
+#   A `latest`-only image, or one built at the previous pin, fails this gate.
+verify_weg_version: v0.1.0
+verify_weg_checkout: "{{ verify_cli_tools_checkout_root }}/weg/{{ verify_weg_version }}"
+verify_weg_pin_file: "{{ verify_cli_tools_checkout_root }}/weg/pinned"
+verify_weg_contract_version: 0.1.0
+verify_weg_image_name: weg
+verify_weg_image_reference: >-
+  {{ verify_weg_image_name }}-{{ container_runtime_engine }}:{{ verify_weg_version }}
+
 # verify_notifd_binding_packages: the AUR packages backing the AstalNotifd
 #   binding the notifications overlay imports (capture-notifications
 #   implementation gate — the app is never scaffolded against a missing

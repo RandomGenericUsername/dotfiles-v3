@@ -11,7 +11,7 @@
 #     records the pin in `<install>/cli-tools/<name>/pinned`, and installs the
 #     tool FROM that checkout (never from a `git+…@tag` URL), so PEP 610
 #     records a tag-bearing path.
-#   - `{name, source}` — an in-repo package path (csg/weg/runtime), installed
+#   - `{name, source}` — an in-repo package path (csg/runtime), installed
 #     from `{{ cli_tools_repo_root }}/<source>` as before. The remaining
 #     entries move to `repo`/`tag` in their own slices.
 # Exactly one shape per entry: `source` XOR (`repo` + `tag`).
@@ -20,7 +20,8 @@ entries:
   - name: csg
     source: src/cli-tools/color-scheme-generator
   - name: weg
-    source: src/cli-tools/wallpaper-effects-generator
+    repo: https://github.com/RandomGenericUsername/wallpaper-effects-generator
+    tag: v0.1.0
   - name: itr
     repo: https://github.com/RandomGenericUsername/icon-templates-renderer
     tag: v0.1.0

@@ -457,6 +457,81 @@
       provisioning never re-pinned itr; re-run the cli-tools playbook
   when: not ansible_check_mode
 
+# S5: `weg` follows the same four legs (CHECKOUT / PIN / CONTRACT / IMAGE).
+# `weg` is the FIRST container-mode CLI consumed as a pinned repo, so the pin
+# assertion must also cover the image the role built: AD-7 says the image tag
+# IS the pin (never `latest`), and AD-11 says verify asserts the expected image
+# exists AT that tag. `engine image inspect <ref>` (podman and docker share the
+# subcommand) exits nonzero for a missing tag, so a `latest`-only image or one
+# left at the previous pin fails here instead of surfacing as a runtime pull
+# error. The reference mirrors the CLI's own naming
+# (`<image_name>-<engine>:<tag>`), the same derivation the rendered settings
+# use; `verify_weg_image_name` is the `[container] image_name` the settings
+# template pins.
+- name: Check the pinned weg checkout and its pin record
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - "{{ verify_weg_checkout }}"
+    - "{{ verify_weg_pin_file }}"
+  register: verify_weg_checkout_checks
+
+- name: Read the weg pin record
+  ansible.builtin.slurp:
+    src: "{{ verify_weg_pin_file }}"
+  register: verify_weg_pin
+  when: not ansible_check_mode
+
+- name: Read the installed weg version handshake
+  ansible.builtin.command:
+    argv:
+      - "{{ verify_cli_bin_dir | trim }}/weg"
+      - --version
+  register: verify_weg_version_check
+  changed_when: false
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Check the pinned weg image exists at the tag-qualified reference
+  ansible.builtin.command:
+    argv:
+      - "{{ container_runtime_engine }}"
+      - image
+      - inspect
+      - "{{ verify_weg_image_reference }}"
+  register: verify_weg_image_check
+  changed_when: false
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Assert the weg checkout, pin, contract and image are the pinned tag
+  ansible.builtin.assert:
+    that:
+      - verify_weg_checkout_checks.results[0].stat.isdir
+      - verify_weg_checkout_checks.results[1].stat.isreg
+      - verify_weg_checkout is search(verify_weg_version)
+      - verify_weg_pin.content | b64decode | trim == verify_weg_version
+      - verify_weg_version_check.rc == 0
+      - "'contract ' ~ verify_weg_contract_version in verify_weg_version_check.stdout"
+      - verify_weg_image_check.rc == 0
+    fail_msg: >-
+      the pinned weg install is not the tag `verify` mirrors (spine
+      AD-10/AD-11). Expected the checkout at {{ verify_weg_checkout }}/ (path
+      naming {{ verify_weg_version }}), the pin record
+      {{ verify_weg_pin_file }} containing exactly {{ verify_weg_version }},
+      `weg --version` reporting `contract {{ verify_weg_contract_version }}`
+      (the `contracts` tag this repo pins, AD-4), and the image
+      {{ verify_weg_image_reference }} present (AD-7: the image tag IS the
+      pin, never `latest`). Observed:
+      rc={{ verify_weg_version_check.rc | default('n/a', true) }},
+      stdout={{ verify_weg_version_check.stdout | default('', true) | trim }},
+      pin={{ verify_weg_pin.content | default('', true) | b64decode | trim }},
+      image_rc={{ verify_weg_image_check.rc | default('n/a', true) }}.
+      A stale local-path install, a pin-file/checkout mismatch, or an image
+      left at another tag means provisioning never re-pinned weg; re-run the
+      cli-tools playbook
+  when: not ansible_check_mode
+
 # The notifications overlay imports AstalNotifd at startup — a provisioned
 # machine with the app dir deployed but the binding missing would ship a
 # daemon that crashes on launch. Gate on the AUR package the packages role

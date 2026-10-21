@@ -41,13 +41,19 @@ cli_tools_engine_smoke_image: "docker.io/library/alpine:3.20"
 #   role builds after `uv tool install`. `itr` is deliberately absent (no
 #   container mode). `csg` and `weg` both run containerized at runtime
 #   (settings.toml renders runtime.mode = "container"); the assets role's
-#   `weg dump-effects` is separate and runs locally. Each entry maps to the
-#   CLI's `install` command and names the PACKAGE dir passed as its build
-#   context (AD-5/AD-7): the context is the CLI's own repo root, never the
-#   dotfiles repo root.
-cli_tools_image_builds:
-  - { name: csg, source: src/cli-tools/color-scheme-generator }
-  - { name: weg, source: src/cli-tools/wallpaper-effects-generator }
+#   `weg dump-effects` is separate and runs locally.
+#
+#   NOT a second hand-written list of paths/tags: the list SELECTS the named
+#   entries out of `cli_tools` (the manifest mirror above), so each build item
+#   carries exactly the addressing shape of its manifest entry — csg still has
+#   `source:` (in-repo package dir, S6 moves it), weg has `repo`/`tag` (the
+#   pin). The image tag therefore has ONE source: the manifest `tag` for weg.
+#   A pin bump edits the manifest (+ this mirror, locked by parity) and the
+#   build loop below picks the new tag up — there is no hardcoded tag to miss.
+cli_tools_image_build_names:
+  - csg
+  - weg
+cli_tools_image_builds: "{{ cli_tools | selectattr('name', 'in', cli_tools_image_build_names) | list }}"
 
 # cli_tools_checkout_root: root of the PINNED external checkouts (spine AD-10).
 #   Each repo entry materializes at <install>/cli-tools/<name>/<tag>/ with its
@@ -66,7 +72,7 @@ cli_tools_pinned: "{{ cli_tools | selectattr('repo', 'defined') | list }}"
 cli_tools_source_entries: "{{ cli_tools | rejectattr('repo', 'defined') | list }}"
 
 # cli_tools: install specs mirroring dotfiles/provisioning/cli-tools.yaml
-#   (csg/weg -> repo source paths, itr -> pinned repo/tag, plus
+#   (csg -> repo source path, weg + itr -> pinned repo/tag, plus
 #   dotfiles-runtime -> src/runtime). The console-script name is the install
 #   target; `itr` IS the icon-renderer (no separate binary). itr has NO
 #   container mode and is NOT in cli_tools_image_builds (nor is
@@ -75,7 +81,9 @@ cli_tools_source_entries: "{{ cli_tools | rejectattr('repo', 'defined') | list }
 #   one-shape-per-entry rule (source XOR repo+tag).
 cli_tools:
   - { name: csg, source: src/cli-tools/color-scheme-generator }
-  - { name: weg, source: src/cli-tools/wallpaper-effects-generator }
+  - name: weg
+    repo: https://github.com/RandomGenericUsername/wallpaper-effects-generator
+    tag: v0.1.0
   - name: itr
     repo: https://github.com/RandomGenericUsername/icon-templates-renderer
     tag: v0.1.0

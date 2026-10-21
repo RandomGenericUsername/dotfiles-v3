@@ -2047,11 +2047,94 @@ class TestVerifyVars:
             if "repo" in entry or "tag" in entry
         ]
         assert [(entry["name"], entry["tag"]) for entry in pinned] == [
-            ("itr", str(data["verify_itr_version"]))
-        ], "verify_itr_version must equal the role's itr pin"
+            ("weg", str(data["verify_weg_version"])),
+            ("itr", str(data["verify_itr_version"])),
+        ], "verify_*_version must equal the role's pins"
         assert str(role_vars["cli_tools_checkout_root"]) == str(
             data["verify_cli_tools_checkout_root"]
         )
+
+    def test_weg_pin_and_image_are_asserted_by_execution(self) -> None:
+        """AD-7/AD-11: weg is the first container-mode CLI on a pin, so verify
+        must assert the checkout, the pin record, the contract token AND the
+        image at the tag-qualified reference — `weg-<engine>:<tag>`, never
+        `latest`. `engine image inspect` (shared by podman and docker) exits
+        nonzero for a missing tag, so an image left at the old pin fails."""
+        data = _vars()
+        assert str(data["verify_weg_version"]) == "v0.1.0"
+        assert str(data["verify_weg_checkout"]) == (
+            "{{ verify_cli_tools_checkout_root }}/weg/{{ verify_weg_version }}"
+        )
+        assert str(data["verify_weg_pin_file"]) == (
+            "{{ verify_cli_tools_checkout_root }}/weg/pinned"
+        )
+        assert str(data["verify_weg_contract_version"]) == "0.1.0"
+        assert str(data["verify_weg_image_name"]) == "weg"
+        reference = str(data["verify_weg_image_reference"])
+        assert "container_runtime_engine" in reference, (
+            "the image reference must use the DECLARED engine the build used"
+        )
+        assert "verify_weg_version" in reference and "latest" not in reference, (
+            "the image reference must be the pin, never `latest` (AD-7)"
+        )
+
+        tasks = _load_tasks()
+        names = [str(task.get("name", "")) for task in tasks]
+
+        stat_name = "Check the pinned weg checkout and its pin record"
+        assert stat_name in names, f"missing task {stat_name!r}"
+        stat_task = tasks[names.index(stat_name)]
+        assert _module_key(stat_task) == "ansible.builtin.stat"
+        loop = str(stat_task.get("loop"))
+        assert "verify_weg_checkout" in loop and "verify_weg_pin_file" in loop
+
+        image_name = "Check the pinned weg image exists at the tag-qualified reference"
+        assert image_name in names, f"missing task {image_name!r}"
+        image_task = tasks[names.index(image_name)]
+        assert _module_key(image_task) == "ansible.builtin.command"
+        argv = _module(image_task).get("argv")
+        assert isinstance(argv, list)
+        assert argv[0] == "{{ container_runtime_engine }}"
+        assert argv[1:3] == ["image", "inspect"], (
+            "podman and docker share `image inspect`; a missing tag exits nonzero"
+        )
+        assert argv[3] == "{{ verify_weg_image_reference }}"
+        assert image_task.get("changed_when") is False
+        assert image_task.get("failed_when") is False
+        assert image_task.get("when") == "not ansible_check_mode"
+
+        assert_name = (
+            "Assert the weg checkout, pin, contract and image are the pinned tag"
+        )
+        assert assert_name in names, f"missing task {assert_name!r}"
+        assert_task = tasks[names.index(assert_name)]
+        assert _module_key(assert_task) == "ansible.builtin.assert"
+        that = str(_module(assert_task).get("that"))
+        assert "verify_weg_checkout_checks.results[0].stat.isdir" in that
+        assert "verify_weg_checkout_checks.results[1].stat.isreg" in that
+        assert "verify_weg_checkout is search(verify_weg_version)" in that
+        assert "b64decode | trim == verify_weg_version" in that
+        assert "'contract ' ~ verify_weg_contract_version" in that
+        assert "verify_weg_image_check.rc == 0" in that, (
+            "the image existence check must be asserted, not merely registered"
+        )
+        assert assert_task.get("when") == "not ansible_check_mode"
+        assert names.index(stat_name) < names.index(assert_name)
+
+    def test_weg_image_tag_mirrors_the_manifest_and_settings_render(self) -> None:
+        """The pin has one source (the manifest) and two sanctioned mirrors
+        besides this role's copy: the settings render var and the `weg` entry
+        in the role. All four must agree, or a bump could build one tag and
+        render another (AD-7)."""
+        manifest = yaml.safe_load(
+            (_REPO_ROOT / "dotfiles" / "provisioning" / "cli-tools.yaml").read_text()
+        )
+        weg = next(e for e in manifest["entries"] if e.get("name") == "weg")
+        settings_vars = yaml.safe_load(
+            (_ROLES_DIR.parent / "settings" / "vars" / "main.yml").read_text()
+        )
+        assert str(_vars()["verify_weg_version"]) == str(weg["tag"])
+        assert str(settings_vars["settings_weg_image_tag"]) == str(weg["tag"])
 
     def test_notifd_binding_packages_pin_libastal_notifd(self) -> None:
         """Implementation gate (capture-notifications): verify pins the

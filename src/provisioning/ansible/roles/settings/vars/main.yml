@@ -78,6 +78,20 @@ settings_config_dirs:
   - "{{ settings_spine_config_dir }}/weg"
   - "{{ settings_spine_config_dir }}/itr"
 
+# settings_weg_image_tag: the container image tag the rendered WEG settings
+#   resolve (`[container] image_tag`). AD-7: the tag IS the pin — never
+#   `latest` — so a pin bump can never silently reuse the previous image.
+#
+#   Single source: `dotfiles/provisioning/cli-tools.yaml` is authoritative
+#   (spine AD-10), and the `weg` entry's `tag` is the pin. This role cannot
+#   read that manifest (it deliberately has NO repo_root, see the note above),
+#   so this is the hand-maintained MIRROR that AD-11 sanctions: manifest, this
+#   var, and `roles/verify`'s `verify_weg_version` all carry the same tag and
+#   `TestSettingsImageTag` fails the suite if any of the three drifts. Bump the
+#   pin by moving all three lines in one commit; a two-pin render test proves
+#   the template follows the value rather than a literal.
+settings_weg_image_tag: v0.1.0
+
 # settings_files: the three rendered settings files, one entry per tool.
 #   `template` is the .j2 filename resolved by the template module relative to
 #   roles/settings/templates/ (templates live INSIDE the role — no repo_root);

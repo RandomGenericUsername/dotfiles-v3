@@ -283,12 +283,17 @@
 #   --check too); layers 2-4 use shell/command modules that never run under
 #   --check, so their probes AND asserts are gated `when: not
 #   ansible_check_mode`.
-# - `--context {{ cli_tools_repo_root }}/<package>` is passed EXPLICITLY so the
-#   build context is the CLI's own package repo root (AD-5), not the dotfiles
-#   repo root, and does not depend on the CLI rediscovering its source via
-#   PEP 610 metadata (deterministic on the provisioning path; direct_url
-#   discovery remains the fallback for ad-hoc/dev runs). `--source-root` is
-#   still accepted by the CLIs as a deprecated alias for one minor.
+# - `--context <checkout>` is passed EXPLICITLY so the build context is the
+#   CLI's own repo checkout (AD-5), not the dotfiles repo root, and does not
+#   depend on the CLI rediscovering its source via PEP 610 metadata
+#   (deterministic on the provisioning path; direct_url discovery remains the
+#   fallback for ad-hoc/dev runs). `--source-root` is still accepted by the
+#   CLIs as a deprecated alias for one minor.
+# - `--image-tag <pin>` is passed for a PINNED CLI (AD-7): the image tag is the
+#   repo tag from the manifest entry — never `latest` — so a pin bump can never
+#   silently reuse the previous image, and the rendered `image_tag` in
+#   roles/settings resolves the image this task built. csg is still source-only
+#   (S6 moves it), so its build passes no tag and keeps the CLI default.
 # - NO `creates:` on these tasks: image EXISTENCE does not imply FRESHNESS.
 #   A stale image (built before the current CLI source) must be rebuilt, so the
 #   task runs every apply; the container engine's content-addressed cache makes
@@ -419,7 +424,25 @@
     state: absent
   when: not ansible_check_mode
 
-- name: Build container images for the container-mode CLIs
+- name: Build container images for the pinned container-mode CLIs (tag = the pin)
+  ansible.builtin.command:
+    argv:
+      - "{{ item.name }}"
+      - install
+      - --container-engine
+      - "{{ container_runtime_engine }}"
+      - --context
+      - "{{ cli_tools_checkout_root }}/{{ item.name }}/{{ item.tag }}"
+      - --image-tag
+      - "{{ item.tag }}"
+  loop: "{{ cli_tools_image_builds | selectattr('tag', 'defined') | list }}"
+  loop_control:
+    label: "{{ item.name }}"
+  environment:
+    PATH: "{{ cli_tools_bin_dir }}:{{ ansible_facts.env.PATH }}"
+  when: not ansible_check_mode
+
+- name: Build container images for the source-path container-mode CLIs
   ansible.builtin.command:
     argv:
       - "{{ item.name }}"
@@ -428,7 +451,9 @@
       - "{{ container_runtime_engine }}"
       - --context
       - "{{ cli_tools_repo_root }}/{{ item.source }}"
-  loop: "{{ cli_tools_image_builds }}"
+  loop: "{{ cli_tools_image_builds | rejectattr('tag', 'defined') | list }}"
+  loop_control:
+    label: "{{ item.name }}"
   environment:
     PATH: "{{ cli_tools_bin_dir }}:{{ ansible_facts.env.PATH }}"
   when: not ansible_check_mode

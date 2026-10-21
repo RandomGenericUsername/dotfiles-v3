@@ -919,3 +919,95 @@ def _flatten_strings(value: object) -> list[str]:
             out.extend(_flatten_strings(item))
         return out
     return []
+
+
+class TestSettingsImageTag:
+    """AD-7: the rendered WEG `[container] image_tag` is the PIN, never
+    `latest`, so a pin bump can never silently reuse the previous image.
+
+    Single source: `dotfiles/provisioning/cli-tools.yaml` (the `weg` entry's
+    `tag`) is authoritative; this role only carries the hand-maintained mirror
+    AD-11 sanctions (`settings_weg_image_tag`) because it deliberately has no
+    repo_root. The parity case below fails if the manifest, this mirror, or the
+    verify literal drift; the render cases prove the template FOLLOWS the
+    value (a two-pin run) instead of restating it.
+    """
+
+    _PLAYBOOK = _ANSIBLE_DIR / "playbooks" / "settings.yaml"
+    _MANIFEST = _ANSIBLE_DIR.parents[2] / "dotfiles" / "provisioning" / "cli-tools.yaml"
+
+    @staticmethod
+    def _manifest_weg_tag() -> str:
+        manifest = yaml.safe_load(TestSettingsImageTag._MANIFEST.read_text())
+        entry = next(e for e in manifest["entries"] if e.get("name") == "weg")
+        return str(entry["tag"])
+
+    def test_image_tag_mirrors_the_manifest_pin(self) -> None:
+        data = _vars()
+        assert data["settings_weg_image_tag"] == self._manifest_weg_tag(), (
+            "settings_weg_image_tag must mirror the `weg` tag in "
+            "dotfiles/provisioning/cli-tools.yaml (AD-7/AD-10/AD-11)"
+        )
+        template = (_TEMPLATES_DIR / "weg-settings.toml.j2").read_text()
+        assert 'image_tag = "{{ settings_weg_image_tag }}"' in template, (
+            "the WEG template must render the pin, not a literal"
+        )
+        assert 'image_tag = "latest"' not in template, (
+            "the WEG template must never hardcode `latest` (AD-7)"
+        )
+
+    def test_image_tag_verify_literal_mirrors_the_pin(self) -> None:
+        verify_vars = yaml.safe_load(
+            (_ANSIBLE_DIR / "roles" / "verify" / "vars" / "main.yml").read_text()
+        )
+        assert verify_vars["verify_weg_version"] == _vars()["settings_weg_image_tag"], (
+            "verify_weg_version must mirror the rendered image tag — verify "
+            "asserts the image exists at exactly that tag (AD-11)"
+        )
+        assert "verify_weg_version" in str(verify_vars["verify_weg_image_reference"]), (
+            "the image reference verify probes must be derived from the pin"
+        )
+
+    def test_image_tag_renders_the_pin_and_follows_a_bump(self) -> None:
+        """Two renders with different pins: the rendered value equals the pin
+        each time — so a pin bump changes the tag end-to-end, and no cached
+        `latest` can survive it."""
+        ansible_playbook = shutil.which("ansible-playbook")
+        if ansible_playbook is None:
+            pytest.skip("ansible-playbook not installed; skipping render test")
+        for tag in ("v0.1.0", "v0.2.0"):
+            with tempfile.TemporaryDirectory() as tmp:
+                home = Path(tmp) / "home"
+                xdg = Path(tmp) / "xdg"
+                install = Path(tmp) / "install"
+                home.mkdir()
+                xdg.mkdir()
+                install.mkdir()
+                env = _test_env(
+                    HOME=str(home),
+                    XDG_CONFIG_HOME=str(xdg),
+                    XDG_STATE_HOME=str(Path(tmp) / "state-home"),
+                    XDG_CACHE_HOME=str(Path(tmp) / "cache-home"),
+                    ANSIBLE_CONFIG=str(_ANSIBLE_DIR / "ansible.cfg"),
+                )
+                result = subprocess.run(
+                    [
+                        ansible_playbook,
+                        str(self._PLAYBOOK),
+                        "-e",
+                        f"install_dir={install}",
+                        "-e",
+                        f"settings_weg_image_tag={tag}",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    env=env,
+                    timeout=120,
+                )
+                assert result.returncode == 0, result.stdout + result.stderr
+                rendered = tomllib.loads(_expected_files(install)["weg"].read_text())
+                assert rendered["container"]["image_tag"] == tag, (
+                    "the rendered WEG image_tag must equal the pin passed to the "
+                    f"settings role; expected {tag!r}"
+                )
+                assert rendered["container"]["image_tag"] != "latest"
