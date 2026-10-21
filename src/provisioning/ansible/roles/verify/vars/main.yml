@@ -229,10 +229,10 @@ verify_cli_tools:
 #     and the contract token must equal the `contracts` tag this repo pins
 #     (AD-4: one contract tag, four consumers).
 verify_cli_tools_checkout_root: "{{ install_dir | trim }}/cli-tools"
-verify_itr_version: v0.1.0
+verify_itr_version: v0.2.0
 verify_itr_checkout: "{{ verify_cli_tools_checkout_root }}/itr/{{ verify_itr_version }}"
 verify_itr_pin_file: "{{ verify_cli_tools_checkout_root }}/itr/pinned"
-verify_itr_contract_version: 0.1.0
+verify_itr_contract_version: 0.2.0
 
 # verify_weg_*: the same four legs for `weg` (S5), plus the container image.
 #   weg is the first container-mode CLI consumed as a pinned repo, so verify
@@ -242,10 +242,10 @@ verify_itr_contract_version: 0.1.0
 #   the rendered settings carry image_name "weg"), with `container_runtime_engine`
 #   the same DECLARED value the build used and `verify_weg_version` the pin.
 #   A `latest`-only image, or one built at the previous pin, fails this gate.
-verify_weg_version: v0.1.0
+verify_weg_version: v0.2.0
 verify_weg_checkout: "{{ verify_cli_tools_checkout_root }}/weg/{{ verify_weg_version }}"
 verify_weg_pin_file: "{{ verify_cli_tools_checkout_root }}/weg/pinned"
-verify_weg_contract_version: 0.1.0
+verify_weg_contract_version: 0.2.0
 verify_weg_image_name: weg
 verify_weg_image_reference: >-
   {{ verify_weg_image_name }}-{{ container_runtime_engine }}:{{ verify_weg_version }}
@@ -260,10 +260,10 @@ verify_weg_image_reference: >-
 #   a missing backend is a named failure, not a count. The pin is the manifest
 #   `csg.tag` (AD-7/AD-11) — never `latest`; the cli_tools role builds them at
 #   this tag by passing `COLORSCHEME__CONTAINER__IMAGE_TAG={{ pin }}`.
-verify_csg_version: v0.1.0
+verify_csg_version: v0.2.0
 verify_csg_checkout: "{{ verify_cli_tools_checkout_root }}/csg/{{ verify_csg_version }}"
 verify_csg_pin_file: "{{ verify_cli_tools_checkout_root }}/csg/pinned"
-verify_csg_contract_version: 0.1.0
+verify_csg_contract_version: 0.2.0
 verify_csg_image_prefix: csg
 verify_csg_image_references:
   - "{{ verify_csg_image_prefix }}-base-{{ container_runtime_engine }}:{{ verify_csg_version }}"

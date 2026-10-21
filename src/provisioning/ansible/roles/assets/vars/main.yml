@@ -64,7 +64,7 @@ assets_wallpapers_dest: "{{ install_dir | trim }}/wallpapers"
 #   or this var drift, and the role asserts the resolved dir exists before the
 #   copy so a missing/mis-pinned checkout fails loud instead of silently
 #   deploying nothing.
-assets_csg_pinned_tag: v0.1.0
+assets_csg_pinned_tag: v0.2.0
 assets_csg_templates_source: >-
   {{ install_dir | trim }}/cli-tools/csg/{{ assets_csg_pinned_tag }}/src/color_scheme_generator/defaults/templates
 

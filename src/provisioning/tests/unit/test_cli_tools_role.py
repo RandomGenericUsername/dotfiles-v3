@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -29,6 +30,10 @@ _ANSIBLE_DIR = _find_ansible_dir()
 _ROLES_DIR = _ANSIBLE_DIR / "roles" / "cli_tools"
 _REPO_ROOT = _ANSIBLE_DIR.parents[2]
 _MANIFEST_PATH = _REPO_ROOT / "dotfiles" / "provisioning" / "cli-tools.yaml"
+
+#: Any release-tag literal. Role expressions and task code must derive the pin
+#: from the manifest entry, so a match means a hardcoded pin that a bump misses.
+_TAG_LITERAL = re.compile(r"\bv\d+\.\d+\.\d+\b")
 
 _TASK_KEYWORDS = {
     "name",
@@ -503,7 +508,7 @@ class TestCliToolsImageBuildTasks:
         """Container mode (product decision 2026-08-12) requires the cli_tools
         role to build the csg AND weg container images — `uv tool install`
         only installs the host-side launchers. S6 split the pinned loop by TAG
-        TRANSPORT (weg takes `--image-tag` on argv; csg's v0.1.0 verb reads the
+        TRANSPORT (weg takes `--image-tag` on argv; csg's `install` verb reads the
         tag from settings env) and kept the legacy source-path loop, so the
         three loops must together cover exactly the configured names."""
         tasks = _image_build_tasks()
@@ -535,9 +540,12 @@ class TestCliToolsImageBuildTasks:
             "cli_tools_image_builds must select the entries from the manifest "
             "mirror instead of restating paths/tags"
         )
-        assert "v0.1.0" not in expression and "src/cli-tools" not in expression, (
-            "the image-build selection must not carry a path or tag literal — "
-            "those come from the cli_tools entry"
+        assert _TAG_LITERAL.search(expression) is None, (
+            "the image-build selection must not carry a tag literal — "
+            "that comes from the cli_tools entry"
+        )
+        assert "src/cli-tools" not in expression, (
+            "the image-build selection must not carry a source path literal"
         )
         # The transport split is a SELECTION over the same list, never a second
         # hand-written list of names: both halves derive from the entries.
@@ -546,7 +554,7 @@ class TestCliToolsImageBuildTasks:
             assert "cli_tools_image_builds" in expression, (
                 f"{var} must partition cli_tools_image_builds, not restate it"
             )
-            assert "v0.1.0" not in expression, (
+            assert _TAG_LITERAL.search(expression) is None, (
                 f"{var} must not carry a tag literal"
             )
         flag_names = [str(n) for n in data["cli_tools_image_tag_flag_names"]]
@@ -555,7 +563,7 @@ class TestCliToolsImageBuildTasks:
             "be built through the env transport"
         )
         for entry in _cli_tools_image_builds():
-            assert entry.get("tag") == "v0.1.0", (
+            assert entry.get("tag") == "v0.2.0", (
                 f"{entry.get('name')} image tag must be the pinned repo tag"
             )
 
@@ -612,7 +620,7 @@ class TestCliToolsImageBuildTasks:
 
         env_argv = _argv_of(env[0])
         assert "--image-tag" not in env_argv, (
-            "csg's v0.1.0 install verb has no --image-tag; it must not be passed"
+            "csg's install verb has no --image-tag; it must not be passed"
         )
         env_body = env[0].get("environment")
         assert isinstance(env_body, dict)
@@ -640,7 +648,7 @@ class TestCliToolsImageBuildTasks:
             assert "latest" not in text, (
                 f"image-build task {task.get('name')!r} must never name `latest`"
             )
-            assert "v0.1.0" not in text, (
+            assert _TAG_LITERAL.search(text) is None, (
                 f"image-build task {task.get('name')!r} must not hardcode the pin"
             )
 
@@ -880,15 +888,15 @@ class TestCliToolsPinnedCheckout:
         assert pinned[0]["repo"] == (
             "https://github.com/RandomGenericUsername/color-scheme-generator"
         )
-        assert pinned[0]["tag"] == "v0.1.0"
+        assert pinned[0]["tag"] == "v0.2.0"
         assert pinned[1]["repo"] == (
             "https://github.com/RandomGenericUsername/wallpaper-effects-generator"
         )
-        assert pinned[1]["tag"] == "v0.1.0"
+        assert pinned[1]["tag"] == "v0.2.0"
         assert pinned[2]["repo"] == (
             "https://github.com/RandomGenericUsername/icon-templates-renderer"
         )
-        assert pinned[2]["tag"] == "v0.1.0"
+        assert pinned[2]["tag"] == "v0.2.0"
 
     def test_pinned_clone_is_shallow_single_branch_and_tag_qualified(self) -> None:
         task = self._clone_task()
@@ -1042,7 +1050,7 @@ class TestCliToolsVars:
         assert names == {"csg", "weg"}, "image builds must be exactly the container-mode CLIs"
         by_name = {str(b["name"]): b for b in builds}
         for name in ("csg", "weg"):
-            assert by_name[name].get("repo") and by_name[name].get("tag") == "v0.1.0", (
+            assert by_name[name].get("repo") and by_name[name].get("tag") == "v0.2.0", (
                 f"{name} is pinned — its build context is the tag-qualified "
                 f"checkout and its image tag is the pin"
             )

@@ -295,7 +295,7 @@
 #   roles/settings resolves the image this task built. Since S6 BOTH
 #   container-mode CLIs are pinned; they differ only in transport (weg takes
 #   `--image-tag` on argv, csg reads COLORSCHEME__CONTAINER__IMAGE_TAG from the
-#   settings env because its v0.1.0 verb has no such flag). The tag value in
+#   settings env because its `install` verb has no such flag). The tag value in
 #   both cases is `{{ item.tag }}` — the manifest pin, never a literal.
 #   The legacy source-path build task stays for a future in-repo container-mode
 #   entry; today its loop selects nothing (dotfiles-runtime has no container
@@ -448,7 +448,7 @@
     PATH: "{{ cli_tools_bin_dir }}:{{ ansible_facts.env.PATH }}"
   when: not ansible_check_mode
 
-# csg's `install` verb has no `--image-tag` (v0.1.0): it reads
+# csg's `install` verb has no `--image-tag`: it reads
 # `container.image_tag` through its settings resolver, whose env prefix is
 # `COLORSCHEME`. Passing the pin as that env var is the SAME AD-7 contract —
 # the image tag is the manifest pin, never `latest` — just a different

@@ -304,7 +304,7 @@ RETIRED_SHARED_LIBS_DIR = "src/shared"
 
 # `icon-templates-renderer` (console: `itr`) is the FIRST CLI consumed from its
 # own pinned repo (cli-tools-repos S4): the manifest entry is
-# `{name: itr, repo: …, tag: v0.1.0}`, no `source:` path, and the `cli_tools`
+# `{name: itr, repo: …, tag: v0.2.0}`, no `source:` path, and the `cli_tools`
 # role installs FROM a tag-bearing checkout at <install>/cli-tools/itr/<tag>/
 # (AD-10) rather than from a `git+…@tag` URL. The in-tree package is retired in
 # the same slice that proves the new wiring, so a surviving copy is a second
@@ -1677,12 +1677,12 @@ def assert_cli_provisioned_from_pinned_manifest(
         return
 
     # AD-7 for a CLI whose build verb takes the tag from SETTINGS ENV instead of
-    # argv (csg's `v0.1.0` `install` has no `--image-tag`). The contract is the
+    # argv (csg's `install` has no `--image-tag`). The contract is the
     # same — the image tag is the manifest pin — so the gate asserts the env
     # transport carries exactly `{{ item.tag }}`, that the build still uses the
     # tag-qualified checkout as context, and that no literal tag appears in the
     # ... and that no literal tag appears in the task CODE (comments may name a
-    # version — a hardcoded `v0.1.0` in an argv/env would survive a pin bump).
+    # version — a hardcoded tag in an argv/env would survive a pin bump).
     task_code = "\n".join(
         line for line in tasks_text.splitlines() if not line.lstrip().startswith("#")
     )
@@ -1714,7 +1714,7 @@ def assert_cli_provisioned_from_pinned_manifest(
     if "--image-tag" in env_argv:
         raise ValueError(
             f"the {tag_env_key} build also passes --image-tag — pick ONE "
-            f"transport; csg's v0.1.0 verb does not accept the flag"
+            f"transport; csg's verb does not accept the flag"
         )
     if env_argv[env_argv.index("--context") + 1 :][:1] != [
         "{{ cli_tools_checkout_root }}/{{ item.name }}/{{ item.tag }}"
@@ -1736,7 +1736,7 @@ def assert_csg_provisioned_from_pinned_manifest(root: Path) -> None:
     """cli-tools-repos S6: `csg` (palette generator) is consumed from its pin.
 
     csg is the LAST extracted CLI and the second container-mode one. Its
-    `v0.1.0` build verb has no `--image-tag`, so the AD-7 assertion follows the
+    `install` verb has no `--image-tag`, so the AD-7 assertion follows the
     SETTINGS-ENV transport (`COLORSCHEME__CONTAINER__IMAGE_TAG`) instead of
     argv — same pin, same tag-qualified build context.
     """
@@ -1925,7 +1925,7 @@ def main() -> int:
         # and the in-tree package gone.
         assert_weg_provisioned_from_pinned_manifest(root)
         # cli-tools-repos S6: `csg` closes the set. Same pinned shape, plus the
-        # AD-7 assertion for its SETTINGS-ENV tag transport (its v0.1.0 build
+        # AD-7 assertion for its SETTINGS-ENV tag transport (its `install` build
         # verb has no --image-tag) and the tag-qualified build context.
         assert_csg_provisioned_from_pinned_manifest(root)
         # Terminal: both parent roots are retired (the last CLI left the repo).

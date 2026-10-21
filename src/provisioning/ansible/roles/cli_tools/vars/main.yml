@@ -59,7 +59,7 @@ cli_tools_image_builds: "{{ cli_tools | selectattr('name', 'in', cli_tools_image
 #   its image tag (spine AD-7) — the tag value is always the manifest pin; only
 #   the TRANSPORT differs, because the two build verbs do not share a flag:
 #     - `weg`'s `install` verb takes `--image-tag <tag>` on argv.
-#     - `csg`'s `v0.1.0` `install` verb has NO `--image-tag`: the tag comes from
+#     - `csg`'s `install` verb has NO `--image-tag`: the tag comes from
 #       the settings env var `COLORSCHEME__CONTAINER__IMAGE_TAG` (csg's
 #       resolution policy prefix is `COLORSCHEME`, key `container.image_tag`).
 #       Its build task passes that env var instead of a flag.
@@ -104,11 +104,11 @@ cli_tools_source_entries: "{{ cli_tools | rejectattr('repo', 'defined') | list }
 cli_tools:
   - name: csg
     repo: https://github.com/RandomGenericUsername/color-scheme-generator
-    tag: v0.1.0
+    tag: v0.2.0
   - name: weg
     repo: https://github.com/RandomGenericUsername/wallpaper-effects-generator
-    tag: v0.1.0
+    tag: v0.2.0
   - name: itr
     repo: https://github.com/RandomGenericUsername/icon-templates-renderer
-    tag: v0.1.0
+    tag: v0.2.0
   - { name: dotfiles-runtime, source: src/runtime }

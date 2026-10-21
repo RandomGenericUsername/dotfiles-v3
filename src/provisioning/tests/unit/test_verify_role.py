@@ -2029,14 +2029,14 @@ class TestVerifyVars:
             str(data["verify_cli_tools_checkout_root"])
             == "{{ install_dir | trim }}/cli-tools"
         )
-        assert str(data["verify_itr_version"]) == "v0.1.0"
+        assert str(data["verify_itr_version"]) == "v0.2.0"
         assert str(data["verify_itr_checkout"]) == (
             "{{ verify_cli_tools_checkout_root }}/itr/{{ verify_itr_version }}"
         )
         assert str(data["verify_itr_pin_file"]) == (
             "{{ verify_cli_tools_checkout_root }}/itr/pinned"
         )
-        assert str(data["verify_itr_contract_version"]) == "0.1.0"
+        assert str(data["verify_itr_contract_version"]) == "0.2.0"
 
         role_vars = yaml.safe_load(
             (_ROLES_DIR.parent / "cli_tools" / "vars" / "main.yml").read_text()
@@ -2062,14 +2062,14 @@ class TestVerifyVars:
         `latest`. `engine image inspect` (shared by podman and docker) exits
         nonzero for a missing tag, so an image left at the old pin fails."""
         data = _vars()
-        assert str(data["verify_weg_version"]) == "v0.1.0"
+        assert str(data["verify_weg_version"]) == "v0.2.0"
         assert str(data["verify_weg_checkout"]) == (
             "{{ verify_cli_tools_checkout_root }}/weg/{{ verify_weg_version }}"
         )
         assert str(data["verify_weg_pin_file"]) == (
             "{{ verify_cli_tools_checkout_root }}/weg/pinned"
         )
-        assert str(data["verify_weg_contract_version"]) == "0.1.0"
+        assert str(data["verify_weg_contract_version"]) == "0.2.0"
         assert str(data["verify_weg_image_name"]) == "weg"
         reference = str(data["verify_weg_image_reference"])
         assert "container_runtime_engine" in reference, (
@@ -2144,14 +2144,14 @@ class TestVerifyVars:
         missing tag, so an image left at `latest` (the pre-S6 shape) or at the
         previous pin fails the gate."""
         data = _vars()
-        assert str(data["verify_csg_version"]) == "v0.1.0"
+        assert str(data["verify_csg_version"]) == "v0.2.0"
         assert str(data["verify_csg_checkout"]) == (
             "{{ verify_cli_tools_checkout_root }}/csg/{{ verify_csg_version }}"
         )
         assert str(data["verify_csg_pin_file"]) == (
             "{{ verify_cli_tools_checkout_root }}/csg/pinned"
         )
-        assert str(data["verify_csg_contract_version"]) == "0.1.0"
+        assert str(data["verify_csg_contract_version"]) == "0.2.0"
         assert str(data["verify_csg_image_prefix"]) == "csg"
         references = [str(r) for r in data["verify_csg_image_references"]]
         assert len(references) == 4, (
