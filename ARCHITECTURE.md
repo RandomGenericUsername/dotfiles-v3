@@ -73,7 +73,7 @@ Consequences that surprise newcomers:
               | {name,repo,tag} / git tags  +------+-------------+
               v                             | ags-apps v0.4.0    |
    +----------+---------------------+       | bar, hypr-pano,    |
-   | contracts v0.1.0               |       | notifications,     |
+   | contracts v0.2.0               |       | notifications,     |
    |  event contract (Events1/2)    |       | capture-tool,      |
    |  cli-invocation-contract+kit   |       | wallpaper-selector,|
    +--+--------+--------+--------+--+       | icme, btop-studio  |
@@ -81,7 +81,7 @@ Consequences that surprise newcomers:
       v        v        v        |           live links: <install>/config/ags*
    +------+ +------+ +------+    |
    | itr  | | weg  | | csg  |    |
-   | v0.1 | | v0.1 | | v0.1 |    |
+   | v0.2 | | v0.2 | | v0.2 |    |
    +--+---+ +--+---+ +--+---+    |
       +--------+--------+--------+
                v
@@ -94,7 +94,7 @@ Consequences that surprise newcomers:
 |---|---|
 | Libraries depend on no sibling repo; CLIs depend on libs + `contracts` only; no CLI imports/invokes another CLI | `_bmad-output/.../ARCHITECTURE-SPINE.md` AD-1; each repo's `tests/architecture/test_layering.py` |
 | `dotfiles-v3` consumes CLIs/libs as pinned artifacts, never as a path, editable install, submodule or workspace | `scripts/deploy-coverage.py:1360-1513` (no in-tree package, no `path` pin) |
-| The runtime never imports a CLI package — it spawns the console | `src/runtime/tests/architecture/test_layering.py`; adapters use `subprocess.run` (`csg_adapter.py:304`, `weg_adapter.py:342`, `itr_adapter.py:423`) |
+| The runtime never imports a CLI package — it spawns the console | `src/runtime/tests/architecture/test_layering.py`; adapters use `subprocess.run` (`csg_adapter.py:304`, `weg_adapter.py:342`, `itr_adapter.py:432`) |
 | Runtime never imports provisioning *code* (it reads provisioning output) | `_FORBIDDEN_CROSS_PACKAGE = {provisioning, core, infrastructure}` (`src/runtime/tests/architecture/test_layering.py:104-111`) |
 | AGS apps import the platform, never each other | `docs/101-ags-platform-architecture.md` §3.1; `docs/HANDOFF-ags-platform.md` §5.1 (0 cross-app imports measured) |
 
@@ -106,13 +106,13 @@ annotated, monotonic, never moved; a fix is a new tag.
 
 | Repo | Provides | First tag + semantics | Consumed how | Gates it owns |
 |---|---|---|---|---|
-| `contracts` | `event-contract.{json,xml,md}` + `generated/` bindings **and** `invocation-contract.json` + `cli_invocation_contract` (+ `testkit`) | `v0.1.0` — first tag ever; dual role, see below | Git tag in `src/runtime/pyproject.toml:27`; event contract vendored into `contracts/` and `src/runtime/.../contract_generated.py` | `validate`, `generate`, `check-symmetry` / `contracts-drift`, `test`, `build` (`contracts/Makefile`) |
+| `contracts` | `event-contract.{json,xml,md}` + `generated/` bindings **and** `invocation-contract.json` + `cli_invocation_contract` (+ `testkit`) | `v0.2.0` — invocation contract DATA_VERSION 2 adds itr's required `ICON_RENDERER__TEMPLATES__DIR`; dual role, see below | Git tag in `src/runtime/pyproject.toml:27`; event contract vendored into `contracts/` and `src/runtime/.../contract_generated.py` | `validate`, `generate`, `check-symmetry` / `contracts-drift`, `test`, `build` (`contracts/Makefile`) |
 | `cli-output` | `cli_output` package — rendering/views only | `v0.1.0` (version continuity with in-tree 0.1.0) | Git tag in `src/runtime/pyproject.toml:26`, `src/provisioning/pyproject.toml:25`, and each CLI | `test lint hermetic lock-check docs-check` |
 | `config-assembler-engine` | `config_assembler_engine` — resolution strategies, config assembly | `v0.1.0` | Git tag **only inside the three CLI repos** (not a dotfiles dependency) | same five |
 | `oci-runtime` | `oci_runtime` — engine abstraction, build/run/exec, `resolve_build_context` | `v0.5.0` (imported code was 0.4.0; forward-only) | Git tag in `csg` and `weg` only | same five |
-| `icon-templates-renderer` | console `itr` (pure Python, no container mode) | `v0.1.0` | `{name, repo, tag}` manifest + role mirror + verify pin | same five |
-| `wallpaper-effects-generator` | console `weg` + `Dockerfile.imagemagick` + `image` verb | `v0.1.0` | same | same five + `image` |
-| `color-scheme-generator` | console `csg` + four Dockerfiles + template catalog + `image` verb | `v0.1.0` | same | same five + `image` |
+| `icon-templates-renderer` | console `itr` (pure Python, no container mode) | `v0.2.0` (reports `contract 0.2.0`) | `{name, repo, tag}` manifest + role mirror + verify pin | same five |
+| `wallpaper-effects-generator` | console `weg` + `Dockerfile.imagemagick` + `image` verb | `v0.2.0` (reports `contract 0.2.0`) | same | same five + `image` |
+| `color-scheme-generator` | console `csg` + four Dockerfiles + template catalog + `image` verb | `v0.2.0` (reports `contract 0.2.0`) | same | same five + `image` |
 
 **Two consumption shapes only** (`POST-MIGRATION.md` §2):
 
@@ -121,7 +121,7 @@ annotated, monotonic, never moved; a fix is a new tag.
 [tool.uv.sources]
 cli-output = { git = "https://github.com/RandomGenericUsername/cli-output", tag = "v0.1.0" }
 # 2. CLIs — dotfiles/provisioning/cli-tools.yaml
-#    entries: [{name: csg, repo: …/color-scheme-generator, tag: v0.1.0}, …]
+#    entries: [{name: csg, repo: …/color-scheme-generator, tag: v0.2.0}, …]
 ```
 
 **`contracts` carries two contracts, and that is deliberate** (spine AD-4, OPEN-7
@@ -131,7 +131,7 @@ artifact names, exit codes, default timeout) for the runtime ↔ `csg`/`weg`/`it
 They share one repo and one tag because both are cross-repo seams with the same
 charter. The **same-tag rule** follows: one `contracts` tag is pinned by the runtime
 and by all three CLIs, and `verify` asserts each CLI's `--version` contract token
-equals `0.1.0` (`roles/verify/vars/main.yml:221-272`).
+equals `0.2.0` (`roles/verify/vars/main.yml:221-272`).
 
 ## 5. Repo map of `dotfiles-v3`
 
@@ -232,7 +232,7 @@ Container-mode CLIs (`csg`, `weg`) then build images whose **tag is the pin**, n
 | CLI | Transport of the tag | Images verify asserts |
 |---|---|---|
 | `weg` | `install --image-tag {{ item.tag }}` | `weg-<engine>:<tag>` |
-| `csg` | `COLORSCHEME__CONTAINER__IMAGE_TAG={{ item.tag }}` (its `v0.1.0` verb has **no** `--image-tag`) | `csg-{base,custom,pywal,wallust}-<engine>:<tag>` |
+| `csg` | `COLORSCHEME__CONTAINER__IMAGE_TAG={{ item.tag }}` (its `install` verb has **no** `--image-tag`) | `csg-{base,custom,pywal,wallust}-<engine>:<tag>` |
 
 `roles/cli_tools/vars/main.yml:58-77` splits the two transports; `deploy-coverage`
 asserts both carry `{{ item.tag }}` and that no literal tag appears in task code
@@ -244,14 +244,14 @@ asserts both carry `{{ item.tag }}` and that no literal tag appears in task code
   plus csg templates from the **pinned checkout**
   (`<install>/cli-tools/csg/<tag>/src/color_scheme_generator/defaults/templates`), then emits
   `config/weg/effects.yaml` via `weg dump-effects` (`roles/assets/vars/main.yml:53-117`). It carries
-  its own pin mirror (`assets_csg_pinned_tag: v0.1.0`); a parity test locks it.
+  its own pin mirror (`assets_csg_pinned_tag: v0.2.0`); a parity test locks it.
 - **settings** is the only author of the three `settings.toml` files, rendered from role-internal
   Jinja into the spine (`roles/settings/vars/main.yml:1-90`); it carries a third pin mirror
   (`settings_weg_image_tag`).
 - **verify** is read-only and checks **provisioned locations only** — never the repo
   (`roles/verify/tasks/main.yml:1-60`). Its job is the fourteen done-criteria plus the pin
   assertions a green `command -v` would hide: tag-bearing checkout path, `pinned` record,
-  installed version = tag minus `v`, `--version` contract token = `0.1.0`, and every image at
+  installed version = tag minus `v`, `--version` contract token = `0.2.0`, and every image at
   the tag-qualified reference (`roles/verify/vars/main.yml:221-272`).
 
 ### 6.6 manifest, mirror, parity
@@ -312,7 +312,7 @@ does not import the CLI, does not parse stdout as JSON, and does not `command -v
 |---|---|---|---|
 | `csg_adapter.py:280-300` | `csg generate <wallpaper> --format yaml --format conf --format gtk.css --format adw.css --format sequences --format rasi --format kitty --format btop.theme` | `COLORSCHEME__OUTPUT__DIRECTORY`, `COLORSCHEME__OUTPUT__OVERWRITE=true` | eight palette files, hashed |
 | `weg_adapter.py:332-338` | `weg batch all -- <wallpaper>` | `WALLPAPER__OUTPUT__DIRECTORY` etc. | effect images, hashed |
-| `itr_adapter.py:410-419` | `itr render [<icons.yaml>]` | `ICON_RENDERER__OUTPUT__OUTPUT_DIR`, `ICON_RENDERER__COLOR_SCHEME__PATH` | SVGs, hashed |
+| `itr_adapter.py:411-428` | `itr render [<icons.yaml>]` | `ICON_RENDERER__OUTPUT__OUTPUT_DIR`, `ICON_RENDERER__COLOR_SCHEME__PATH`, `ICON_RENDERER__TEMPLATES__DIR` | SVGs, hashed |
 
 The env passed is an **allowlist**, not `dict(os.environ)`: exact keys (`PATH`,
 `HOME`, `XDG_*`, locale/TLS/proxy), prefixes `COLORSCHEME__`, `WALLPAPER__`,
@@ -321,30 +321,32 @@ The env passed is an **allowlist**, not `dict(os.environ)`: exact keys (`PATH`,
 assert the same record through `cli_invocation_contract.testkit`
 (`src/runtime/tests/unit/test_cli_invocation_contract.py:16-17`).
 
-**ITR: `templates_dir` is a hash input, not a render instruction.** `ItrAdapter.render`
-hashes the `templates_dir` argument into the entry hash (`itr_adapter.py:232-239`, then
-`icons_entry_hash` at `:317`) but forwards only `ICON_RENDERER__OUTPUT__OUTPUT_DIR` and
-`ICON_RENDERER__COLOR_SCHEME__PATH` (`:403-408`); argv is `itr render [<icons.yaml>]`
-(`:410-419`) — **no** `--template-dir`, **no** `ICON_RENDERER__TEMPLATES__DIR`. `itr`
-therefore resolves its render templates from *its own* config chain: `[templates] dir`
-in `~/.config/itr/settings.toml`, rendered by provisioning to `<spine>/icon-templates`
-(`roles/settings/templates/itr-settings.toml.j2:8-9`), else its own discovery. Each
-`variants[].template` is joined under that root with the group `template_dir` default
-`"."` (`itr` `src/icon_templates_renderer/adapters/yaml_icon_config_loader.py:78,101`),
-so mapping entries are spelled **relative to the spine root**
-(`status-bar/battery/battery-0/default/icon.svg`) — a mapping-local `battery/` subdir
-resolves to `<spine>/battery/…` and fails.
+**ITR: `templates_dir` is BOTH a hash input and a render instruction** (contracts
+`v0.2.0`). `ItrAdapter.render` hashes the `templates_dir` argument into the entry hash
+(`itr_adapter.py:237`, then `icons_entry_hash` at `:321`) **and** forwards it as
+`ICON_RENDERER__TEMPLATES__DIR` (`:411-418`) alongside
+`ICON_RENDERER__OUTPUT__OUTPUT_DIR` and `ICON_RENDERER__COLOR_SCHEME__PATH`; argv is
+`itr render [<icons.yaml>]` (`:420-428`) — still **no** `--template-dir`. The key is
+`required` in the invocation record, so a consumer that omits it fails conformance
+(`test_cli_invocation_contract.py`), and the adapter's literal wins over any host env
+value because `build_env` applies its override map last (`env.py:87`): `itr` renders
+from exactly the corpus `ih` covers.
 
-The two corpora coincide by *provisioning*, not by adapter enforcement: production passes
-`find_icon_templates(install_spine)` = `<spine>/icon-templates`
-(`application/derive.py:174-177, 1002`), i.e. the same path the settings role writes into
-`itr`. If they diverge — `DOTFILES_DEV_INPUTS_ROOT` (checked-in
-`dotfiles/assets/icon-templates`), or a host `ICON_RENDERER__TEMPLATES__DIR` /
-`--template-dir` override — the hashed corpus is not the rendered one and `ih` stops
-covering the artifacts. `src/runtime/tests/integration/test_itr_adapter_integration.py`
-pins them together explicitly (the allowlisted `ICON_RENDERER__` prefix, `env.py:50`,
-forwards a `monkeypatch.setenv` into the subprocess) and uses the real group shape, so the
-only real-`itr` integration test renders instead of skipping.
+The override ordering is the point: `itr` would otherwise resolve its
+render templates from its own config chain — `[templates] dir` in
+`~/.config/itr/settings.toml`, rendered by provisioning to `<spine>/icon-templates`
+(`roles/settings/templates/itr-settings.toml.j2:8-9`) — which on a provisioned host is
+the same path but on `DOTFILES_DEV_INPUTS_ROOT` (checked-in
+`dotfiles/assets/icon-templates`) or behind a stale host var is not, leaving `ih`
+describing a corpus the render never read. Each `variants[].template` is still joined
+under that root with the group `template_dir` default `"."` (`itr`
+`src/icon_templates_renderer/adapters/yaml_icon_config_loader.py:78,101`), so mapping
+entries are spelled **relative to the templates root**
+(`status-bar/battery/battery-0/default/icon.svg`) — a mapping-local `battery/` subdir
+resolves to `<templates>/battery/…` and fails. The real-`itr` integration test no longer
+monkeypatches the env (`test_itr_adapter_integration.py`): it hashes and renders the
+checked-in corpus through the production path, so a dropped forward fails the test
+instead of being papered over by the host environment.
 
 ### 7.3 Config resolution chain (CLI-side, unchanged by the split)
 
@@ -417,7 +419,7 @@ hand-edit**; it is deliberately **not** in `GATES`, because a CI runner here has
 fails on a hand-edit *is* hermetic and runs via `contracts-check`
 (`src/runtime/tests/unit/test_contract_pin_check.py`).
 
-**Same-tag rule:** one `contracts` tag (`v0.1.0`) is pinned by the runtime and all three CLIs,
+**Same-tag rule:** one `contracts` tag (`v0.2.0`) is pinned by the runtime and all three CLIs,
 and each CLI's `--version` token must equal it; neither side duplicates the contract data in
 tests (spine AD-4).
 
