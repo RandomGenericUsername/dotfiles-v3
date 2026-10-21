@@ -310,6 +310,8 @@ RETIRED_SHARED_LIBS_DIR = "src/shared"
 # the same slice that proves the new wiring, so a surviving copy is a second
 # source of truth that no consumer installs.
 CLI_TOOLS_MANIFEST = "dotfiles/provisioning/cli-tools.yaml"
+RETIRED_ASSETS_DIR = "dotfiles/assets"
+RETIRED_ICON_MAPPINGS_DIR = "dotfiles/config/icon-template-color-scheme-mappings"
 CLI_TOOLS_ROLE_VARS = "src/provisioning/ansible/roles/cli_tools/vars/main.yml"
 ITR_NAME = "itr"
 RETIRED_ITR_DIR = "src/cli-tools/icon-templates-renderer"
@@ -1768,6 +1770,25 @@ def assert_no_cli_tools_dir(root: Path) -> None:
             )
 
 
+def assert_no_assets_corpus(root: Path) -> None:
+    """S1 (AD-16 catch-all): the icons/content corpus is not authored here.
+
+    `dotfiles/assets/` held the icon templates, the wallpaper archive and the
+    authored btop themes; `dotfiles/config/icon-template-color-scheme-mappings/`
+    held the icon mappings. All of it now ships in the pinned `dotfiles-assets`
+    repo (v0.2.0) and deploys from `<install>/assets/<tag>/`. A leftover copy
+    would be a second, unowned source of truth — exactly the drift the pin
+    exists to prevent — so its return fails this gate.
+    """
+    for retired in (RETIRED_ASSETS_DIR, RETIRED_ICON_MAPPINGS_DIR):
+        if (root / retired).exists():
+            raise ValueError(
+                f"the retired asset tree {retired}/ still exists — the icons and "
+                f"content corpus is the pinned dotfiles-assets repo (spine AD-6); "
+                f"delete the in-tree copy and bump the pin instead"
+            )
+
+
 def assert_manifest_source_scope(root: Path) -> None:
     """The CLI manifest has exactly ONE local `source:` — `dotfiles-runtime`.
 
@@ -1933,6 +1954,9 @@ def main() -> int:
         # AD-11 (final, strict): exactly one local `source:` in the CLI
         # manifest, and it is `dotfiles-runtime` -> src/runtime (OPEN-7).
         assert_manifest_source_scope(root)
+        # S1 (AD-16 catch-all): the icons/content corpus lives in the pinned
+        # `dotfiles-assets` repo; the in-tree sources are retired.
+        assert_no_assets_corpus(root)
     except (RuntimeError, ValueError, FileNotFoundError) as exc:
         print(f"FAIL: {exc}")
         return 1

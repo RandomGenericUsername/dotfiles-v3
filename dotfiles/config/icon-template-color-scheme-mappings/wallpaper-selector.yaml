@@ -1,6 +1,0 @@
-wallpaper-selector:
-  color_mappings: {}
-  variants:
-    - name: wallpaper-selector
-      template: status-bar/wallpaper-selector/default/wallpaper-selector.svg
-      output: wallpaper-selector.svg

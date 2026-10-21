@@ -98,8 +98,8 @@ Observed values on this machine:
 | `dotfiles/config/ags/bar/widgets/network.tsx` | Network widget; left = `wifitui`, right = nm-applet menu |
 | `dotfiles/config/ags/bar/Bar.tsx` | Mounts `<Tray />` in the bar's end box |
 | `dotfiles/config/ags/style.css` | `.bar-tray` / `.tray-item` styling |
-| `dotfiles/config/icon-template-color-scheme-mappings/icons.yaml` | `tray` icon group (e.g. `tidal`) |
-| `dotfiles/assets/icon-templates/status-bar/tray/tidal/default/icon.svg` | Tidal tray icon template |
+| `dotfiles-assets/icons/mappings/icons.yaml` | `tray` icon group (e.g. `tidal`) |
+| `dotfiles-assets/icons/templates/status-bar/tray/tidal/default/icon.svg` | Tidal tray icon template |
 | `src/provisioning/ansible/roles/packages/vars/arch.yml` | Adds `astal-tray` to `aur_packages` |
 | `src/provisioning/ansible/roles/compositor_configs/vars/main.yml` | Deploys `status-notifier.ts` + `tray.tsx` to the spine |
 
@@ -120,7 +120,7 @@ Observed values on this machine:
 
 The Tidal tray icon is produced by the normal icon pipeline:
 
-1. Template: `dotfiles/assets/icon-templates/status-bar/tray/tidal/default/icon.svg`
+1. Template: `dotfiles-assets/icons/templates/status-bar/tray/tidal/default/icon.svg`
    (palette placeholder `{{COLOR_FOREGROUND}}`, not a literal color).
 2. Manifest group in `icons.yaml`:
 
@@ -244,8 +244,8 @@ Per-change checks:
 
 ```sh
 # manifest/template validity
-itr list dotfiles/config/icon-template-color-scheme-mappings/icons.yaml \
-  --icon tray --template-dir dotfiles/assets/icon-templates
+itr list dotfiles-assets/icons/mappings/icons.yaml \
+  --icon tray --template-dir dotfiles-assets/icons/templates
 
 # AGS syntax/bundling
 cd dotfiles/config/ags && ags bundle app.tsx /tmp/ags-check.bundle.js --root .
@@ -277,10 +277,10 @@ Commits on branch `feat/statusnotifier-tray`:
 ## 8. Adding a new custom tray icon (quick reference)
 
 1. Add the SVG under
-   `dotfiles/assets/icon-templates/status-bar/tray/<app>/default/icon.svg`
+   `dotfiles-assets/icons/templates/status-bar/tray/<app>/default/icon.svg`
    using palette placeholders (`{{COLOR_FOREGROUND}}`, …), never literal colors.
 2. Add a `tray` variant in
-   `dotfiles/config/icon-template-color-scheme-mappings/icons.yaml`
+   `dotfiles-assets/icons/mappings/icons.yaml`
    (`name`, `template`, `output`).
 3. Map the app's StatusNotifier identity to it in `TRAY_ICON_OVERRIDES` in
    `dotfiles/config/ags/bar/widgets/tray.tsx` (matched against `id` /

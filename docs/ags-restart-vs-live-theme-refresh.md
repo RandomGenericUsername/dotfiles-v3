@@ -37,7 +37,7 @@ wallpaper set
 
 The overlay subscribes to the existing `org.dotfiles.Events` D-Bus signal. At startup it subscribes first, then calls `GetTopicState` once so an operation already in progress is not missed. If the event hub starts later, D-Bus `NameOwnerChanged` triggers one more state read. There is no polling of the runtime.
 
-The card's picture glyph and completed-step check-circle follow the repository icon pipeline: their SVG templates live under `dotfiles/assets/icon-templates/`, their `wallpaper-progress` variants are authored in `icons.yaml`, and ITR renders them into `current/icons/` using the active palette. The assets role deploys the templates and mappings; compositor provisioning generates the shared AGS `icons.json`; the notification's icon registry resolves those manifest entries. On `done`, the card reloads both icons after the runtime has repointed `current/`, so the running images reflect the new palette.
+The card's picture glyph and completed-step check-circle follow the repository icon pipeline: their SVG templates live under `dotfiles-assets/icons/templates/`, their `wallpaper-progress` variants are authored in `icons.yaml`, and ITR renders them into `current/icons/` using the active palette. The assets role deploys the templates and mappings; compositor provisioning generates the shared AGS `icons.json`; the notification's icon registry resolves those manifest entries. On `done`, the card reloads both icons after the runtime has repointed `current/`, so the running images reflect the new palette.
 
 `wallpaper.state` keeps its existing `state` lifecycle (`applying`, `visible`, `done`, `error`) and adds an optional `stage` field for `wallpaper set` progress:
 

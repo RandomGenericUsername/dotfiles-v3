@@ -1,6 +1,0 @@
-email-client:
-  color_mappings: {}
-  variants:
-    - name: email-client
-      template: status-bar/email-client/default/icon.svg
-      output: email-client.svg
