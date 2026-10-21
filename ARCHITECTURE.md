@@ -321,6 +321,31 @@ The env passed is an **allowlist**, not `dict(os.environ)`: exact keys (`PATH`,
 assert the same record through `cli_invocation_contract.testkit`
 (`src/runtime/tests/unit/test_cli_invocation_contract.py:16-17`).
 
+**ITR: `templates_dir` is a hash input, not a render instruction.** `ItrAdapter.render`
+hashes the `templates_dir` argument into the entry hash (`itr_adapter.py:232-239`, then
+`icons_entry_hash` at `:317`) but forwards only `ICON_RENDERER__OUTPUT__OUTPUT_DIR` and
+`ICON_RENDERER__COLOR_SCHEME__PATH` (`:403-408`); argv is `itr render [<icons.yaml>]`
+(`:410-419`) — **no** `--template-dir`, **no** `ICON_RENDERER__TEMPLATES__DIR`. `itr`
+therefore resolves its render templates from *its own* config chain: `[templates] dir`
+in `~/.config/itr/settings.toml`, rendered by provisioning to `<spine>/icon-templates`
+(`roles/settings/templates/itr-settings.toml.j2:8-9`), else its own discovery. Each
+`variants[].template` is joined under that root with the group `template_dir` default
+`"."` (`itr` `src/icon_templates_renderer/adapters/yaml_icon_config_loader.py:78,101`),
+so mapping entries are spelled **relative to the spine root**
+(`status-bar/battery/battery-0/default/icon.svg`) — a mapping-local `battery/` subdir
+resolves to `<spine>/battery/…` and fails.
+
+The two corpora coincide by *provisioning*, not by adapter enforcement: production passes
+`find_icon_templates(install_spine)` = `<spine>/icon-templates`
+(`application/derive.py:174-177, 1002`), i.e. the same path the settings role writes into
+`itr`. If they diverge — `DOTFILES_DEV_INPUTS_ROOT` (checked-in
+`dotfiles/assets/icon-templates`), or a host `ICON_RENDERER__TEMPLATES__DIR` /
+`--template-dir` override — the hashed corpus is not the rendered one and `ih` stops
+covering the artifacts. `src/runtime/tests/integration/test_itr_adapter_integration.py`
+pins them together explicitly (the allowlisted `ICON_RENDERER__` prefix, `env.py:50`,
+forwards a `monkeypatch.setenv` into the subprocess) and uses the real group shape, so the
+only real-`itr` integration test renders instead of skipping.
+
 ### 7.3 Config resolution chain (CLI-side, unchanged by the split)
 
 `--config` → env (`<PREFIX>__SECTION__KEY`) → cwd traversal → XDG
