@@ -113,7 +113,7 @@ anonymously over HTTPS by tag (`openspec/changes/archive/2026-10-21-cli-tools-re
 | `icon-templates-renderer` | console `itr` (pure Python, no container mode) | `v0.2.0` (reports `contract 0.2.0`) | `{name, repo, tag}` manifest + role mirror + verify pin | same five |
 | `wallpaper-effects-generator` | console `weg` + `Dockerfile.imagemagick` + `image` verb | `v0.2.0` (reports `contract 0.2.0`) | same | same five + `image` |
 | `color-scheme-generator` | console `csg` + four Dockerfiles + template catalog + `image` verb | `v0.2.0` (reports `contract 0.2.0`) | same | same five + `image` |
-| `dotfiles-assets` | **data corpus** (no package, no console script): `icons/` (templates + one group map + vocabulary), `templates/` (9 Jinja sources + 9 vars schemas), `configs/`, `content/`, `desktop/` | `v0.4.0` — icons + content + configs + templates populated; `icons/schema.json` and every `templates/**/*.vars.schema.json` at `schema_major: 1` | `assets:` block in `dotfiles/provisioning/assets.yaml` + role/verify mirrors (+ a per-render-role pin mirror); fetched once into `<install>/assets/<tag>/` | `validate validate-icons validate-content validate-templates lint hermetic` |
+| `dotfiles-assets` | **data corpus** (no package, no console script): `icons/` (templates + one group map + vocabulary), `templates/` (9 Jinja sources + 9 vars schemas), `configs/`, `content/`, `desktop/` (6 entries + `toggle-touchpad` + `desktop.yaml` `requires`/`optional` contract) | `v0.5.0` — **all five classes populated**; `icons/schema.json`, every `templates/**/*.vars.schema.json` and `desktop/desktop.yaml` at `schema_major: 1` | `assets:` block in `dotfiles/provisioning/assets.yaml` + role/verify mirrors (+ a per-render-role pin mirror); fetched once into `<install>/assets/<tag>/` | `validate validate-icons validate-content validate-templates validate-desktop lint hermetic` |
 
 **Two consumption shapes only** (`POST-MIGRATION.md` §2):
 
@@ -142,7 +142,7 @@ equals `0.2.0` (`roles/verify/vars/main.yml:221-272`).
 | `src/provisioning/` | `dotfiles-provision`: hexagon that drives Ansible + the `ansible/` tree (21 roles, 23 playbooks) | **live, authored here** |
 | `dotfiles/config/` | `btop/active-theme` only — the mutable theme preference (OPEN-5, S7) | **shrunken to one file** — the static corpus moved to `dotfiles-assets` `configs/` (S2), and the last two template sources (`zsh/.zshrc.j2`, `wlogout/style.css.tpl`) moved to its `templates/` class (S3), so no `*.j2`/`*.tpl` is authored here |
 | `dotfiles/provisioning/assets.yaml` | The assets pin (`repo`, `tag`, `classes`) — the corpus itself is `dotfiles-assets` | **live** (single source for the corpus pin) |
-| `dotfiles/applications/`, `dotfiles/scripts/` | `.desktop` files; `toggle-touchpad` | **live** |
+| `dotfiles/applications/`, `dotfiles/scripts/` | **retired at S4** — the six `.desktop` entries and `toggle-touchpad` ship in `dotfiles-assets` `desktop/` | **absent; `deploy-coverage` asserts it** (AD-10/AD-16) |
 | `dotfiles/provisioning/` | Declarative manifests: `cli-tools.yaml`, `assets.yaml`, `config-copies.yaml`, `filesystem.yaml`, `packages.yaml` | **live** (single source for pins) |
 | `scripts/` | Gates: `deploy-coverage.py`, `ci-gates-parity.py`, `contract-pin-check.py`, `ansible-embedded-template-lint.py`; plus `worktree-guard.sh` | **live** |
 | `contracts/` | Vendored event contract `{json,xml,md}` + four state JSON schemas; the runtime embeds byte-identical copies under `src/runtime/.../adapters/schemas/`, asserted by `contracts-check` | **live for conformance tests**; *not* the pin source (`src/runtime/.../test_event_contract_drift.py:59-68`) |
@@ -242,8 +242,8 @@ asserts both carry `{{ item.tag }}` and that no literal tag appears in task code
 
 ### 6.5 assets, settings, verify
 
-- **assets** shallow-clones the **pinned corpus** `dotfiles-assets@v0.4.0` into
-  `<install>/assets/v0.4.0/`, drops the clone's `.git`, writes `<install>/assets/pinned`, and then
+- **assets** shallow-clones the **pinned corpus** `dotfiles-assets@v0.5.0` into
+  `<install>/assets/v0.5.0/`, drops the clone's `.git`, writes `<install>/assets/pinned`, and then
   copies `icons/templates` → `icon-templates/`, `icons/mappings` → `icon-mappings/`, and unpacks
   `content/wallpapers/wallpapers.tar.gz` → `wallpapers/` from that checkout. S2: the two config
   roles read the same checkout's `configs/` class — `compositor_configs` renders the 15 non-bar
@@ -260,7 +260,13 @@ asserts both carry `{{ item.tag }}` and that no literal tag appears in task code
   `<role>_assets_templates_dir`; its render `src` is `<that dir>/<group>/<file>` and every `dest`,
   `mode`, `become` and supplied var is unchanged from the pre-split task. `wlogout_config` also
   **prunes** the pre-S3 `<spine>/config/wlogout/style.css.tpl` (an idempotent `state: absent`),
-  and `verify` asserts it stays absent. csg templates come
+  and `verify` asserts it stays absent. S4: `compositor_configs` also reads the checkout's
+  `desktop/` class — six `.desktop` entries into `$XDG_DATA_HOME/applications/` and
+  `toggle-touchpad` 0755 into the user bin dir — and **resolves `desktop.yaml` before the copy**
+  (AD-10 layer 2): a missing `requires` binary fails naming entry and binary, a missing `optional`
+  one is reported and that entry is skipped. `verify` re-asserts the deployed set, resolves every
+  deployed `Exec` binary on PATH, and checks all seven keybind-invoked launchers are executable
+  (layer 3). csg templates come
   from their own **pinned checkout**
   (`<install>/cli-tools/csg/<tag>/src/color_scheme_generator/defaults/templates`), and
   `config/weg/effects.yaml` is emitted via `weg dump-effects` (`roles/assets/vars/main.yml`). It

@@ -496,6 +496,67 @@ class TestVerifyTasks:
             "cli-tool check PATH must prepend verify_cli_bin_dir"
         )
 
+    def test_desktop_entry_set_is_asserted_on_the_deployed_host(self) -> None:
+        """AD-10 layer 3, half one: the deployed set is present. The stat loops
+        `verify_desktop_entry_files` and the assert consumes it, so a missing
+        entry (never deployed, or skipped for a missing optional binary) fails."""
+        stat = next(
+            task
+            for task in _stat_tasks()
+            if "verify_desktop_entry_files" in str(task.get("loop", ""))
+        )
+        assert str(_module(stat).get("path")) == "{{ item }}"
+        register = str(stat.get("register"))
+        assert register == "verify_desktop_entry_checks"
+        assert_tasks = [
+            task
+            for task in _assert_tasks()
+            if register in str(_module(task).get("that", ""))
+        ]
+        assert len(assert_tasks) == 1, (
+            f"expected exactly one assert consuming {register}; found {len(assert_tasks)}"
+        )
+        assert_task = assert_tasks[0]
+        assert assert_task.get("when") == "not ansible_check_mode"
+        assert "stat.isreg" in str(_module(assert_task).get("that", ""))
+
+    def test_every_deployed_exec_binary_is_resolved(self) -> None:
+        """AD-10 layer 3, half two: each DEPLOYED entry's own Exec line is read
+        and its argv[0] resolved (absolute → executable, bare → `command -v`).
+        Reading the deployed artifact — not the corpus — is what makes a stale or
+        hand-edited host entry fail here."""
+        probe = next(
+            task
+            for task in _command_tasks()
+            if "verify_desktop_entry_files" in str(task.get("loop", ""))
+        )
+        argv = _module(probe).get("argv")
+        assert isinstance(argv, list) and argv[:2] == ["sh", "-c"], argv
+        script = "\n".join(argv)
+        assert "grep -m1 '^Exec='" in script
+        assert "command -v" in script
+        assert probe.get("changed_when") is False
+        assert probe.get("failed_when") is False
+        assert probe.get("when") == "not ansible_check_mode", (
+            "the probe must declare its check gate (a short-circuited probe "
+            "fabricates rc: 0)"
+        )
+        assert_task = _shell_assert_task("verify_desktop_exec_checks")
+        assert "rejectattr('rc', 'equalto', 0)" in str(
+            _module(assert_task).get("that")
+        )
+        assert assert_task.get("when") == "not ansible_check_mode"
+
+    def test_bin_script_assert_requires_executability(self) -> None:
+        """AD-10 layer 3: "exists and is executable" — a present but non-0755
+        launcher is still a dead key, so the assert checks stat.executable for
+        every entry, not just stat.exists."""
+        assert_task = _shell_assert_task("verify_bin_script_checks")
+        that = str(_module(assert_task).get("that"))
+        assert "stat.executable" in that
+        assert "stat.exists" in that
+        assert assert_task.get("when") == "not ansible_check_mode"
+
     def test_itr_pin_is_asserted_by_execution(self) -> None:
         """AD-11: `command -v itr` is green for ANY version, so verify must
         assert the PIN: the tag-qualified checkout exists, the pin record
@@ -1417,6 +1478,9 @@ class TestVerifyTasks:
             "verify_managed_link_dirs",
             "verify_cli_bin_dir",
             "verify_bin_scripts",
+            "verify_xdg_data_home",
+            "verify_desktop_entry_files",
+            "verify_assets_desktop_paths",
             "<install>",
             "install_dir",
             "ansible_facts.env",
@@ -1437,6 +1501,9 @@ class TestVerifyVars:
         "verify_install_spine_dirs",
         "verify_install_spine_files",
         "verify_assets_configs_dirs",
+        "verify_assets_desktop_paths",
+        "verify_xdg_data_home",
+        "verify_desktop_entry_files",
         "verify_weg_effects_path",
         "verify_asset_dirs",
         "verify_asset_files",
@@ -2116,6 +2183,80 @@ class TestVerifyVars:
             f"read; only-in-verify={verified - sources} missing={sources - verified}"
         )
 
+    def test_assets_desktop_paths_cover_the_desktop_class_sources(self) -> None:
+        """S4: `verify_assets_desktop_paths` names the desktop pieces the
+        compositor_configs role reads. The class dir exists in every tag since
+        v0.1.0 (empty until v0.5.0), so the subdirs + contract + script are what
+        prove the pin is the tag that ships them."""
+        data = _vars()
+        verified = {
+            str(path).split("/desktop/", 1)[1]
+            for path in data["verify_assets_desktop_paths"]
+        }
+        assert verified == {
+            "applications",
+            "scripts",
+            "scripts/toggle-touchpad",
+            "desktop.yaml",
+        }, verified
+        assert all(
+            "{{ verify_assets_tag_dir }}" in str(path)
+            for path in data["verify_assets_desktop_paths"]
+        ), "every desktop path must derive from the pinned tag dir"
+
+    def test_desktop_entry_files_mirror_the_deploy_set(self) -> None:
+        """AD-10 layer 3 is the DEPLOYED set: verify's list must be exactly the
+        `file` list the compositor_configs role deploys, or a new corpus entry
+        could land on disk with no verify assertion."""
+        data = _vars()
+        verified = sorted(
+            str(path).rsplit("/applications/", 1)[1]
+            for path in data["verify_desktop_entry_files"]
+        )
+        deployed = sorted(
+            str(entry["file"])
+            for entry in _sibling_vars("compositor_configs")[
+                "compositor_configs_desktop_entries"
+            ]
+        )
+        assert verified == deployed, (
+            "verify_desktop_entry_files must mirror the deploy set; "
+            f"only-in-verify={set(verified) - set(deployed)} "
+            f"missing={set(deployed) - set(verified)}"
+        )
+
+    def test_desktop_entry_dir_derives_from_verify_xdg_data_home(self) -> None:
+        """The deployed entries live under $XDG_DATA_HOME/applications; the var
+        must resolve exactly like compositor_configs_xdg_data_home (F4 lock:
+        ansible_facts.env, never the deprecated top-level ansible_env fact)."""
+        data = _vars()
+        value = str(data["verify_xdg_data_home"])
+        assert "ansible_facts.env.XDG_DATA_HOME" in value
+        assert "ansible_facts.env.HOME" in value
+        assert "'/.local/share'" in value
+        assert "{{ ansible_env." not in value
+        for path in data["verify_desktop_entry_files"]:
+            assert str(path).startswith(
+                "{{ verify_xdg_data_home | trim }}/applications/"
+            ), path
+
+    def test_bin_scripts_cover_every_keybind_invoked_launcher(self) -> None:
+        """AD-10 layer 3: every script/launcher a Hyprland keybind invokes exists
+        and is executable. The seven names are the `exec_cmd` targets in
+        `configs/hypr/keybindings.lua`; the six wrappers are cli_tools-rendered
+        and `toggle-touchpad` is the corpus script (AD-10 scope boundary)."""
+        data = _vars()
+        names = {str(path).rsplit("/", 1)[1] for path in data["verify_bin_scripts"]}
+        assert names == {
+            "rofi-ui",
+            "capture-ui",
+            "hypr-pano-ui",
+            "wallpaper-selector-ui",
+            "icon-color-mapping-editor",
+            "btop-theme-studio",
+            "toggle-touchpad",
+        }, names
+
     def test_palette_files_match_cache_artifacts(self) -> None:
         """Criterion 6 (Epic 4 current-only): the palette files check is
         exactly the cache palette artifacts (conf/yaml/gtk.css/adw.css/
@@ -2750,6 +2891,9 @@ class TestVerifyVars:
             "verify_ags_apps_btop_studio_dir",
             "verify_ags_apps_live_btop_studio_link",
             "verify_ags_apps_btop_studio_files",
+            "verify_xdg_data_home",
+            "verify_desktop_entry_files",
+            "verify_assets_desktop_paths",
             "install_dir",
             "ansible_facts.env",
         )
@@ -2862,6 +3006,97 @@ class TestVerifyRuntime:
             assert second.returncode != 0, (
                 "verify must FAIL after a criterion element is removed "
                 "(negative lock — the gate is not vacuous); recap:\n" + second.stdout
+            )
+
+    def test_desktop_layer3_passes_then_fails_on_a_missing_entry(self) -> None:
+        """AD-10 layer 3 negative lock: the deployed desktop set is asserted, so
+        deleting one entry (the shape of a skipped entry, or a role that never
+        ran) must fail verify rather than leave a silently missing menu item.
+
+        The run starts AT the layer-3 block on purpose: this fixture class's
+        pre-desktop tail (the cli-tools pin block) predates the pinned-CLI split
+        and aborts at the itr pin on master too — a pre-existing gap, reproduced
+        outside this slice. Everything from the desktop block on runs for real,
+        and the clean run is asserted first so the failure cannot be vacuous.
+        """
+        ansible_playbook = shutil.which("ansible-playbook")
+        if ansible_playbook is None:
+            pytest.skip("ansible-playbook not installed; skipping execution test")
+        with tempfile.TemporaryDirectory() as tmp:
+            install, home, _bin_dir, env = _synthetic_verify_machine(Path(tmp))
+
+            def run() -> subprocess.CompletedProcess[str]:
+                return subprocess.run(
+                    [
+                        ansible_playbook,
+                        str(self._PATH),
+                        "-e",
+                        f"install_dir={install}",
+                        "--start-at-task",
+                        "Check deployed desktop entries exist",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    env=env,
+                    timeout=200,
+                )
+
+            clean = run()
+            assert clean.returncode == 0, clean.stdout[-4000:] + clean.stderr[-2000:]
+
+            (home / ".local" / "share" / "applications" / "code.desktop").unlink()
+            missing = run()
+            assert missing.returncode != 0, (
+                "verify must FAIL when a deployed desktop entry is absent; "
+                "recap:\n" + missing.stdout[-4000:]
+            )
+            assert "code.desktop" in missing.stdout, (
+                "the failure must name the missing entry; recap:\n"
+                + missing.stdout[-4000:]
+            )
+
+    def test_desktop_layer3_fails_when_a_deployed_exec_binary_does_not_resolve(self) -> None:
+        """AD-10 layer 3 negative lock: the Exec probe reads the DEPLOYED file, so
+        an entry whose launcher is not on PATH fails verify even though every file
+        exists. This is the dead-menu-entry failure AD-10 exists to catch, and it
+        must not be green just because the corpus is fine. Same start-at rationale
+        as the test above (pre-existing cli-tools fixture gap)."""
+        ansible_playbook = shutil.which("ansible-playbook")
+        if ansible_playbook is None:
+            pytest.skip("ansible-playbook not installed; skipping execution test")
+        with tempfile.TemporaryDirectory() as tmp:
+            install, home, _bin_dir, env = _synthetic_verify_machine(Path(tmp))
+            broken = home / ".local" / "share" / "applications" / "code.desktop"
+            broken.write_text(
+                "[Desktop Entry]\n"
+                "Type=Application\n"
+                "Name=Visual Studio Code\n"
+                "Exec=definitely-not-installed --flag %F\n"
+                "TryExec=code\n"
+                "Icon=vscode\n"
+            )
+            result = subprocess.run(
+                [
+                    ansible_playbook,
+                    str(self._PATH),
+                    "-e",
+                    f"install_dir={install}",
+                    "--start-at-task",
+                    "Check deployed desktop entries exist",
+                ],
+                capture_output=True,
+                text=True,
+                env=env,
+                timeout=200,
+            )
+            combined = result.stdout + result.stderr
+            assert result.returncode != 0, (
+                "verify must FAIL when a deployed entry's Exec binary does not "
+                "resolve; recap:\n" + combined[-4000:]
+            )
+            assert "code.desktop" in combined and "definitely-not-installed" in combined, (
+                "the failure must name the entry and the binary; recap:\n"
+                + combined[-4000:]
             )
 
     def test_verify_fails_when_parse_gate_binary_fails(self) -> None:
@@ -3320,6 +3555,34 @@ class TestVerifyRuntime:
             )
 
 
+def _synthetic_verify_machine(tmp: Path) -> tuple[Path, Path, Path, dict[str, str]]:
+    """Build the provisioned "machine" + env one verify run asserts against.
+
+    Returns ``(install, home, bin_dir, env)``. Shared by the layer-3 negative
+    locks so each test mutates exactly one artifact of the same fixture instead of
+    rebuilding a slightly different machine.
+    """
+    home = tmp / "home"
+    xdg = tmp / "xdg"
+    install = tmp / "install"
+    state_home = tmp / "state-home"
+    cache_home = tmp / "cache-home"
+    home.mkdir()
+    xdg.mkdir()
+    install.mkdir()
+    bin_dir = _write_stub_binaries(home)
+    _build_provisioned_layout(home, xdg, install, state_home, cache_home)
+    env = _test_env(
+        HOME=str(home),
+        XDG_CONFIG_HOME=str(xdg),
+        XDG_STATE_HOME=str(state_home),
+        XDG_CACHE_HOME=str(cache_home),
+        ANSIBLE_CONFIG=str(_ANSIBLE_DIR / "ansible.cfg"),
+        PATH=f"{bin_dir}:{os.environ.get('PATH', '')}",
+    )
+    return install, home, bin_dir, env
+
+
 def _test_env(**overrides: str) -> dict[str, str]:
     """A scrubbed env for playbook subprocesses (review findings 2026-08-12 and
     2026-08-13): drop ambient ANSIBLE_* vars (a developer's ANSIBLE_INVENTORY /
@@ -3342,7 +3605,7 @@ def _write_stub_binaries(home: Path) -> Path:
     machine: report `NetworkManager` as active."""
     bin_dir = home / ".local" / "bin"
     bin_dir.mkdir(parents=True)
-    for name in ("hyprland", "hyprpaper", "power-options-gtk", "csg", "weg", "itr", "wpctl", "pavucontrol", "playerctl", "grim", "slurp", "wl-copy", "wl-paste", "hyprlock", "hypridle", "antigravity-ide", "code", "devin-desktop", "copilot", "codex"):
+    for name in ("hyprland", "hyprpaper", "power-options-gtk", "csg", "weg", "itr", "wpctl", "pavucontrol", "playerctl", "grim", "slurp", "wl-copy", "wl-paste", "hyprlock", "hypridle", "antigravity-ide", "code", "devin-desktop", "copilot", "codex", "kitty", "tidal-hifi"):
         stub = bin_dir / name
         stub.write_text("#!/bin/sh\nexit 0\n")
         stub.chmod(0o755)
@@ -3448,10 +3711,19 @@ def _write_stub_binaries(home: Path) -> Path:
     helper.write_text("#!/bin/sh\nexit 0\n")
     helper.chmod(0o755)
     # capture-ui: installed by the cli_tools role, asserted by verify (the
-    # keybind launcher). rofi-ui: the SUPER+D open/close toggle launcher.
-    # capture-tool itself is a SYMLINK into the ags-apps unit (v0.4.0) and is
-    # created below once the unit fixture exists.
-    for name in ("capture-ui", "rofi-ui"):
+    # keybind launcher). rofi-ui: the SUPER+D open/close toggle launcher. The
+    # other four are the remaining keybind-invoked launchers (S4 / AD-10 layer 3:
+    # pano, wallpaper picker, icon-mapping editor, btop studio), all rendered by
+    # the cli_tools role. capture-tool itself is a SYMLINK into the ags-apps unit
+    # (v0.4.0) and is created below once the unit fixture exists.
+    for name in (
+        "capture-ui",
+        "rofi-ui",
+        "hypr-pano-ui",
+        "wallpaper-selector-ui",
+        "icon-color-mapping-editor",
+        "btop-theme-studio",
+    ):
         stub = bin_dir / name
         stub.write_text("#!/bin/sh\nexit 0\n")
         stub.chmod(0o755)
@@ -3559,6 +3831,36 @@ def _build_provisioned_layout(
     for configs_subdir in ("hypr", "hyprpaper", "nvim", "rofi", "starship", "wlogout"):
         (install / "assets" / assets_tag / "configs" / configs_subdir).mkdir(
             parents=True, exist_ok=True
+        )
+    # S4: the desktop class the compositor_configs role reads (applications/,
+    # scripts/toggle-touchpad, desktop.yaml). verify asserts these pinned paths.
+    desktop_dir = install / "assets" / assets_tag / "desktop"
+    (desktop_dir / "applications").mkdir(parents=True, exist_ok=True)
+    (desktop_dir / "scripts").mkdir(parents=True, exist_ok=True)
+    (desktop_dir / "scripts" / "toggle-touchpad").write_text("#!/bin/sh\nexit 0\n")
+    (desktop_dir / "scripts" / "toggle-touchpad").chmod(0o755)
+    (desktop_dir / "desktop.yaml").write_text("schema_major: 1\nentries: []\n")
+    # S4 layer 3: the DEPLOYED desktop entries the role copies into
+    # $XDG_DATA_HOME/applications. Their Exec binaries are the stub dir on PATH
+    # (kitty for the two CLI wrappers), so the Exec-resolution gate is a real
+    # pass, not a host dependency.
+    applications = home / ".local" / "share" / "applications"
+    applications.mkdir(parents=True, exist_ok=True)
+    for filename, binary in (
+        ("tidal-hifi.desktop", "tidal-hifi"),
+        ("antigravity-ide.desktop", "antigravity-ide"),
+        ("code.desktop", "code"),
+        ("devin-desktop.desktop", "devin-desktop"),
+        ("copilot.desktop", "kitty"),
+        ("codex.desktop", "kitty"),
+    ):
+        (applications / filename).write_text(
+            "[Desktop Entry]\n"
+            "Type=Application\n"
+            f"Name={filename}\n"
+            f"Exec={binary} --flag %F\n"
+            f"TryExec={binary}\n"
+            "Icon=fixture\n"
         )
     nested_icon = install / "icon-templates" / "status-bar" / "battery"
     nested_icon.mkdir(parents=True, exist_ok=True)

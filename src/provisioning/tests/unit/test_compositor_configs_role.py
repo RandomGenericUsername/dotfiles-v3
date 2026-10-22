@@ -57,6 +57,30 @@ def _assets_configs_file(relative: str) -> Path | None:
     return next((base / relative for base in candidates if (base / relative).is_file()), None)
 
 
+def _assets_desktop_file(relative: str) -> Path | None:
+    """Resolve a file inside the pinned assets `desktop/` class.
+
+    S4 moved the entries and the helper script out of this checkout, so a test
+    that asserts the REAL corpus bytes (the TIDAL flag, the TryExec key) can only
+    read them where the corpus exists. Resolution mirrors `_assets_configs_file`:
+    explicit ``DOTFILES_ASSETS_DESKTOP_DIR``, else the provisioned spine's pinned
+    checkout. ``None`` means "not provided" — the caller must skip loudly rather
+    than pin a copy of the bytes here.
+    """
+    explicit = os.environ.get("DOTFILES_ASSETS_DESKTOP_DIR")
+    candidates: list[Path] = [Path(explicit).expanduser()] if explicit else []
+    tag = str(_vars()["compositor_configs_assets_pinned_tag"])
+    spine = os.environ.get("DOTFILES_INSTALL_SPINE")
+    if spine:
+        candidates.append(Path(spine).expanduser() / "assets" / tag / "desktop")
+    else:
+        xdg_data = Path(
+            os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share"
+        )
+        candidates.append(xdg_data / "dotfiles" / "assets" / tag / "desktop")
+    return next((base / relative for base in candidates if (base / relative).is_file()), None)
+
+
 def _find_ansible_dir() -> Path:
     """Locate the real ansible scaffold dir by walking up from this test file.
 
@@ -222,6 +246,183 @@ def _seed_assets_configs(install: Path) -> None:
         'local cfg = "{{ compositor_configs_xdg_config_home }}/hypr"\n'
         'dofile(cfg .. "/keybindings.lua")\n'
     )
+
+
+#: The seeded `desktop/` corpus: file -> (Exec line, TryExec, requires, optional).
+#: The Exec/TryExec/requires/optional values mirror `dotfiles-assets@v0.5.0`'s
+#: `desktop/desktop.yaml` and entries. The fixtures are what THIS role reads; the
+#: corpus's own `make validate-desktop` proves the real bytes (S4 layer 1), so a
+#: fixture here is a role input, not a second copy of the contract.
+_DESKTOP_CORPUS: dict[str, tuple[str, str, list[str], list[str]]] = {
+    "tidal-hifi.desktop": (
+        "tidal-hifi --disable-dev-shm-usage --enable-features=UseOzonePlatform,"
+        "WaylandWindowDecorations --ozone-platform-hint=auto %U",
+        "tidal-hifi",
+        ["tidal-hifi"],
+        [],
+    ),
+    "antigravity-ide.desktop": (
+        "/usr/bin/antigravity-ide --enable-features=UseOzonePlatform,"
+        "WaylandWindowDecorations --ozone-platform-hint=auto %F",
+        "antigravity-ide",
+        ["antigravity-ide"],
+        [],
+    ),
+    "code.desktop": (
+        "/usr/bin/code --enable-features=UseOzonePlatform,"
+        "WaylandWindowDecorations --ozone-platform-hint=auto %F",
+        "code",
+        ["code"],
+        [],
+    ),
+    "devin-desktop.desktop": (
+        "/usr/bin/devin-desktop --enable-features=UseOzonePlatform,"
+        "WaylandWindowDecorations --ozone-platform-hint=auto %F",
+        "devin-desktop",
+        ["devin-desktop"],
+        [],
+    ),
+    "copilot.desktop": (
+        'kitty --title "GitHub Copilot CLI" copilot',
+        "kitty",
+        ["kitty"],
+        ["copilot"],
+    ),
+    "codex.desktop": (
+        'kitty --title "OpenAI Codex CLI" codex',
+        "kitty",
+        ["kitty"],
+        ["codex"],
+    ),
+}
+
+
+def _seed_assets_desktop(
+    install: Path,
+    *,
+    requires_override: dict[str, list[str]] | None = None,
+    optional_override: dict[str, list[str]] | None = None,
+) -> None:
+    """Materialize the pinned `desktop/` class the role deploys (S4).
+
+    Shape: `applications/<file>`, `scripts/toggle-touchpad` (0755) and
+    `desktop.yaml` whose records equal `compositor_configs_desktop_entries` (the
+    role asserts that parity). The overrides let a test model a contract whose
+    required binary is absent (layer 2 fails) or whose optional binary is absent
+    (the entry is skipped) WITHOUT depending on which packages this host has.
+    """
+    tag = str(_vars()["compositor_configs_assets_pinned_tag"])
+    root = install / "assets" / tag / "desktop"
+    (root / "applications").mkdir(parents=True, exist_ok=True)
+    (root / "scripts").mkdir(parents=True, exist_ok=True)
+    script = root / "scripts" / "toggle-touchpad"
+    script.write_text("#!/bin/sh\n# fixture: toggle-touchpad\nexit 0\n")
+    script.chmod(0o755)
+
+    for filename, (exec_line, try_exec, _requires, _optional) in _DESKTOP_CORPUS.items():
+        (root / "applications" / filename).write_text(
+            "[Desktop Entry]\n"
+            "Type=Application\n"
+            f"Name={filename}\n"
+            f"Exec={exec_line}\n"
+            f"TryExec={try_exec}\n"
+            "Icon=fixture\n"
+        )
+
+    lines = ["schema_major: 1", "entries:"]
+    for filename, (_exec, _try, requires, optional) in _DESKTOP_CORPUS.items():
+        lines.append(f"  - file: {filename}")
+        lines.append("    requires:")
+        for name in (requires_override or {}).get(filename, requires):
+            lines.append(f"      - {name}")
+        selected_optional = (optional_override or {}).get(filename, optional)
+        if selected_optional:
+            lines.append("    optional:")
+            for name in selected_optional:
+                lines.append(f"      - {name}")
+        else:
+            lines.append("    optional: []")
+    (root / "desktop.yaml").write_text("\n".join(lines) + "\n")
+
+
+def _desktop_bin_stubs(bin_dir: Path) -> None:
+    """Stub the corpus's declared binaries so layer 2 resolves hermetically.
+
+    `command -v` sees the stub dir first, so the run does not depend on which
+    packages the developer's host happens to have installed.
+    """
+    for name in sorted(
+        {binary for _e, _t, requires, optional in _DESKTOP_CORPUS.values()
+         for binary in requires + optional} | {"kitty"}
+    ):
+        stub = bin_dir / name
+        stub.write_text("#!/bin/sh\nexit 0\n")
+        stub.chmod(0o755)
+
+
+def _run_compositor_playbook(
+    tmp: Path,
+    *,
+    requires_override: dict[str, list[str]] | None = None,
+    optional_override: dict[str, list[str]] | None = None,
+) -> tuple[subprocess.CompletedProcess[str], Path, Path]:
+    """Run compositor-configs.yaml against a synthetic install, return (result, home, install).
+
+    Seeds the two pinned corpus classes the role reads, the assets-role icon
+    mapping the bar gate validates, the live bar unit and a hermetic bin dir.
+    The desktop contract overrides model a missing required / optional binary
+    without depending on the packages this host has.
+    """
+    ansible_playbook = shutil.which("ansible-playbook")
+    if ansible_playbook is None:
+        pytest.skip("ansible-playbook not installed; skipping execution test")
+    if shutil.which("node") is None:
+        pytest.skip("node not on PATH — the strict bar gate runs validate-cli.ts via node")
+    home = tmp / "home"
+    xdg = tmp / "xdg"
+    install = tmp / "install"
+    home.mkdir()
+    xdg.mkdir()
+    install.mkdir()
+    _seed_assets_configs(install)
+    _seed_assets_desktop(
+        install,
+        requires_override=requires_override,
+        optional_override=optional_override,
+    )
+    bin_dir = home / ".local" / "bin"
+    bin_dir.mkdir(parents=True)
+    _desktop_bin_stubs(bin_dir)
+    icon_mappings = install / "icon-mappings"
+    icon_mappings.mkdir(parents=True)
+    repo_icons = _authored_icons_yaml()
+    if repo_icons is None:
+        pytest.skip(
+            "authored icons.yaml not found: provision the spine "
+            "(DOTFILES_INSTALL_SPINE / XDG_DATA_HOME) or set "
+            "DOTFILES_ASSETS_ICONS_YAML to an assets checkout"
+        )
+    shutil.copy(repo_icons, icon_mappings / "icons.yaml")
+    _preseed_bar_unit(install)
+
+    env = dict(os.environ)
+    env["HOME"] = str(home)
+    env["XDG_CONFIG_HOME"] = str(xdg)
+    env["XDG_DATA_HOME"] = str(home / ".local" / "share")
+    env["PATH"] = f"{bin_dir}:{os.environ.get('PATH', '')}"
+    env["ANSIBLE_CONFIG"] = str(_ANSIBLE_DIR / "ansible.cfg")
+    result = subprocess.run(
+        [
+            ansible_playbook,
+            str(_ANSIBLE_DIR / "playbooks" / "compositor-configs.yaml"),
+            "-e",
+            f"install_dir={install}",
+        ],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    return result, home, install
 
 
 def _preseed_bar_unit(install: Path) -> Path:
@@ -502,17 +703,29 @@ class TestCompositorConfigsTasks:
     def test_desktop_entries_placed_into_xdg_data_applications(self) -> None:
         """App desktop-entry overrides (e.g. TIDAL's Electron /dev/shm flag) are
         placed into $XDG_DATA_HOME/applications so rofi's drun mode shadows the
-        package entry. The role owns both the dir ensure and the per-file copy."""
+        package entry. S4: the entries are CORPUS data — each `file` names a
+        `.desktop` in the pinned desktop class, the copy reads that checkout, and
+        the loop runs over the layer-2 filtered list."""
         data = _vars()
         entries = list(data["compositor_configs_desktop_entries"])
         assert entries, "expected at least one desktop entry override"
         for entry in entries:
-            assert str(entry["source"]).startswith("dotfiles/applications/"), (
-                "desktop entry sources live under dotfiles/applications/"
+            assert set(entry) == {"name", "file", "dest"}, (
+                f"desktop entry {entry.get('name')!r} must carry exactly "
+                f"{{name, file, dest}} (source is derived from the pinned class)"
             )
+            assert str(entry["file"]).endswith(".desktop"), entry
             assert str(entry["dest"]).startswith(
                 "{{ compositor_configs_xdg_data_home }}/applications/"
             ), "desktop entry dest must derive from compositor_configs_xdg_data_home"
+        assert {str(entry["file"]) for entry in entries} == {
+            "tidal-hifi.desktop",
+            "antigravity-ide.desktop",
+            "code.desktop",
+            "devin-desktop.desktop",
+            "copilot.desktop",
+            "codex.desktop",
+        }, "the six pre-split entries must all still be deployed"
 
         dir_tasks = [
             task
@@ -524,27 +737,34 @@ class TestCompositorConfigsTasks:
         copy_tasks = [
             task
             for task in _copy_tasks()
-            if "compositor_configs_desktop_entries" in str(task.get("loop", ""))
+            if "compositor_configs_desktop_deploy_entries" in str(task.get("loop", ""))
         ]
         assert len(copy_tasks) == 1, (
-            "expected exactly one desktop-entry copy task looping over "
-            "compositor_configs_desktop_entries"
+            "expected exactly one desktop-entry copy task looping over the "
+            "layer-2 filtered compositor_configs_desktop_deploy_entries"
         )
-        assert _module(copy_tasks[0]).get("force") is True, (
+        module = _module(copy_tasks[0])
+        assert module.get("force") is True, (
             "desktop entries are repo-authoritative (force: true)"
         )
+        assert str(module.get("src")) == (
+            "{{ compositor_configs_assets_desktop_dir }}/applications/{{ item.file }}"
+        ), "desktop entry sources must be the pinned corpus's applications dir"
 
     def test_tidal_desktop_entry_carries_dev_shm_workaround(self) -> None:
-        """The repo-authored override must keep the packaged Wayland/Ozone flags
-        and add --disable-dev-shm-usage (TIDAL's Castlabs Electron needs it)."""
-        desktop = (
-            _ANSIBLE_DIR.parents[2]
-            / "dotfiles"
-            / "applications"
-            / "tidal-hifi.desktop"
-        )
+        """The corpus override must keep the packaged Wayland/Ozone flags and add
+        --disable-dev-shm-usage (TIDAL's Castlabs Electron needs it), and it must
+        carry the TryExec layer 1 requires."""
+        desktop = _assets_desktop_file("applications/tidal-hifi.desktop")
+        if desktop is None:
+            pytest.skip(
+                "pinned assets desktop corpus not found: provision the spine "
+                "(DOTFILES_INSTALL_SPINE / XDG_DATA_HOME) or set "
+                "DOTFILES_ASSETS_DESKTOP_DIR to an assets checkout"
+            )
         text = desktop.read_text()
         assert "Exec=tidal-hifi --disable-dev-shm-usage" in text
+        assert "TryExec=tidal-hifi" in text
         assert "--ozone-platform-hint=auto" in text
         assert "%U" in text
 
@@ -622,12 +842,13 @@ class TestCompositorConfigsTasks:
 
     def test_no_absolute_paths_hardcoded(self) -> None:
         """Trim lock: every path-bearing reference derives from the role vars
-        (`{{ compositor_configs_repo_root }}`, `{{ install_dir | trim }}`,
+        (`{{ install_dir | trim }}`, the pinned-checkout dir vars,
         `{{ compositor_configs_xdg_config_home }}`) — no literal absolute path
         is baked into any task's module body OR into vars/main.yml."""
         safe_vars = (
-            "compositor_configs_repo_root",
             "compositor_configs_assets_configs_dir",
+            "compositor_configs_assets_desktop_dir",
+            "compositor_configs_desktop_contract_file",
             "compositor_configs_xdg_config_home",
             "install_dir",
             "ansible_facts.env",
@@ -642,6 +863,160 @@ class TestCompositorConfigsTasks:
                     raise AssertionError(
                         f"{source_name}/main.yml hardcodes an absolute path: {token!r} (trim lock)"
                     )
+
+
+class TestDesktopDeployContract:
+    """S4 / spine AD-10 layers 1-2: the corpus DECLARES `requires`/`optional`,
+    this role RESOLVES them against the target before it copies, and the deployed
+    set is the resolved set.
+
+    Layer 1 (the corpus's own `make validate-desktop`) proves the entries are
+    well formed; these tests prove this role consumes the contract instead of
+    copying the entries blind — a role that deployed the set without resolving it
+    would leave the dead-menu-entry failure in place, which is the whole reason
+    the contract exists.
+    """
+
+    _COPY = "Install application desktop entry overrides"
+    _SCRIPT_COPY = "Install desktop helper scripts (touchpad toggle for XF86 binds)"
+    _PARSE = "Parse the desktop class contract"
+    _CONTRACT_ASSERT = "Assert the contract and this role describe the same desktop entries"
+
+    def _index(self, name: str) -> int:
+        names = [str(task.get("name")) for task in _load_tasks()]
+        assert name in names, f"task {name!r} not found; names={names}"
+        return names.index(name)
+
+    def test_resolution_runs_before_the_desktop_copies(self) -> None:
+        """Layer 2 MUST precede both desktop copies: a required binary is a
+        precondition of the deploy, and resolving after a copy would leave a dead
+        entry on disk when the run aborts."""
+        order = [
+            self._index(self._PARSE),
+            self._index(self._CONTRACT_ASSERT),
+            self._index("Assert every required desktop-entry binary is installed"),
+            self._index(self._SCRIPT_COPY),
+            self._index(self._COPY),
+        ]
+        assert order == sorted(order), (
+            "layer-2 resolution must run before the desktop copies; task order is "
+            f"{order}"
+        )
+
+    def test_contract_is_read_from_the_pinned_checkout(self) -> None:
+        """The contract is a corpus file, read with slurp + from_yaml."""
+        slurp = [
+            task
+            for task in _load_tasks()
+            if str(task.get("register")) == "compositor_configs_desktop_contract_raw"
+        ]
+        assert len(slurp) == 1, "expected exactly one slurp of the desktop contract"
+        assert _module_key(slurp[0]) == "ansible.builtin.slurp"
+        assert str(_module(slurp[0]).get("src")) == (
+            "{{ compositor_configs_desktop_contract_file }}"
+        )
+        parse = [
+            task
+            for task in _load_tasks()
+            if str(task.get("name")) == self._PARSE
+        ]
+        assert len(parse) == 1
+        parsed = str(_module(parse[0]).get("compositor_configs_desktop_contract"))
+        assert "compositor_configs_desktop_contract_raw.content" in str(
+            _module(parse[0])
+        ), "the contract must be parsed from the slurped corpus file"
+        assert parsed  # the set_fact body exists
+
+    def test_contract_and_role_entries_must_be_the_same_set(self) -> None:
+        """AD-7 mirror parity at deploy time: a pin bump that adds a corpus entry
+        without the role entry (or vice versa) means an entry would deploy
+        unresolved, so the role asserts the two `file` sets are equal."""
+        task = next(
+            t for t in _load_tasks() if str(t.get("name")) == self._CONTRACT_ASSERT
+        )
+        that = " ".join(str(item) for item in _module(task).get("that", []))
+        assert "compositor_configs_desktop_contract.entries" in that
+        assert "map(attribute='file')" in that.replace('"', "'")
+        assert "compositor_configs_desktop_entries" in that
+        fail_msg = str(_module(task).get("fail_msg", ""))
+        assert "disagree" in fail_msg
+
+    def test_required_binaries_fail_naming_the_entry_and_the_binary(self) -> None:
+        """A missing REQUIRED binary fails the run, naming both the entry file and
+        the binary (AD-10 layer 2: "provision fails (required)")."""
+        probe = next(
+            t
+            for t in _load_tasks()
+            if "compositor_configs_desktop_binary_pairs" in str(t.get("loop", ""))
+        )
+        assert _module_key(probe) == "ansible.builtin.command"
+        assert probe.get("changed_when") is False
+        assert probe.get("failed_when") is False
+        assert probe.get("when") == "not ansible_check_mode"
+
+        assert_task = next(
+            t
+            for t in _load_tasks()
+            if str(t.get("name")) == "Assert every required desktop-entry binary is installed"
+        )
+        assert str(_module(assert_task).get("that")) == "item.rc == 0"
+        loop = str(assert_task.get("loop", ""))
+        assert "item.kind" in loop and "required" in loop
+        fail_msg = str(_module(assert_task).get("fail_msg", ""))
+        assert "{{ item.item.file }}" in fail_msg
+        assert "{{ item.item.binary }}" in fail_msg
+
+    def test_optional_binaries_are_reported_and_the_entry_skipped(self) -> None:
+        """A missing OPTIONAL binary is reported and that ONE entry is skipped:
+        the payload's package is another role's concern, so it must not fail a
+        provision (AD-10 layer 2: "degrades loudly (optional)")."""
+        report = next(
+            t
+            for t in _load_tasks()
+            if str(t.get("name"))
+            == "Report desktop entries skipped for a missing optional binary"
+        )
+        assert _module_key(report) == "ansible.builtin.debug"
+        loop = str(report.get("loop", ""))
+        assert "item.kind" in loop and "optional" in loop
+        assert "rejectattr('rc', 'equalto', 0)" in loop
+        assert "SKIPPED" in str(_module(report).get("msg", ""))
+
+        skipped = next(
+            t
+            for t in _load_tasks()
+            if str(t.get("name"))
+            == "Resolve the desktop entries to deploy (drop the skipped ones)"
+        )
+        fact = str(_module(skipped).get("compositor_configs_desktop_skipped_files"))
+        assert "map(attribute='file')" in fact.replace('"', "'")
+
+        select = next(
+            t
+            for t in _load_tasks()
+            if str(t.get("name")) == "Select the deployable desktop entries"
+        )
+        deploy = str(
+            _module(select).get("compositor_configs_desktop_deploy_entries")
+        ).replace('"', "'")
+        assert "rejectattr('file', 'in', compositor_configs_desktop_skipped_files)" in deploy
+
+    def test_the_pinned_desktop_class_is_asserted_before_use(self) -> None:
+        """A missing pinned desktop class (wrong pin / partial clone) fails loud
+        and named instead of per-file with "Could not find"."""
+        tasks = _load_tasks()
+        stat_task = next(
+            t
+            for t in tasks
+            if str(t.get("register")) == "compositor_configs_desktop_sources_check"
+        )
+        loop = str(stat_task.get("loop", []))
+        assert "compositor_configs_assets_desktop_dir" in loop
+        assert "compositor_configs_desktop_contract_file" in loop
+        assert "scripts/toggle-touchpad" in loop
+        assert self._index("Assert the pinned assets desktop class is present") < self._index(
+            self._PARSE
+        )
 
 
 class TestBarValidateGate:
@@ -778,7 +1153,11 @@ class TestBarValidateGate:
             # S2: the skeletons render FROM the pinned assets configs class; the
             # gate failure below must come from icons.json, not a missing source.
             _seed_assets_configs(install)
+            # S4: the desktop entries + helper script are corpus data too, and
+            # layer 2 resolves their declared binaries from PATH.
+            _seed_assets_desktop(install)
             (home / ".local" / "bin").mkdir(parents=True)
+            _desktop_bin_stubs(home / ".local" / "bin")
             icon_mappings = install / "icon-mappings"
             icon_mappings.mkdir(parents=True)
             (icon_mappings / "icons.yaml").write_text("test-group: {}\n")
@@ -790,6 +1169,8 @@ class TestBarValidateGate:
             env["HOME"] = str(home)
             env["XDG_CONFIG_HOME"] = str(xdg)
             env["XDG_DATA_HOME"] = str(home / ".local" / "share")
+            # S4 layer 2: the declared desktop binaries resolve from this stub dir.
+            env["PATH"] = f"{home / '.local' / 'bin'}:{os.environ.get('PATH', '')}"
             env["ANSIBLE_CONFIG"] = str(_ANSIBLE_DIR / "ansible.cfg")
             result = subprocess.run(
                 [
@@ -817,9 +1198,12 @@ class TestBarValidateGate:
 
 class TestCompositorConfigsVars:
     _REQUIRED_KEYS = {
-        "compositor_configs_repo_root",
         "compositor_configs_assets_pinned_tag",
         "compositor_configs_assets_configs_dir",
+        "compositor_configs_assets_desktop_dir",
+        "compositor_configs_desktop_contract_file",
+        "compositor_configs_desktop_entries",
+        "compositor_configs_bin_scripts",
         "compositor_configs_xdg_config_home",
         "compositor_configs_xdg_state_home",
         "compositor_configs_state_current_dir",
@@ -852,11 +1236,35 @@ class TestCompositorConfigsVars:
             "(trim-locked, AD-5: state root is ALWAYS <XDG_STATE_HOME>/dotfiles/)"
         )
 
-    def test_repo_root_mirrors_assets_repo_root(self) -> None:
-        """The repo root is still the source of the bin scripts and desktop
-        entries (S2 moved only the skeletons to the pinned corpus)."""
+    def test_no_composition_repo_root_var(self) -> None:
+        """S4: the LAST two repo-authored inputs (bin scripts + desktop entries)
+        moved to the pinned corpus, so this role must not carry a
+        `{{ playbook_dir }}/../../../..` derivation any more — it would resolve
+        to a file no consumer ships."""
         data = _vars()
-        assert str(data["compositor_configs_repo_root"]) == "{{ playbook_dir }}/../../../.."
+        assert "compositor_configs_repo_root" not in data, (
+            "the composition-repo root must be gone: every source is a pinned "
+            "checkout path since S4"
+        )
+        text = str(data) + str(_load_tasks())
+        assert "playbook_dir" not in text, (
+            "no task or var may derive a path from the composition repo"
+        )
+
+    def test_desktop_dir_is_the_pinned_assets_checkout(self) -> None:
+        """S4: the bin scripts and the desktop entries read the pinned desktop
+        class, and the contract file sits beside them."""
+        data = _vars()
+        desktop_dir = str(data["compositor_configs_assets_desktop_dir"])
+        assert desktop_dir == (
+            "{{ install_dir | trim }}/assets/"
+            "{{ compositor_configs_assets_pinned_tag }}/desktop"
+        ), desktop_dir
+        assert str(data["compositor_configs_desktop_contract_file"]) == (
+            "{{ compositor_configs_assets_desktop_dir }}/desktop.yaml"
+        )
+        assert "dotfiles/applications" not in str(data)
+        assert "dotfiles/scripts" not in str(data)
 
     def test_configs_dir_is_the_pinned_assets_checkout(self) -> None:
         """S2: the skeleton sources are the pinned assets configs class."""
@@ -971,8 +1379,12 @@ class TestCompositorConfigsPlaybook:
             install.mkdir()
             # S2: the skeletons render FROM the pinned assets configs class.
             _seed_assets_configs(install)
+            # S4: the desktop entries + helper script are corpus data too, and
+            # layer 2 resolves their declared binaries from PATH.
+            _seed_assets_desktop(install)
             # ansible's copy module does not create the bin dest parent.
             (home / ".local" / "bin").mkdir(parents=True)
+            _desktop_bin_stubs(home / ".local" / "bin")
             # Assets-role outputs this role consumes (inputs, not generated):
             # the icon manifest source for icons.json generation. Seeded from
             # the REAL authored icons.yaml — the strict bar gate (task 2.1)
@@ -999,6 +1411,8 @@ class TestCompositorConfigsPlaybook:
             env["HOME"] = str(home)
             env["XDG_CONFIG_HOME"] = str(xdg)
             env["XDG_DATA_HOME"] = str(home / ".local" / "share")
+            # S4 layer 2: the declared desktop binaries resolve from this stub dir.
+            env["PATH"] = f"{home / '.local' / 'bin'}:{os.environ.get('PATH', '')}"
             env["ANSIBLE_CONFIG"] = str(_ANSIBLE_DIR / "ansible.cfg")
             result = subprocess.run(
                 [
@@ -1072,6 +1486,68 @@ class TestCompositorConfigsPlaybook:
                 "hyprland.lua must include keybindings.lua via dofile"
             )
 
+    def test_playbook_fails_when_a_required_desktop_binary_is_missing(self) -> None:
+        """Layer 2 (AD-10): a missing REQUIRED binary fails the provision, naming
+        the entry and the binary. The corpus contract is overridden to require a
+        binary nothing provides, so the proof is hermetic — it cannot pass because
+        the developer's host happens to have the real package."""
+        with tempfile.TemporaryDirectory() as tmp:
+            result, home, install = _run_compositor_playbook(
+                Path(tmp),
+                requires_override={"tidal-hifi.desktop": ["definitely-not-installed"]},
+            )
+            combined = result.stdout + result.stderr
+            assert result.returncode != 0, (
+                "a missing required desktop binary must fail the provision\n"
+                + combined[-4000:]
+            )
+            assert "tidal-hifi.desktop" in combined, (
+                "the failure must name the entry\n" + combined[-4000:]
+            )
+            assert "definitely-not-installed" in combined, (
+                "the failure must name the missing binary\n" + combined[-4000:]
+            )
+            deployed = (
+                home / ".local" / "share" / "applications" / "tidal-hifi.desktop"
+            )
+            assert not deployed.exists(), (
+                "the run must fail BEFORE copying the entry whose launcher is absent"
+            )
+
+    def test_playbook_skips_an_entry_whose_optional_binary_is_missing(self) -> None:
+        """Layer 2 (AD-10): a missing OPTIONAL binary is reported and that ONE
+        entry is skipped — the provision still succeeds and the other five entries
+        deploy. The optional name is overridden to a binary nothing provides, so
+        the test does not depend on the host's package set."""
+        with tempfile.TemporaryDirectory() as tmp:
+            result, home, install = _run_compositor_playbook(
+                Path(tmp),
+                optional_override={"codex.desktop": ["definitely-not-installed"]},
+            )
+            combined = result.stdout + result.stderr
+            assert result.returncode == 0, (
+                "a missing optional desktop binary must NOT fail the provision\n"
+                + combined[-4000:]
+            )
+            assert "definitely-not-installed" in combined and "SKIPPED" in combined, (
+                "the skip must be reported loudly, naming the binary\n"
+                + combined[-4000:]
+            )
+            applications = home / ".local" / "share" / "applications"
+            assert not (applications / "codex.desktop").exists(), (
+                "the entry whose optional payload is absent must not be deployed"
+            )
+            for deployed_name in (
+                "tidal-hifi.desktop",
+                "antigravity-ide.desktop",
+                "code.desktop",
+                "devin-desktop.desktop",
+                "copilot.desktop",
+            ):
+                assert (applications / deployed_name).is_file(), (
+                    f"{deployed_name} must still deploy when another entry is skipped"
+                )
+
     def test_playbook_leaves_palette_paths_untouched(self) -> None:
         """Epic 4 migration contract: the role is hands-off palette paths.
         On a machine where the runtime owns the palette, an R2 symlink at
@@ -1095,8 +1571,12 @@ class TestCompositorConfigsPlaybook:
             install.mkdir()
             # S2: the skeletons render FROM the pinned assets configs class.
             _seed_assets_configs(install)
+            # S4: the desktop entries + helper script are corpus data too, and
+            # layer 2 resolves their declared binaries from PATH.
+            _seed_assets_desktop(install)
             # ansible's copy module does not create the bin dest parent.
             (home / ".local" / "bin").mkdir(parents=True)
+            _desktop_bin_stubs(home / ".local" / "bin")
             # Assets-role outputs this role consumes (inputs, not generated).
             # Seeded from the REAL authored icons.yaml: the strict bar gate
             # (task 2.1) validates the generated icons.json, so the stub would
@@ -1133,6 +1613,8 @@ class TestCompositorConfigsPlaybook:
             env["XDG_CONFIG_HOME"] = str(xdg)
             env["XDG_STATE_HOME"] = str(state)
             env["XDG_DATA_HOME"] = str(home / ".local" / "share")
+            # S4 layer 2: the declared desktop binaries resolve from this stub dir.
+            env["PATH"] = f"{home / '.local' / 'bin'}:{os.environ.get('PATH', '')}"
             env["ANSIBLE_CONFIG"] = str(_ANSIBLE_DIR / "ansible.cfg")
             result = subprocess.run(
                 [
@@ -1227,7 +1709,23 @@ class TestDeployCoverageGate:
         ags-apps unit, so the gate asserts the in-repo app dir is GONE and that
         ags_apps provisions both links; cli_tools is copied because the gate
         also rejects a stale backend copy task there.
+
+        S4: the whole `compositor_configs` role is seeded (not just its vars),
+        because the desktop assertion reads its TASKS — the layer-2 resolution
+        order and the pinned copy `src` are the shape. The vars file is written
+        AFTER the copy so a test can still swap it for a modified copy.
         """
+        for role in roles:
+            shutil.copytree(
+                repo_root / "src/provisioning/ansible/roles" / role,
+                root / "src/provisioning/ansible/roles" / role,
+            )
+        compositor = root / "src/provisioning/ansible/roles/compositor_configs"
+        if not (compositor / "tasks" / "main.yml").is_file():
+            shutil.copytree(
+                repo_root / "src/provisioning/ansible/roles/compositor_configs",
+                compositor,
+            )
         vars_dst = root / self._VARS
         vars_dst.parent.mkdir(parents=True, exist_ok=True)
         vars_dst.write_text((repo_root / self._VARS).read_text())
@@ -1235,11 +1733,6 @@ class TestDeployCoverageGate:
         manifest_dst = root / self._CLI_MANIFEST
         manifest_dst.parent.mkdir(parents=True, exist_ok=True)
         manifest_dst.write_text(manifest_src.read_text())
-        for role in roles:
-            shutil.copytree(
-                repo_root / "src/provisioning/ansible/roles" / role,
-                root / "src/provisioning/ansible/roles" / role,
-            )
 
     def test_gate_passes_on_the_real_tree(self) -> None:
         repo_root = _ANSIBLE_DIR.parents[2]
@@ -1411,6 +1904,128 @@ class TestDeployCoverageGate:
             )
             assert "dotfiles/config/hypr" in result.stdout, (
                 "the failure must name the retired dir; recap:\n" + result.stdout
+            )
+
+    def test_gate_fails_when_the_retired_desktop_applications_tree_returns(self) -> None:
+        """S4: the desktop entries moved to the pinned `desktop/` class. A
+        surviving `dotfiles/applications/` is a second, unowned source of truth
+        the role no longer reads — the gate must FAIL even when every pin still
+        resolves."""
+        repo_root = _ANSIBLE_DIR.parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._seed_root(root, repo_root)
+            stray = root / "dotfiles" / "applications"
+            stray.mkdir(parents=True)
+            (stray / "code.desktop").write_text("[Desktop Entry]\nExec=code\n")
+            result = self._run(root)
+            assert result.returncode != 0, (
+                "the gate must FAIL when the retired desktop applications dir "
+                f"returns; recap:\n{result.stdout}"
+            )
+            assert "dotfiles/applications" in result.stdout, (
+                "the failure must name the retired dir; recap:\n" + result.stdout
+            )
+
+    def test_gate_fails_when_the_retired_desktop_scripts_tree_returns(self) -> None:
+        """S4: `toggle-touchpad` is corpus data too, so `dotfiles/scripts/` is
+        retired with it (the corpus is the only copy)."""
+        repo_root = _ANSIBLE_DIR.parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._seed_root(root, repo_root)
+            stray = root / "dotfiles" / "scripts"
+            stray.mkdir(parents=True)
+            (stray / "toggle-touchpad").write_text("#!/bin/sh\nexit 0\n")
+            result = self._run(root)
+            assert result.returncode != 0, (
+                "the gate must FAIL when the retired desktop scripts dir returns; "
+                f"recap:\n{result.stdout}"
+            )
+            assert "dotfiles/scripts" in result.stdout, (
+                "the failure must name the retired dir; recap:\n" + result.stdout
+            )
+
+    def test_gate_fails_when_a_desktop_entry_copy_reads_a_repo_source(self) -> None:
+        """S4: the entry copy must read the PINNED `applications/` dir. A copy
+        re-pointed at `dotfiles/applications/` would deploy from a repo tree the
+        split retired — the shape half of the assertion, hermetic and
+        CI-runnable."""
+        repo_root = _ANSIBLE_DIR.parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._seed_root(root, repo_root)
+            tasks_path = (
+                root
+                / "src/provisioning/ansible/roles/compositor_configs/tasks/main.yml"
+            )
+            tasks_path.write_text(
+                tasks_path.read_text().replace(
+                    "src: \"{{ compositor_configs_assets_desktop_dir }}/applications/{{ item.file }}\"",
+                    "src: \"dotfiles/applications/{{ item.file }}\"",
+                )
+            )
+            result = self._run(root)
+            assert result.returncode != 0, (
+                "the gate must FAIL when the desktop copy reads a repo source; "
+                f"recap:\n{result.stdout}"
+            )
+            assert "applications/" in result.stdout and "pinned" in result.stdout, (
+                "the failure must name the pinned applications dir; recap:\n"
+                + result.stdout
+            )
+
+    def test_gate_fails_when_the_desktop_pin_mirror_is_not_a_tag(self) -> None:
+        """S4: a branch name in the pin mirror would deploy an unpinned corpus —
+        the mirror must be a vX.Y.Z tag like the manifest's."""
+        repo_root = _ANSIBLE_DIR.parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._seed_root(root, repo_root)
+            vars_path = root / self._VARS
+            vars_path.write_text(
+                vars_path.read_text().replace(
+                    "compositor_configs_assets_pinned_tag: v0.5.0",
+                    "compositor_configs_assets_pinned_tag: main",
+                )
+            )
+            result = self._run(root)
+            assert result.returncode != 0, (
+                "the gate must FAIL on a non-tag desktop pin mirror; recap:\n"
+                + result.stdout
+            )
+            assert "pin mirror" in result.stdout, (
+                "the failure must name the pin mirror; recap:\n" + result.stdout
+            )
+
+    def test_gate_fails_when_the_required_binary_assert_is_removed(self) -> None:
+        """S4 layer 2: deploying the entries without resolving `requires` is the
+        dead-menu-entry defect. Removing the assert from the role must fail the
+        shape gate, not silently pass."""
+        repo_root = _ANSIBLE_DIR.parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._seed_root(root, repo_root)
+            tasks_path = (
+                root
+                / "src/provisioning/ansible/roles/compositor_configs/tasks/main.yml"
+            )
+            text = tasks_path.read_text()
+            start = text.index(
+                "- name: Assert every required desktop-entry binary is installed"
+            )
+            end = text.index(
+                "- name: Report desktop entries skipped for a missing optional binary"
+            )
+            tasks_path.write_text(text[:start] + text[end:])
+            result = self._run(root)
+            assert result.returncode != 0, (
+                "the gate must FAIL when the required-binary assert is gone; "
+                f"recap:\n{result.stdout}"
+            )
+            assert "Assert every required desktop-entry binary is installed" in result.stdout, (
+                "the failure must name the missing layer-2 task; recap:\n"
+                + result.stdout
             )
 
     def test_gate_fails_when_the_copied_wlogout_layout_returns(self) -> None:

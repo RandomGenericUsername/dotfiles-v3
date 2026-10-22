@@ -313,6 +313,14 @@ CLI_TOOLS_MANIFEST = "dotfiles/provisioning/cli-tools.yaml"
 RETIRED_ASSETS_DIR = "dotfiles/assets"
 RETIRED_ICON_MAPPINGS_DIR = "dotfiles/config/icon-template-color-scheme-mappings"
 
+# S4: the desktop entries and the repo-authored helper script moved to the same
+# pinned `dotfiles-assets` repo (`desktop/` class, v0.5.0). `dotfiles/applications/`
+# and `dotfiles/scripts/` are retired; the compositor_configs role reads
+# <install>/assets/<tag>/desktop/{applications,scripts,desktop.yaml} and resolves
+# the contract's requires/optional before it copies (spine AD-10 layer 2).
+RETIRED_DESKTOP_DIRS = ("dotfiles/applications", "dotfiles/scripts")
+DESKTOP_PIN_ROLE = "compositor_configs"
+
 # S2: the static config corpus moved to the pinned `dotfiles-assets` repo
 # (configs/ class, v0.3.x). These five directories are gone; S3 retires the last
 # two (`zsh/`, whose only file was the .zshrc template, and `wlogout/`, whose
@@ -1944,6 +1952,145 @@ def assert_no_in_tree_templates(root: Path) -> None:
                 )
 
 
+def assert_no_in_tree_desktop_corpus(root: Path) -> None:
+    """S4 (AD-10/AD-16): the desktop entries and the helper script are corpus data.
+
+    Two halves, because a split can fail in two directions:
+
+    * the RETIRED sources are gone — `dotfiles/applications/` and
+      `dotfiles/scripts/`. A surviving copy is a second source of truth no role
+      reads (the deploy reads the pinned checkout), and it is exactly the drift
+      the pin exists to prevent.
+    * the role that deploys them reads the PINNED class and resolves the contract
+      before it copies: the pin mirror is a `vX.Y.Z`, the desktop dir resolves
+      `<install>/assets/<pin>/desktop`, the layer-2 tasks (contract slurp + parse,
+      a `command -v` probe, the required-binary assert, the optional-skip report)
+      come before the copy, the entry copy's `src` is the pinned `applications/`
+      dir, and the helper script's source is the pinned `scripts/` dir. This half
+      is CI-runnable: it needs only this repo, so it never skips.
+    """
+    for retired in RETIRED_DESKTOP_DIRS:
+        if (root / retired).exists():
+            raise ValueError(
+                f"the retired desktop tree {retired}/ still exists — the desktop "
+                f"entries and helper scripts are the pinned dotfiles-assets repo "
+                f"(desktop class, S4/AD-10); delete the in-tree copy and bump the "
+                f"pin instead"
+            )
+
+    import yaml
+
+    role_dir = root / "src" / "provisioning" / "ansible" / "roles" / DESKTOP_PIN_ROLE
+    vars_path = role_dir / "vars" / "main.yml"
+    tasks_path = role_dir / "tasks" / "main.yml"
+    if not vars_path.is_file() or not tasks_path.is_file():
+        raise ValueError(
+            f"role {DESKTOP_PIN_ROLE}: tasks/main.yml or vars/main.yml is missing"
+        )
+    role_vars = yaml.safe_load(vars_path.read_text()) or {}
+    pin = role_vars.get(f"{DESKTOP_PIN_ROLE}_assets_pinned_tag")
+    if not str(pin or "").startswith("v"):
+        raise ValueError(
+            f"role {DESKTOP_PIN_ROLE}: {DESKTOP_PIN_ROLE}_assets_pinned_tag must be a "
+            f"vX.Y.Z pin mirror of assets.tag; got {pin!r}"
+        )
+    desktop_dir = role_vars.get(f"{DESKTOP_PIN_ROLE}_assets_desktop_dir")
+    expected_dir = (
+        "{{ install_dir | trim }}/assets/"
+        f"{{{{ {DESKTOP_PIN_ROLE}_assets_pinned_tag }}}}/desktop"
+    )
+    if desktop_dir != expected_dir:
+        raise ValueError(
+            f"role {DESKTOP_PIN_ROLE}: {DESKTOP_PIN_ROLE}_assets_desktop_dir must "
+            f"resolve <install>/assets/<pin>/desktop; got {desktop_dir!r}"
+        )
+    contract = role_vars.get(f"{DESKTOP_PIN_ROLE}_desktop_contract_file")
+    if contract != f"{{{{ {DESKTOP_PIN_ROLE}_assets_desktop_dir }}}}/desktop.yaml":
+        raise ValueError(
+            f"role {DESKTOP_PIN_ROLE}: the desktop contract must be read beside the "
+            f"pinned class (…/desktop.yaml); got {contract!r}"
+        )
+
+    entries = role_vars.get(f"{DESKTOP_PIN_ROLE}_desktop_entries")
+    if not isinstance(entries, list) or not entries:
+        raise ValueError(
+            f"role {DESKTOP_PIN_ROLE}: {DESKTOP_PIN_ROLE}_desktop_entries must list the "
+            f"deployed entries"
+        )
+    for entry in entries:
+        if not isinstance(entry, dict) or set(entry) != {"name", "file", "dest"}:
+            raise ValueError(
+                f"role {DESKTOP_PIN_ROLE}: desktop entry {entry!r} must carry exactly "
+                f"{{name, file, dest}} — the source is the pinned class, never a repo path"
+            )
+        if not str(entry["file"]).endswith(".desktop"):
+            raise ValueError(
+                f"role {DESKTOP_PIN_ROLE}: desktop entry {entry['name']!r} `file` must be "
+                f"a *.desktop name; got {entry['file']!r}"
+            )
+        if "{{ compositor_configs_xdg_data_home }}/applications/" not in str(entry["dest"]):
+            raise ValueError(
+                f"role {DESKTOP_PIN_ROLE}: desktop entry {entry['name']!r} must deploy to "
+                f"<XDG data>/applications/; got {entry['dest']!r}"
+            )
+    scripts = role_vars.get(f"{DESKTOP_PIN_ROLE}_bin_scripts")
+    if not isinstance(scripts, list) or not scripts:
+        raise ValueError(
+            f"role {DESKTOP_PIN_ROLE}: {DESKTOP_PIN_ROLE}_bin_scripts must list the helper "
+            f"scripts"
+        )
+    for script in scripts:
+        if not isinstance(script, dict):
+            raise ValueError(f"role {DESKTOP_PIN_ROLE}: bin script {script!r} is not a mapping")
+        source = str(script.get("source", ""))
+        if not source.startswith(
+            f"{{{{ {DESKTOP_PIN_ROLE}_assets_desktop_dir }}}}/scripts/"
+        ):
+            raise ValueError(
+                f"role {DESKTOP_PIN_ROLE}: bin script {script.get('name')!r} must read the "
+                f"pinned desktop class's scripts/ dir; got {source!r}"
+            )
+
+    tasks = yaml.safe_load(tasks_path.read_text()) or []
+    names = [str(task.get("name")) for task in tasks if isinstance(task, dict)]
+    required_tasks = (
+        "Parse the desktop class contract",
+        "Assert the contract and this role describe the same desktop entries",
+        "Assert every required desktop-entry binary is installed",
+        "Report desktop entries skipped for a missing optional binary",
+        "Install application desktop entry overrides",
+        "Install desktop helper scripts (touchpad toggle for XF86 binds)",
+    )
+    missing_tasks = [name for name in required_tasks if name not in names]
+    if missing_tasks:
+        raise ValueError(
+            f"role {DESKTOP_PIN_ROLE}: layer-2/layer-3 desktop tasks are missing: "
+            f"{missing_tasks} — a deployed entry whose binaries were never resolved is "
+            f"the dead-menu-entry defect AD-10 exists for"
+        )
+    copy_index = names.index("Install application desktop entry overrides")
+    for before in required_tasks[:4]:
+        if names.index(before) > copy_index:
+            raise ValueError(
+                f"role {DESKTOP_PIN_ROLE}: {before!r} must run BEFORE the desktop entry "
+                f"copy — resolving after a copy leaves a dead entry on disk"
+            )
+    copy_task = next(
+        task
+        for task in tasks
+        if isinstance(task, dict)
+        and task.get("name") == "Install application desktop entry overrides"
+    )
+    copy_src = str((copy_task.get("ansible.builtin.copy") or {}).get("src", ""))
+    if copy_src != (
+        "{{ compositor_configs_assets_desktop_dir }}/applications/{{ item.file }}"
+    ):
+        raise ValueError(
+            f"role {DESKTOP_PIN_ROLE}: the desktop entry copy must read the pinned "
+            f"class's applications/ dir; got {copy_src!r}"
+        )
+
+
 def assert_manifest_source_scope(root: Path) -> None:
     """The CLI manifest has exactly ONE local `source:` — `dotfiles-runtime`.
 
@@ -2120,6 +2267,10 @@ def main() -> int:
         # are absent AND every render task reads the pinned checkout through its
         # role's pin mirror — the CI-runnable half of AD-8.4.
         assert_no_in_tree_templates(root)
+        # S4 (AD-10/AD-16): the desktop entries + helper script are corpus too.
+        # The retired trees are absent AND the role resolves the pinned class's
+        # contract BEFORE the copy (layer 2), reading only the pinned checkout.
+        assert_no_in_tree_desktop_corpus(root)
     except (RuntimeError, ValueError, FileNotFoundError) as exc:
         print(f"FAIL: {exc}")
         return 1
@@ -2224,6 +2375,13 @@ def main() -> int:
         f"templates class: {len(TEMPLATE_RENDER_ROLES)} roles read "
         "<install>/assets/<their pin>/templates/, no role carries a templates/ dir, "
         "and no in-tree *.j2/*.tpl source remains"
+    )
+    print(
+        "deploy-coverage: PASS -- the desktop corpus is the pinned dotfiles-assets "
+        "desktop class: compositor_configs reads <install>/assets/<pin>/desktop/"
+        "{applications,scripts,desktop.yaml}, resolves the contract's "
+        "requires/optional BEFORE the copy, and dotfiles/{applications,scripts} are "
+        "retired"
     )
     print(
         f"deploy-coverage: PASS -- six packages are consumed from their pinned "

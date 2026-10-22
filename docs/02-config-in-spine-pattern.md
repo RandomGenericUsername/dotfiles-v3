@@ -89,6 +89,17 @@ every schema `required[]` name is supplied by its render task, and `deploy-cover
 render reads the pinned checkout. `wlogout_config` also prunes the pre-S3
 `<spine>/config/wlogout/style.css.tpl`, and `verify` asserts it is absent.
 
+**Where the desktop entries come from (S4).** The six per-user `.desktop` entries and
+`toggle-touchpad` live in the same pinned checkout's `desktop/` class
+(`<install>/assets/<tag>/desktop/{applications,scripts,desktop.yaml}`).
+`compositor_configs` copies the entries into `$XDG_DATA_HOME/applications/` (0755 for the helper
+into the user bin dir) and **resolves `desktop.yaml` before the copy** (spine AD-10 layer 2): a
+missing `requires` binary fails the run naming entry and binary, a missing `optional` one is
+reported and that entry is skipped. `verify` re-asserts the deployed set, resolves each deployed
+`Exec` binary on PATH, and checks every keybind-invoked launcher is executable (layer 3). This repo
+authors no desktop entry and no helper script any more; `deploy-coverage` asserts both retired
+trees stay absent.
+
 ## Symlink mapping (machine side)
 
 Every managed dir is symlinked at its native XDG location:
@@ -208,7 +219,7 @@ resolves the conflict via the move-aside and creates the link.
 |---|---|
 | **filesystem** | creates `<install>/config/` and the tool subdirs (was: XDG dirs only) |
 | **assets** | WEG effects → `config/weg/effects.yaml`; CSG templates → `config/color-scheme-generator/templates/` (was `<install>/weg-effects.yaml`, `<install>/csg-templates/`) |
-| **compositor_configs** | renders the pinned corpus's 15 non-bar skeletons into `spine/config/{hypr,hyprpaper,rofi}/` (was: repo skeleton copies into `~/.config/...`; the corpus is `dotfiles-assets` `configs/` since S2) |
+| **compositor_configs** | renders the pinned corpus's 15 non-bar skeletons into `spine/config/{hypr,hyprpaper,rofi}/` and, since S4, deploys the pinned `desktop/` class: six entries into `$XDG_DATA_HOME/applications/` (after resolving the contract's `requires`/`optional`) and `toggle-touchpad` 0755 into the user bin dir (was: repo skeleton copies + repo `dotfiles/applications/` + `dotfiles/scripts/`; the corpus is `dotfiles-assets` since S2/S4) |
 | **config_copies** | copies the pinned corpus's `configs/` class → `spine/config/{nvim,starship,wlogout}/` (was: repo dirs into `~/.config/...`; `zsh` left the set in S2 — zsh_config renders `.zshrc` from the template source) |
 | **zsh_config / kitty_config / btop_config / wlogout_config / display_manager** | render their files from the pinned corpus's `templates/` class (S3; `<install>/assets/<tag>/templates/…`) instead of a repo/role `templates/` dir. Values, `dest`, `mode`, `become` and supplied vars unchanged; wlogout_config also prunes the pre-S3 `<spine>/config/wlogout/style.css.tpl` |
 | **settings** | renders → `spine/config/{color-scheme-generator,weg,itr}/settings.toml` (was `~/.config/...`); CSG `default_formats = []` (interactive = all catalog formats) |
