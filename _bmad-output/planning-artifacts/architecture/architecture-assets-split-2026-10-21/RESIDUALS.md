@@ -73,6 +73,9 @@ belong here, and an entry is not closed because the code "looks right".
 | R-12 | P3 | A docs correction after a release forces a PATCH tag (`v0.3.1` happened) — process note | S7 process | OPEN |
 | R-13 | P3 | `dotfiles-provision` is not on `PATH`; run it through `uv run --directory src/provisioning` | S7 docs | OPEN |
 | R-14 | P3 | Host stale-env / systemd `start-limit` trap after package-tree moves: documented, no provisioning-time mitigation | dedicated installer cleanup | OPEN |
+| R-15 | P2 | The engine wheel is not self-contained — it packages `provisioning/` only, no `ansible/`; bootstrap installs the checkout editable | `dotfiles-provision` packaging (next engine tag) | OPEN |
+| R-16 | P2 | Composition gates need the cached engine checkout; a cold offline checkout cannot gate | dedicated installer/CI cleanup | OPEN |
+| R-17 | P2 | The engine tag is validated by `engine_checkout.py`, not by `verify` on a fresh machine | `dotfiles-provision` + host/VM proof | OPEN |
 
 ---
 
@@ -486,6 +489,86 @@ belong here, and an entry is not closed because the code "looks right".
 - **Closure proof:** the preflight fails on both negative fixtures and passes on a clean host; a real
   host apply after a tree move comes up with the daemon active and no `start-limit-hit`.
 
+### R-15 — The engine wheel is not self-contained (S6 packaging caveat)
+
+- **Priority / status:** P2 · OPEN · **Owner:** `dotfiles-provision` packaging (next engine tag).
+- **Evidence (2026-10-22, engine checkout at `v0.1.0`):**
+  - `pyproject.toml`'s wheel target is `packages = ["src/provisioning"]`; only
+    `[tool.hatch.build.targets.sdist] only-include` lists `ansible`.
+  - `cd .dev/dotfiles-provision-v0.1.0 && uv build --wheel --out-dir /tmp/opencode/engine-dist`
+    → `Successfully built …/dotfiles_provision-0.1.0-py3-none-any.whl`; then
+    `unzip -l …/dotfiles_provision-0.1.0-py3-none-any.whl | grep -E ' ansible/' | wc -l` → **0**.
+    The same tree's sdist has the tree: `tar -tzf /tmp/opencode/engine-dist/*.tar.gz | grep -c
+    '/ansible/'` → **87**.
+  - The CLI locates it beside the package: `src/provisioning/cli/main.py:106`
+    (`_ANSIBLE_ROOT = Path(__file__).resolve().parents[3] / "ansible"`), which resolves into the
+    checkout (editable) and into a `lib/pythonX/ansible` that does not exist (installed wheel).
+  - `bootstrap.sh:329-368` therefore clones the tag and runs
+    `uv tool install --force --editable "$ENGINE_DIR"`, with the reason in its comment.
+- **Impact:** the engine cannot be installed from a wheel or `git+…@tag` (the console script starts
+  but every playbook path is missing); the composition's "pinned tag" is still true for the
+  **checkout**, not for a portable artifact. Publishing to PyPI would ship an unusable console.
+- **Planned resolution:** make `ansible/` package data of the Python package (or resolve it via
+  `importlib.resources`), release a new engine tag, and switch `bootstrap.sh` to
+  `uv tool install git+…@<tag>`; keep the checkout install for engine development only.
+- **Closure proof:** `unzip -l` the new wheel → an `ansible/` entry count > 0; install it into an
+  isolated `UV_TOOL_DIR` from the tag; then `dotfiles-provision --help` and a `bootstrap --check`
+  against the composition manifests exit 0 without the checkout.
+
+### R-16 — Composition gates need the cached engine checkout
+
+- **Priority / status:** P2 · OPEN · **Owner:** dedicated installer/CI cleanup.
+- **Evidence (2026-10-22):** with an empty cache and an unreachable proxy, the gate fails rather
+  than skips:
+
+  ```text
+  $ DOTFILES_PROVISION_CACHE_DIR=/tmp/opencode/engine-offline \
+      HTTPS_PROXY=http://127.0.0.1:9 https_proxy=http://127.0.0.1:9 \
+      uv run --no-project --with pyyaml python scripts/deploy-coverage.py   # exit 1
+  FAIL cannot fetch the pinned installer engine v0.1.0 into
+  /tmp/opencode/engine-offline/dotfiles-provision-v0.1.0 (fatal: unable to access
+  'https://github.com/RandomGenericUsername/dotfiles-provision/': Failed to connect
+  to github.com:443 over proxy 127.0.0.1 after 0 ms: Could not connect to server).
+  The composition gates need the engine checkout; connect once, or pre-populate
+  /tmp/opencode/engine-offline/dotfiles-provision-v0.1.0 at v0.1.0. Offline is a
+  hard failure, never a silent pass.
+  ```
+
+  `scripts/engine_checkout.py:65-140` is the only resolver; `fetch=False` raises with the same
+  path/pin but no gate exposes it as a mode.
+- **Impact:** a cold, network-less composition checkout (a sealed CI runner, a review laptop) cannot
+  run `make deploy-coverage` or `make gates-ci`, even though nothing on the host changed. The
+  failure is loud and correct — but it is an availability gap, not a shape gap.
+- **Planned resolution:** cache `.dev/dotfiles-provision-<tag>/` in CI keyed by the pin, document the
+  pre-populate command in `bootstrap.sh`/`ARCHITECTURE.md` (done in §12), and surface an explicit
+  `--offline`/`DOTFILES_PROVISION_OFFLINE=1` mode that turns a missing cache into one sentence
+  instead of a `git` error. Do not vendor the engine tree here.
+- **Closure proof:** on a network-disabled runner with a pre-populated cache, `make deploy-coverage`
+  exits 0; with the cache absent and the offline mode set, it exits 1 with the one-sentence message
+  and no clone attempt.
+
+### R-17 — The engine tag is validated by `engine_checkout.py`, not by `verify`
+
+- **Priority / status:** P2 · OPEN · **Owner:** `dotfiles-provision` + host/VM proof.
+- **Evidence (2026-10-22):**
+  - `scripts/engine_checkout.py:35-101` validates the pin's semver shape and the cached checkout's
+    HEAD equals the tag — but only on the machine that runs the gate.
+  - The engine's `verify` role has **no** engine-tag assertion:
+    `rg -n 'dotfiles-provision|installer\.pin|provisioning_version|engine tag'
+    .dev/dotfiles-provision-v0.1.0/ansible/roles/verify` → only two comments
+    (`tasks/main.yml:62,70`), no task.
+  - `bootstrap.sh:488-501` passes `--manifests-dir`, `--composition-root` and `--inventory` to
+    `verify`, but not an expected engine tag.
+- **Impact:** on a fresh machine, "which engine provisioned this host?" is answered by the bootstrap
+  log's `engine install (vX.Y.Z)` line and the installed tool env, not by `verify`. A hand-run
+  `verify` against a different engine checkout can be green while claiming the composition's tag.
+- **Planned resolution:** add `expected_engine_tag` as a verify extra-var, assert
+  `dotfiles-provision version` (or its installed metadata) equals it, and have `bootstrap.sh` pass
+  `-e expected_engine_tag="$ENGINE_PIN"`; keep the composition's `installer.pin` as the one source.
+- **Closure proof:** `dotfiles-provision verify -e expected_engine_tag=v0.1.0` exits 0 on a host
+  provisioned from that tag; passing `v9.9.9` fails naming both the expected and observed tags. On a
+  fresh machine this must be part of the VM run still tracked by R-10.
+
 ---
 
 ## Resolved during the split (history — kept so the same gap is not re-opened)
@@ -569,6 +652,10 @@ here so a later reader does not "fix" the ledger back to the unverified wording.
 | R-90 | `pytest … test_zsh_config_role.py -k already_zsh` (from the resolving commit's evidence) | the test exists at `:386-419`; see the commit's recorded evidence |
 | R-92 | `git -C ../dotfiles-assets show v0.5.0:CHANGELOG.md \| sed -n '145,161p'` | the six-file retirement entry |
 | R-93 | `grep -n 'templates: { dest: templates' dotfiles/provisioning/assets.yaml …roles/assets/vars/main.yml` | both `**/*.vars.schema.json` |
+| R-15 | `uv build --wheel` in `.dev/dotfiles-provision-v0.1.0`; `unzip -l … \| grep -E ' ansible/' \| wc -l`; `tar -tzf ….tar.gz \| grep -c '/ansible/'` | wheel built; **0** `ansible/` entries; sdist **87** |
+| R-15 | `sed -n '106p' .dev/…/src/provisioning/cli/main.py`; `sed -n '329,368p' bootstrap.sh` | `_ANSIBLE_ROOT = … parents[3] / "ansible"`; editable install with the wheel/`ansible` reason |
+| R-16 | empty cache + unreachable proxy (command in R-16) | exit 1, `FAIL cannot fetch the pinned installer engine v0.1.0 … Offline is a hard failure, never a silent pass` |
+| R-17 | `rg -n 'dotfiles-provision\|installer\.pin\|provisioning_version\|engine tag' .dev/…/ansible/roles/verify` | 2 matches, both comments (`tasks/main.yml:62,70`); no task |
 
 Every open item above names a closure proof that re-runs the same kind of observation. When an item
 is closed, move it to *Resolved during the split* with the command output and the resolving commit;
