@@ -12,6 +12,15 @@ settings). Assets, generated output, and the CSG templates/effects catalogs
 already live in the spine and are unchanged except for relocation into
 `config/`.
 
+**Where the roles live now (S6b/S7).** This is a design record for the install
+spine, not a source map. The Ansible implementation it names — `config_links`,
+`assets`, `compositor_configs`, `config_copies`, `settings`, `verify` — is the
+pinned external `dotfiles-provision` engine repo (tag in
+`dotfiles/provisioning/installer.pin`); the corpus these roles read is the
+pinned `dotfiles-assets` repo (`dotfiles/provisioning/assets.yaml`). This repo
+authors neither: it owns the manifests, the runtime and the gates. The full pin
+set is `ARCHITECTURE.md` §4.1.
+
 ## Motivation
 
 Single source of truth for ALL machine configs inside the install target
@@ -54,7 +63,7 @@ mechanism.
 $XDG_DATA_HOME/dotfiles/                          ← install target
 ├── config/                                       ← ALL managed configs
 │   ├── hypr/                    13 Lua modules (12 static + hyprland.lua's one rendered path)
-│   ├── ags/                     app.tsx, style.css + colors.css (fragment)
+│   ├── ags/                     LIVE LINK → <install>/ags-apps/<tag>/bar/ (the pinned ags-apps unit; no source here)
 │   ├── hyprpaper/               hyprpaper.conf
 │   ├── nvim/                    (pinned dotfiles-assets configs/nvim copy)
 │   ├── starship/                starship.toml

@@ -55,7 +55,7 @@ as `{name, repo, tag}` entries in `dotfiles/provisioning/cli-tools.yaml`
 as git-tag pins in each `pyproject.toml`; `dotfiles-provision` (the engine, its
 Python package and its Ansible tree) is consumed as the tag in
 `dotfiles/provisioning/installer.pin`. The in-repo `cli-tools/`, `shared/` and
-`src/provisioning/` package roots are retired and their absence is gated. The only
+provisioning package roots are retired and their absence is gated. The only
 in-repo Python is `src/runtime/`; `dotfiles-runtime -> src/runtime` is the ONE
 permitted local `source:` in that manifest — the installer pin is a separate pin,
 never a tool entry. Do NOT re-add a per-file GUI/CLI source list or a

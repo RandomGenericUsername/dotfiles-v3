@@ -5,8 +5,9 @@
 | | |
 |---|---|
 | Written | 2026-10-21 |
+| Updated | 2026-10-22 (S7 closeout: pin table §4.1, composition gates, external engine) |
 | Base commit | `e94fe8dc` (parent of the commit that adds this file; `git log -1`) |
-| Scope | the host repo only — it consumes, it does not own, the nine pinned repos |
+| Scope | the host repo only — it consumes, it does not own, the pinned external repos |
 | Kind | index over sources of truth, not a source of truth itself |
 
 This file is the entry point, not the authority. Every section points at the file or
@@ -18,7 +19,7 @@ cited file wins and this document is the bug.
 ```bash
 make gates-ci          # the six executable gates (section 9)
 make deploy-coverage   # provisioning shape only; prints the pinned manifests it read
-openspec validate --all # 104 passed / 27 failed on 2026-10-21 — pre-existing, see section 9
+openspec validate --all # 108 passed / 27 failed on 2026-10-22 — pre-existing, see section 9
 make contract-pin-check # needs a sibling `contracts` checkout; skips (exit 0) without one
 ```
 
@@ -37,13 +38,13 @@ that drives that desktop at runtime.**
 It authors essentially nothing another repo also authors. The only in-repo Python is
 `src/runtime/` (`Makefile:101-130`); `make deploy-coverage` asserts exactly one local
 manifest source, `dotfiles-runtime -> src/runtime`
-(`scripts/deploy-coverage.py:1771-1819`). The installer engine — its Python package
-AND its Ansible tree — is the pinned external `dotfiles-provision` repo
-(`dotfiles/provisioning/installer.pin`).
+(`scripts/deploy-coverage.py`, `assert_manifest_source_scope`). The installer engine
+— its Python package AND its Ansible tree — is the pinned external
+`dotfiles-provision` repo (`dotfiles/provisioning/installer.pin`).
 
 | The repo owns | The repo consumes |
 |---|---|
-| Declarative manifests (`dotfiles/provisioning/*.yaml`) and the installer pin (`installer.pin`) | The installer engine `dotfiles-provision` (`src/provisioning` + `ansible/`) as a pinned tag; its roles/playbooks are read from the cached checkout by the composition gates |
+| Declarative manifests (`dotfiles/provisioning/*.yaml`) and the installer pin (`installer.pin`) | The installer engine `dotfiles-provision` (its Python package + `ansible/` tree) as a pinned tag; its roles/playbooks are read from the cached checkout by the composition gates |
 | `dotfiles-runtime` — CLI, daemon, clipboard watcher, cache/state (`src/runtime/`) | `cli-output` + `cli-invocation-contract` as git-tag pins (`src/runtime`); `config-assembler-engine` + `oci-runtime` as git-tag pins inside the CLI repos; the three CLIs as `{name,repo,tag}` manifest entries (section 4) |
 | Inputs: configs, Hyprland Lua (`dotfiles/config/`); the icon templates/mappings + wallpapers corpus is the pinned `dotfiles-assets` data repo (section 4) | `ags-apps` monorepo as one pinned unit (seven AGS apps + the capture-tool backend) |
 | Gates and their scripts (`Makefile`, `scripts/*.py`) | `ags-platform` as one pinned unit (bare specifier, `node_modules` shortcut) |
@@ -54,7 +55,7 @@ Consequences that surprise newcomers:
 - **No engine source lives here.** The installer's Python package and `ansible/`
   tree are the pinned `dotfiles-provision` tag; `bootstrap.sh` installs the pinned
   checkout and the composition gates read `.dev/dotfiles-provision-<tag>/`.
-  `src/provisioning/` is asserted absent.
+  The retired in-repo provisioning root is asserted absent.
 - **No GUI source lives here.** The bar, clipboard overlay, notifications, capture
   tool, wallpaper selector, ICME and btop studio all deploy *whole* from the
   `ags-apps` unit (`ansible/roles/ags_apps/vars/main.yml:1-90` in the pinned engine).
@@ -100,14 +101,14 @@ Consequences that surprise newcomers:
 | Rule | Where it is enforced |
 |---|---|
 | Libraries depend on no sibling repo; CLIs depend on libs + `contracts` only; no CLI imports/invokes another CLI | `_bmad-output/.../ARCHITECTURE-SPINE.md` AD-1; each repo's `tests/architecture/test_layering.py` |
-| `dotfiles-v3` consumes CLIs/libs as pinned artifacts, never as a path, editable install, submodule or workspace | `scripts/deploy-coverage.py:1360-1513` (no in-tree package, no `path` pin) |
+| `dotfiles-v3` consumes CLIs/libs as pinned artifacts, never as a path, editable install, submodule or workspace | `scripts/deploy-coverage.py` (`assert_no_in_tree_cli_output`, `assert_pin_set`: no `path`, no `editable`) |
 | The runtime never imports a CLI package — it spawns the console | `src/runtime/tests/architecture/test_layering.py`; adapters use `subprocess.run` (`csg_adapter.py:304`, `weg_adapter.py:342`, `itr_adapter.py:432`) |
 | Runtime never imports provisioning *code* (it reads provisioning output) | `_FORBIDDEN_CROSS_PACKAGE = {provisioning, core, infrastructure}` (`src/runtime/tests/architecture/test_layering.py:104-111`) |
 | AGS apps import the platform, never each other | `docs/101-ags-platform-architecture.md` §3.1; `docs/HANDOFF-ags-platform.md` §5.1 (0 cross-app imports measured) |
 
 ## 4. The pinned repos
 
-One contract repo + three libraries + three CLIs + one data corpus + one installer engine. All public, fetched
+The nine pins this repo's manifests and gates declare directly: one contract repo + three libraries + three CLIs + one data corpus + one installer engine. The two AGS units are pinned in the engine roles (section 6.5). All public, fetched
 anonymously over HTTPS by tag (`openspec/changes/archive/2026-10-21-cli-tools-repos/POST-MIGRATION.md`
 §1). Tags are annotated, monotonic, never moved; a fix is a new tag.
 
@@ -121,7 +122,7 @@ anonymously over HTTPS by tag (`openspec/changes/archive/2026-10-21-cli-tools-re
 | `wallpaper-effects-generator` | console `weg` + `Dockerfile.imagemagick` + `image` verb | `v0.2.0` (reports `contract 0.2.0`) | same | same five + `image` |
 | `color-scheme-generator` | console `csg` + four Dockerfiles + template catalog + `image` verb | `v0.2.0` (reports `contract 0.2.0`) | same | same five + `image` |
 | `dotfiles-assets` | **data corpus** (no package, no console script): `icons/` (templates + one group map + vocabulary), `templates/` (9 Jinja sources + 9 vars schemas), `configs/`, `content/`, `desktop/` (6 entries + `toggle-touchpad` + `desktop.yaml` `requires`/`optional` contract) | `v0.5.0` — **all five classes populated**; `icons/schema.json`, every `templates/**/*.vars.schema.json` and `desktop/desktop.yaml` at `schema_major: 1` | `assets:` block in `dotfiles/provisioning/assets.yaml` + role/verify mirrors (+ a per-render-role pin mirror); fetched once into `<install>/assets/<tag>/` | `validate validate-icons validate-content validate-templates validate-desktop lint hermetic` |
-| `dotfiles-provision` | **installer engine** (console `dotfiles-provision`): the Python hexagon (`provisioning` package) + the Ansible tree (roles, playbooks, inventory, group_vars). The composition repo owns the manifests, runtime and gates; this repo owns nothing the engine also authors | `v0.1.0` — engine tag, annotated; peeled commit `e1a6f099` | `dotfiles/provisioning/installer.pin` (one semver tag, read by `bootstrap.sh` and the Python gates); installed from the pinned checkout via `uv tool` into `UV_TOOL_BIN_DIR`; gates read the cached `.dev/dotfiles-provision-<tag>/` | `gates` (`test lint hermetic lock-check docs-check`), plus its own CI |
+| `dotfiles-provision` | **installer engine** (console `dotfiles-provision`): the Python hexagon (`provisioning` package) + the Ansible tree (roles, playbooks, inventory, group_vars). The composition repo owns the manifests, runtime and gates; this repo owns nothing the engine also authors | `v0.1.0` — engine tag, annotated; peeled commit `e1a6f099` | `dotfiles/provisioning/installer.pin` (one semver tag, read by `bootstrap.sh` and the Python gates); installed from the pinned checkout **editable** via `uv tool` into `UV_TOOL_BIN_DIR` (the wheel lacks `ansible/` — R-15); gates read the cached `.dev/dotfiles-provision-<tag>/` | `gates` (`test lint hermetic lock-check docs-check`), plus its own CI |
 
 **Two consumption shapes only** (`POST-MIGRATION.md` §2):
 
@@ -142,13 +143,36 @@ charter. The **same-tag rule** follows: one `contracts` tag is pinned by the run
 and by all three CLIs, and `verify` asserts each CLI's `--version` contract token
 equals `0.2.0` (`roles/verify/vars/main.yml:221-272`).
 
+### 4.1 The composition pin set (S7)
+
+One table for every pin the composition repo owns. "Declared in" is the single
+source of truth; everything under "Mirrors / lock" is a hand-maintained copy that
+`make deploy-coverage` proves agrees. A pin bump edits the declared file first,
+then its mirrors, then this table (`deploy-coverage`'s `assert_pin_set` fails on a
+half-edit, recipe (a) in section 11).
+
+| Pin | Declared in (one source) | Value (2026-10-22) | Mirrors / lock | Validated by |
+|---|---|---|---|---|
+| Installer engine `dotfiles-provision` | `dotfiles/provisioning/installer.pin` | `v0.1.0` | `bootstrap.sh` reads the file (never repeats the tag) and re-checks the semver shape; `scripts/engine_checkout.py` resolves the cached checkout for every gate | `deploy-coverage` (`assert_pin_set` + the engine checkout it reads); `ansible-embedded-template-lint` reads the same pin |
+| Assets corpus `dotfiles-assets` | `dotfiles/provisioning/assets.yaml` → `assets.tag` | `v0.5.0` | engine `roles/assets/vars/main.yml` (`assets_repo`, `assets_pinned_tag`, `assets_classes`, `assets_schema_support`); `roles/verify/vars/main.yml` (`verify_assets_pinned_tag`, class dirs, schema window); per-consumer `{compositor_configs,config_copies,zsh_config,kitty_config,btop_config,wlogout_config,display_manager}_assets_pinned_tag`, plus `assets_csg_pinned_tag` and `settings_weg_image_tag` | `deploy-coverage` (`assert_assets_shape`, `assert_pin_set`); engine parity tests |
+| CLIs `csg` · `weg` · `itr` | `dotfiles/provisioning/cli-tools.yaml` (`{name, repo, tag}`) | `v0.2.0` each | engine `roles/cli_tools/vars/main.yml` (`cli_tools:`); `roles/verify/vars/main.yml` (`verify_<name>_version`, tag-bearing checkout path, `pinned` record, `verify_<name>_contract_version: 0.2.0`) | `deploy-coverage` (`assert_cli_provisioned_from_pinned_manifest` + `assert_pin_set`) |
+| Runtime library `cli-output` | `src/runtime/pyproject.toml` `[tool.uv.sources]` | `v0.1.0` | `uv.lock` records the resolved commit | `assert_pin_set` (git + semver only, never `path`/`editable`); `uv lock --check` |
+| Invocation contract `cli-invocation-contract` (`contracts`) | same file | `v0.2.0` | all three CLIs pin the same `contracts` tag in their own repos; `verify` asserts each CLI reports `contract 0.2.0` | `assert_pin_set`; `contracts-check` |
+| **Not pinned here** (named so the set is honest) | — | `config-assembler-engine v0.1.0` and `oci-runtime v0.5.0` live only in the CLI repos' `pyproject.toml`; `ags-platform` / `ags-apps` are pinned in the engine roles; uv is `0.9.22`, sha256-verified | owned by those repos / the engine / `bootstrap.sh` | their own gates; `bootstrap.sh:246-301` |
+| Vendored event contract (**a commit, not a tag**, by design) | `src/runtime/src/runtime/adapters/CONTRACT_PIN` | `dbdc5b8` | `contracts/` + the runtime's embedded schemas are byte-identical copies | `make contracts-check`; `make contract-pin-check` (needs a sibling `contracts` checkout) |
+
+`make deploy-coverage` is the one executable check of this table: it reads the
+declared file, then the mirrors, and fails naming the half-edit. The engine
+checkout it needs is cached at `.dev/dotfiles-provision-<tag>/`; see section 12
+for the offline caveat (R-16).
+
 ## 5. Repo map of `dotfiles-v3`
 
 | Path | What it is | Status |
 |---|---|---|
 | `src/runtime/` | `dotfiles-runtime`: hexagon (domain/ports/adapters/application/cli), daemon, clipboard watcher, cache/state | **live, authored here** |
 | `dotfiles/provisioning/installer.pin` | The installer-engine tag (`v0.1.0`) — the ONE source read by `bootstrap.sh` and the Python gates. The engine's Python + `ansible/` tree is the pinned external `dotfiles-provision` repo, cached at `.dev/dotfiles-provision-<tag>/` (gitignored) | **live** (single source for the engine pin) |
-| `dotfiles/config/` | `btop/active-theme` only — the mutable theme preference (OPEN-5, S7) | **shrunken to one file** — the static corpus moved to `dotfiles-assets` `configs/` (S2), and the last two template sources (`zsh/.zshrc.j2`, `wlogout/style.css.tpl`) moved to its `templates/` class (S3), so no `*.j2`/`*.tpl` is authored here |
+| `dotfiles/config/` | `btop/active-theme` only — the mutable theme preference (OPEN-5, S7) | **shrunken to one file** — the static corpus moved to `dotfiles-assets` `configs/` (S2), and the last two template sources (`zsh/.zshrc.j2`, `wlogout/style.css.tpl`) moved to its `templates/` class (S3), so no `*.j2`/`*.tpl` is authored here; `assert_composition_only` asserts this exact allowlist |
 | `dotfiles/provisioning/assets.yaml` | The assets pin (`repo`, `tag`, `classes`) — the corpus itself is `dotfiles-assets` | **live** (single source for the corpus pin) |
 | `dotfiles/applications/`, `dotfiles/scripts/` | **retired at S4** — the six `.desktop` entries and `toggle-touchpad` ship in `dotfiles-assets` `desktop/` | **absent; `deploy-coverage` asserts it** (AD-10/AD-16) |
 | `dotfiles/provisioning/` | Declarative manifests: `cli-tools.yaml`, `assets.yaml`, `config-copies.yaml`, `filesystem.yaml`, `packages.yaml` + `installer.pin` | **live** (single source for pins) |
@@ -161,10 +185,13 @@ equals `0.2.0` (`roles/verify/vars/main.yml:221-272`).
 | `prototypes/`, `spikes/` | Throwaway probes (canvas/Hyprland/DBus/schema) | **historical** |
 | `.worktrees/` | Gitignored worktrees created by `scripts/worktree-guard.sh` | live, never committed |
 | `AGENTS.md`, `CLAUDE.md` (symlink), `Makefile`, `bootstrap.sh` | The operating contract, gate set, fresh-machine entry point | live |
+| `LICENSE`, `CHANGELOG.md` | MIT license + the 0.x split summary (S7); the authoritative record stays the spine/slices/residual ledger | live (product metadata) |
 
-`src/cli-tools/`, `src/shared/`, `src/gui-tools/`, `src/provisioning/` and `dotfiles/config/ags/` no longer
+`src/cli-tools/`, `src/shared/`, `src/gui-tools/`, the retired in-repo
+provisioning root and `dotfiles/config/ags/` no longer
 exist as sources. Their absence is a gate, not a memory
-(`scripts/deploy-coverage.py:1342-1358`, `:1752-1768`).
+(`scripts/deploy-coverage.py`, `assert_no_gui_tools_dir` /
+`assert_no_cli_tools_dir` / `assert_composition_only`).
 
 ## 6. Provisioning
 
@@ -176,7 +203,7 @@ exist as sources. Their absence is a gate, not a memory
 |---|---|---|
 | preflight | `$HOME` set, non-root, **usable** container engine (`podman`/`docker` info, 15 s timeout) | abort before the long run (`bootstrap.sh:154-212`) |
 | 1. uv preseed | pinned uv `0.9.22`, sha256-verified tarball, version asserted | abort (`bootstrap.sh:224-293`) |
-| 2. engine install | fetch the pinned `dotfiles-provision` checkout (`.dev/dotfiles-provision-<tag>/`) and install it editable via `uv tool` into `UV_TOOL_BIN_DIR`; assert the console script runs | loud abort (`bootstrap.sh:329-368`) |
+| 2. engine install | fetch the pinned `dotfiles-provision` checkout (`.dev/dotfiles-provision-<tag>/`) and install it editable via `uv tool` into `UV_TOOL_BIN_DIR`; assert the console script runs (editable because the wheel packages only the Python package — R-15) | loud abort (`bootstrap.sh:329-368`) |
 | 3. collections | `ansible-galaxy collection install -r <engine>/ansible/requirements.yml`, then assert collections actually landed | loud abort (`bootstrap.sh:370-414`) |
 | 4. bootstrap | `dotfiles-provision --manifests-dir <repo>/dotfiles/provisioning --composition-root <repo> --inventory <engine>/ansible/inventory/localhost.yaml bootstrap` (+ forwarded become flags) | abort (`bootstrap.sh:495`) |
 | 5. verify | `dotfiles-provision ... verify` with `check=False` — a real gate | abort (`bootstrap.sh:501`) |
@@ -293,7 +320,10 @@ asserts both carry `{{ item.tag }}` and that no literal tag appears in task code
 
 ### 6.6 manifest, mirror, parity
 
-There are three hand-maintained copies of the same pin, by design:
+The pin mirrors are **hand-maintained copies**, not generated, because Ansible
+roles cannot read the composition manifests. Every copy is gate-locked, so a pin
+bump is a multi-file edit and a half-edit fails. Section 4.1 is the full pin set;
+this table is the asset/CLI mirror inventory in detail.
 
 | Copy | File | Locked by |
 |---|---|---|
@@ -303,6 +333,8 @@ There are three hand-maintained copies of the same pin, by design:
 | Assets manifest (authoritative for the corpus) | `dotfiles/provisioning/assets.yaml` (`assets:`) | — |
 | Assets role mirror | `roles/assets/vars/main.yml` (`assets_repo` / `assets_pinned_tag` / `assets_classes`) | `TestAssetsVars.test_parity_with_manifest` |
 | Assets verify mirror | `roles/verify/vars/main.yml` (`verify_assets_pinned_tag`) | `TestVerifyVars.test_assets_pin_mirrors_the_manifest` |
+| Installer engine pin | `dotfiles/provisioning/installer.pin` | `bootstrap.sh` reads the file and re-checks semver; `deploy-coverage` `assert_pin_set` fails if the tag is repeated as a literal or the file is not read |
+| Runtime library + invocation-contract pins | `src/runtime/pyproject.toml` `[tool.uv.sources]` | `deploy-coverage` `assert_pin_set` (git + semver only) + `uv.lock` |
 
 Plus per-consumer mirrors where a role cannot read the manifest: `assets_csg_pinned_tag`,
 `settings_weg_image_tag`, `btop_config_assets_pinned_tag` (ONE pin for the authored themes AND the
@@ -480,7 +512,7 @@ tests (spine AD-4).
 | `contracts-check` | embedded state schemas are byte-identical to `contracts/schemas/`; D-Bus wire XML agrees with the event-contract JSON; the hub/bar tables equal the vendored generated bindings; the `history` trigger enum matches; the pin-check's negative test still fails on a hand-edit |
 | `runtime-architecture` | the runtime's mechanical architecture guards: hexagonal layering (no layer imports a layer above it) and no retired-source references — no runtime source may name the deleted `cli-tools`/`shared`/`gui-tools` trees, contiguous or as a `"src" / "<retired>"` path-join (`src/runtime/tests/architecture/test_no_retired_sources.py`); 132 tests, ~2.3 s, stock-runner capable |
 | `ansible-embedded-template-lint` | no `{{ }}` nested inside a Jinja *expression* string (`assert.that`, `when`, …) — the construct ansible-core 2.23 disables |
-| `deploy-coverage` | provisioning **shape**, read from the PINNED engine checkout: no per-file bar/app sources, both external units installed + live links, pinned CLI manifests installed from tag-bearing checkouts, image tag = pin, retired trees absent, exactly one local `source:` (`dotfiles-runtime`), and the installer engine pinned in `installer.pin` (not a CLI entry) |
+| `deploy-coverage` | provisioning **shape**, read from the PINNED engine checkout: no per-file bar/app sources, both external units installed + live links, pinned CLI manifests installed from tag-bearing checkouts, image tag = pin, retired trees absent, exactly one local `source:` (`dotfiles-runtime`), the installer engine pinned in `installer.pin` (not a CLI entry), the whole **composition pin set** semver + mirrored (installer ↔ bootstrap, assets ↔ role/verify, CLI tags ↔ manifest/role/verify, runtime libs/contract git+tag), and the terminal composition-only allowlist (`src/` = `runtime/`; `dotfiles/` = `config/` + `provisioning/`) |
 | `ci-gates-parity` | `.github/workflows/gates.yml` job set equals `gates-ci` in both directions, modulo declared `RENAMES` / `CI_ONLY_EXEMPT` / `CI_EXCLUDED_GATES` (all empty but one rename: `contracts-check -> contracts`) |
 | `per-app-drift-symbol-suites` | currently a legible no-op: every in-repo drift suite moved to `ags-apps` with its app (`Makefile:154-198`) |
 
@@ -502,10 +534,13 @@ The six extracted repos run `test lint hermetic lock-check docs-check` (plus `im
 |---|---|---|
 | `src/runtime` suite | `tests/unit/test_recording_indicator.py::TestNoPollingInvariant::test_bar_widget_has_no_poll_loop` — `FileNotFoundError` on the retired `dotfiles/config/ags/bar/widgets/recording.tsx` | pre-existing; the bar moved to the unit, the test's hard-coded path did not |
 | `src/runtime` integration | `test_weg_adapter_integration_real_binary` **passes** on a provisioned host (verified 2026-10-21: `1 passed` in ~18 s) and **skips** when the CLI binary is unavailable (e.g. `~/.local/bin` off `PATH`) — that skip is the designed behaviour, not a failure | environment-dependent by design |
-| `openspec validate --all` | `104 passed, 27 failed (131 items)`, exit 1; identical failing set at base `6e0633ba` (19 legacy change-level + 8 legacy spec-shape defects) | pre-existing, none of them `cli-tools-repos` |
+| `openspec validate --all` | `108 passed, 27 failed (135 items)`, exit 1; identical failing set at base `6e0633ba` (19 legacy change-level + 8 legacy spec-shape defects) | pre-existing, none of them `cli-tools-repos` or `assets-repo-split` |
 
 Re-measured 2026-10-21 in the worktree for this document: `make gates-ci` exit 0 (six gates),
-`openspec validate --all` → `Totals: 104 passed, 27 failed (131 items)`.
+`openspec validate --all` → `Totals: 104 passed, 27 failed (131 items)`. Re-measured
+2026-10-22 in the S7 worktree after archiving `assets-repo-split`:
+`make gates-ci` exit 0, `openspec validate --all` → `Totals: 108 passed, 27 failed (135 items)`
+(the four new specs pass; the 27 legacy failures are unchanged).
 
 ## 10. Operating discipline
 
@@ -548,12 +583,16 @@ section has 13 numbered rows; this is all 13, not a subset.*
 The six repos satisfied POST-MIGRATION tasks 0.1–0.6 by execution, with the two paperwork gaps closed by the
 POST-MIGRATION addendum (`POST-MIGRATION.md` §A2). `contracts` predates the checklist
 and ships `validate`/`generate`/`check-symmetry`/`contracts-drift`/`test`/`build`
-rather than a `gates` target.
+rather than a `gates` target. `dotfiles-v3` is a composition repo, not a birth
+target, but it now carries the same product metadata rows 12 requires — MIT
+`LICENSE` + `CHANGELOG.md` (S7) — and `make deploy-coverage` validates its pin set
+(section 4.1).
 
 ### 10.2 Two rituals, one checklist each
 
-- **Pin bump:** the manifest is authoritative and every mirror is gate-locked (section 6.6); the end-to-end checklist is recipe (a) in section 11.
+- **Pin bump:** the declared file in section 4.1 is authoritative and every mirror is gate-locked (section 6.6); the end-to-end checklist is recipe (a) in section 11.
 - **Destructive-last:** item 6 above. Rollback is always a pin bump plus a revert of the deletion commit — never a retag.
+- **Composition-only:** a new corpus file goes to the pinned `dotfiles-assets` repo (bump its tag); a new role/playbook goes to the pinned `dotfiles-provision` repo (bump `installer.pin`); a new library or CLI goes to its own repo. This repo extends a pin — `assert_composition_only` fails on a new authored tree under `src/` or `dotfiles/`.
 
 ## 11. Extension recipes
 
@@ -567,7 +606,14 @@ rather than a `gates` target.
 5a. **Assets corpus**: tag `dotfiles-assets`, then bump `assets.tag` in `dotfiles/provisioning/assets.yaml`, the three `<install>/assets/<tag>/...` entry sources, `roles/assets/vars/main.yml` (`assets_pinned_tag`), `roles/verify/vars/main.yml` (`verify_assets_pinned_tag`), and the five per-consumer mirrors: `roles/{compositor_configs,config_copies}/{vars}` plus `roles/{zsh_config,kitty_config,btop_config,wlogout_config,display_manager}/vars/main.yml` (`<role>_assets_pinned_tag`; btop's one mirror feeds both its themes dir and its render template). The parity tests named in 6.6 fail on any half-edit.
 6. If a library or `contracts` moved: bump `[tool.uv.sources]` in `src/runtime/pyproject.toml`, then `uv lock` there. If the INSTALLER engine moved, bump the tag in `dotfiles/provisioning/installer.pin` (the one source `bootstrap.sh` and both composition gates read).
 7. If the contract moved: re-vendor the binding, update `CONTRACT_PIN`, run `make contract-pin-check` against a sibling `contracts` checkout.
-8. Prove: `make deploy-coverage`, `make gates-ci`, and on a host `dotfiles-provision verify` (the only place the pin is asserted *by execution*).
+8. Prove: `make deploy-coverage` (the pin-set assertion in section 4.1 fails on any half-edit), `make gates-ci`, and on a host `dotfiles-provision verify` (the only place the pin is asserted *by execution*). Update the value in the section 4.1 table last.
+
+### (f) Bump the installer engine pin
+
+1. Tag `dotfiles-provision` (annotated `vX.Y.Z`; never move the old tag) and release it.
+2. `dotfiles/provisioning/installer.pin` — the ONE source. `bootstrap.sh` and both composition gates read this file; never paste the tag into `bootstrap.sh` (`assert_pin_set` rejects the literal).
+3. Warm the cache at the new tag: `git clone --depth 1 --branch vX.Y.Z https://github.com/RandomGenericUsername/dotfiles-provision .dev/dotfiles-provision-vX.Y.Z` (or let the gate fetch it once with network access).
+4. Prove: `make deploy-coverage` (`CHECK pinned installer engine vX.Y.Z at …/`) and `make gates-ci`; on a host, `bootstrap.sh` then `dotfiles-provision verify`. R-17 records that `verify` does not yet assert the engine tag itself — step 4's `CHECK` line is currently the only pin-vs-tag proof for the engine.
 
 ### (b) Add a new CLI tool
 
@@ -607,13 +653,16 @@ Do **not** register a bar file: the bar deploys whole from `ags-apps`, and a per
 ## 12. Known constraints and residuals
 
 - **No PyPI, no registry.** Consumers pin git tags; images build at provision time from the pinned checkout and are never published or digest-pinned (spine OPEN-2/OPEN-3; `POST-MIGRATION.md` §A1.3).
-- **Pins must be public and anonymously fetchable.** Provisioning clones over anonymous HTTPS with no credential helper; a private repo breaks `ansible.builtin.git` (`roles/ags_apps/vars/main.yml:88-90`; `openspec/specs/cli-repo-birth/spec.md:98-120`). All nine were verified public.
+- **Pins must be public and anonymously fetchable.** Provisioning clones over anonymous HTTPS with no credential helper; a private repo breaks `ansible.builtin.git` (`roles/ags_apps/vars/main.yml:88-90`; `openspec/specs/cli-repo-birth/spec.md:98-120`). Every pinned repo was verified public.
+- **The engine wheel is not self-contained** (R-15). `dotfiles-provision`'s wheel packages only the Python package; `ansible/` ships in the sdist, so `bootstrap.sh` clones the pinned tag and installs the checkout **editable** rather than `uv tool install git+…@tag`. A future wheel that embeds `ansible/` can simplify stage 2; until then, the checkout is the installable form of the engine.
+- **Composition gates need the cached engine checkout** (R-16). `deploy-coverage` and `ansible-embedded-template-lint` clone `.dev/dotfiles-provision-<tag>/` on demand; with no cache and no network they fail loudly naming the pin and cache path (they never fall back to an in-repo copy). Pre-populate the cache, or connect once, before gating an offline checkout.
+- **The engine tag is validated by `engine_checkout.py`, not by `verify`** (R-17). `read_engine_pin` asserts semver + checkout HEAD, but the engine's `verify` role asserts the provisioned CLIs/corpus and not its own tag; a fresh machine's proof of "which engine ran" is the bootstrap log's `engine install (vX.Y.Z)` line. Planned closure: pass the expected tag to `verify` as an extra-var and assert `dotfiles-provision version`.
 - **Builds happen on the host, at provision time**, so `verify` needs a working container engine; `bootstrap.sh` refuses to start without one.
-- **No VM in CI.** `dev/` drives an incus VM, but `incus` is absent on this host and no workflow references it; the disposable-VM half of the closure is still open (`POST-MIGRATION.md` §A3 gap (a)).
+- **No VM in CI.** `dev/` drives an incus VM, but `incus` is absent on this host and no workflow references it; the disposable-VM half of the closure is still open (`POST-MIGRATION.md` §A3 gap (a); `RESIDUALS.md` R-10).
 - **Host-specific systemd pitfall.** A unit `ExecStart` line ending in a Jinja *block* tag (e.g. `{% endif %}`) swallows the next line (Ansible `trim_blocks`) → systemd runs `daemon run# …` → `No such command 'run#'` → `start-limit-hit`. Keep `runtime_daemon_run_flags` single-line (`roles/runtime_daemon/vars/main.yml:26-35`).
 - **Stale uv-tool envs after moving/deleting a tree.** `uv tool list` can report the right version while the env's `direct_url.json` points at a deleted path, so every console dies with `ModuleNotFoundError`. After a tree-deletion merge: `rm -rf <retired root>` in the checkout you are about to gate, then `make deploy-coverage` *there* — absence guards read the filesystem, not `git ls-files` (`POST-MIGRATION.md` §1 note, §A1.2).
 - **`csg install` has no `--image-tag`** (the tag travels via `COLORSCHEME__CONTAINER__IMAGE_TAG`); `csg install --image-tag …` exits 2. The tag gate is clone + `verify`, not option parsing (`POST-MIGRATION.md` gap (c)).
-- **`openspec validate --all` keeps 27 failures** — 19 legacy change-level + 8 legacy spec-shape defects, none `cli-tools-repos` (`POST-MIGRATION.md` gap (e); re-measured 2026-10-21).
+- **`openspec validate --all` keeps 27 failures** — 19 legacy change-level + 8 legacy spec-shape defects, none `cli-tools-repos` or `assets-repo-split` (`POST-MIGRATION.md` gap (e); re-measured 2026-10-22: `108 passed, 27 failed (135 items)`).
 - **Literal stale-path text remains** in the guard, its negative-test fixtures and read-only investigation docs — 338 lines in 9 files on 2026-10-21 (`POST-MIGRATION.md` gap (f)). The **test-side** half of that residue is removed + guarded by `src/runtime/tests/architecture/test_no_retired_sources.py` (`94b3f4a0`): the retired-tree discovery walks in `src/runtime/tests/integration/test_csg_determinism.py`, `tests/integration/test_itr_adapter_integration.py`, `tests/unit/test_csg_adapter.py` and `tests/unit/test_itr_adapter.py` are gone, and the two integration files share explicit resolution in `tests/integration/conftest.py` (`resolve_csg_templates_dir` / `resolve_icon_templates_dir`: env override → pinned CLI corpus / the provisioned spine's `icon-templates` (assets checkout override, since S1) → loud skip, never a silent pass). The guard fails on any reintroduced contiguous `src/cli-tools` / `src/shared` / `src/gui-tools` literal **or** the `"src" / "<retired>"` path-join form (`rg` misses the latter), in production or tests, and names the spine / pinned-repo fix. It runs in `gates-ci` as the `runtime-architecture` gate (`d67849ba`), so it is enforced on every push rather than only when someone runs pytest by hand.
 - **CSG templates dir is a required caller input — residual resolved** (`e8fc0916`). The retired repo-relative discovery is gone: `_find_default_templates_dir` — which walked file ancestors for the stale in-tree csg checkout under the retired `src/cli-tools/color-scheme-generator/...` — and its `generate` call site were deleted. `CsgAdapter.generate` now raises a `FileNotFoundError` that names the cause and the fix (`templates_dir` must be resolved from the provisioning spine and passed by the caller) **before** hashing or spawning a subprocess, while `__init__` stays side-effect-free so `CsgAdapter().is_available()` remains legitimate. Every production construction already passed an explicit dir — seven `CsgAdapter(...)` sites at `src/runtime/src/runtime/cli/main.py:275, 648, 671, 966, 1287, 1518, 1611` and three `InvalidationQueryAdapter(...)` sites at `:1326, 1416, 1520`, all with `templates_dir=find_templates_dir(install_spine)` — so no provisioned path changes; only a bare `CsgAdapter()` can now fail loudly instead of silently discovering nothing. Regression test: `src/runtime/tests/unit/test_csg_adapter.py::test_csg_adapter_generate_without_templates_dir_raises` asserts the message names `templates_dir` and that `subprocess.run` was never called; the integration test no longer discovers either (it takes `DOTFILES_CSG_TEMPLATES_DIR`, else the on-PATH binary's `dump-templates` corpus, else skips with "discovery fallback removed"). Guard: `src/runtime/tests/architecture/test_no_retired_sources.py` — `rg -n 'src/cli-tools|_find_default_templates_dir' src/runtime` now matches only that guard file (its scan patterns), and the guard runs in `gates-ci` as `runtime-architecture` (`d67849ba`).
 - **Per-app repo split is deferred** (GUIDE §7 exit gate unmet); `ags-apps` stays a monorepo consumed as one unit (`docs/HANDOFF-ags-platform.md` §2).
@@ -622,7 +671,11 @@ Do **not** register a bar file: the bar deploys whole from `ags-apps`, and a per
 
 Repo docs (`docs/`), one line each. "Normative" = a live source of truth; "historical" =
 provenance, not to be edited into agreement with today. Spine artifacts sit under
-`_bmad-output/planning-artifacts/architecture/architecture-cli-repos-2026-10-19/`.
+`_bmad-output/planning-artifacts/architecture/architecture-cli-repos-2026-10-19/`
+(the CLI split) and `…/architecture-assets-split-2026-10-21/` (the corpus + engine
+split; its `RESIDUALS.md` is the live residual ledger and
+`openspec/changes/archive/2026-10-22-assets-repo-split/POST-MIGRATION.md` is the
+closure record).
 
 | Document | What it is | Status |
 |---|---|---|
