@@ -58,12 +58,14 @@ $XDG_DATA_HOME/dotfiles/                          ← install target
 │   ├── hyprpaper/               hyprpaper.conf
 │   ├── nvim/                    (pinned dotfiles-assets configs/nvim copy)
 │   ├── starship/                starship.toml
-│   ├── wlogout/                 layout (copied from the corpus) + style.css (RENDERED)
-│   ├── zsh/                     .zshrc (RENDERED from .zshrc.j2; the .j2 itself is not deployed)
+│   ├── wlogout/                 layout (copied from the corpus) + style.css (RENDERED from the corpus template)
+│   ├── zsh/                     .zshrc (RENDERED from the corpus's templates/zsh/.zshrc.j2; no .j2 is deployed)
 │   ├── color-scheme-generator/  settings.toml + templates/
 │   ├── weg/                     settings.toml + effects.yaml
 │   └── itr/                     settings.toml
 ├── wallpapers/  icon-templates/  icon-mappings/   (assets, unchanged)
+├── assets/<tag>/               the pinned dotfiles-assets checkout: icons/, templates/, configs/,
+│                               content/, desktop/ — the SOURCE for every copy and render above
 ├── (removed — Epic 4) `generated/` — runtime owns all derived artifacts under `$XDG_STATE_HOME/dotfiles/`
 └── (removed) csg-templates/  →  config/color-scheme-generator/templates/
 └── (removed) weg-effects.yaml →  config/weg/effects.yaml
@@ -73,9 +75,19 @@ $XDG_DATA_HOME/dotfiles/                          ← install target
 `starship/` and wlogout's `layout` are copied or rendered FROM the pinned `dotfiles-assets`
 checkout (`<install>/assets/<tag>/configs/`, class `configs`), never from this repo. They are
 byte-identical to the files this repo used to carry; the pin is `assets.tag` and each role
-mirrors it (`compositor_configs_assets_pinned_tag`, `config_copies_assets_pinned_tag`). Only the
-Jinja sources (`.zshrc.j2`, `style.css.tpl`) stay in the repo until S3 moves them to the
-corpus's `templates/` class.
+mirrors it (`compositor_configs_assets_pinned_tag`, `config_copies_assets_pinned_tag`).
+
+**Where the template sources come from (S3).** Every Jinja source — `.zshrc.j2`, `style.css.tpl`,
+`kitty.conf.j2`, `btop.conf.j2` and the five display-manager templates — now lives in the same
+pinned checkout under `templates/` (`<install>/assets/<tag>/templates/`), one `*.vars.schema.json`
+beside each. The five rendering roles (`zsh_config`, `kitty_config`, `btop_config`,
+`wlogout_config`, `display_manager`) supply the VALUES and keep every `dest`, `mode`, `become` and
+task-supplied var unchanged; they no longer carry a `templates/` dir. Nothing in this repository is
+a template source any more: `dotfiles/config/` holds only `btop/active-theme`, the mutable theme
+preference. The required-var parity test (`tests/unit/test_template_vars_parity.py`) asserts that
+every schema `required[]` name is supplied by its render task, and `deploy-coverage` asserts each
+render reads the pinned checkout. `wlogout_config` also prunes the pre-S3
+`<spine>/config/wlogout/style.css.tpl`, and `verify` asserts it is absent.
 
 ## Symlink mapping (machine side)
 
@@ -198,6 +210,7 @@ resolves the conflict via the move-aside and creates the link.
 | **assets** | WEG effects → `config/weg/effects.yaml`; CSG templates → `config/color-scheme-generator/templates/` (was `<install>/weg-effects.yaml`, `<install>/csg-templates/`) |
 | **compositor_configs** | renders the pinned corpus's 15 non-bar skeletons into `spine/config/{hypr,hyprpaper,rofi}/` (was: repo skeleton copies into `~/.config/...`; the corpus is `dotfiles-assets` `configs/` since S2) |
 | **config_copies** | copies the pinned corpus's `configs/` class → `spine/config/{nvim,starship,wlogout}/` (was: repo dirs into `~/.config/...`; `zsh` left the set in S2 — zsh_config renders `.zshrc` from the template source) |
+| **zsh_config / kitty_config / btop_config / wlogout_config / display_manager** | render their files from the pinned corpus's `templates/` class (S3; `<install>/assets/<tag>/templates/…`) instead of a repo/role `templates/` dir. Values, `dest`, `mode`, `become` and supplied vars unchanged; wlogout_config also prunes the pre-S3 `<spine>/config/wlogout/style.css.tpl` |
 | **settings** | renders → `spine/config/{color-scheme-generator,weg,itr}/settings.toml` (was `~/.config/...`); CSG `default_formats = []` (interactive = all catalog formats) |
 | **default_palette** | `--templates-dir <install>/config/color-scheme-generator/templates` |
 | **config_links (NEW)** | backup guard + symlink step for all managed dirs |

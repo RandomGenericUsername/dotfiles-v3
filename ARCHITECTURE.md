@@ -113,7 +113,7 @@ anonymously over HTTPS by tag (`openspec/changes/archive/2026-10-21-cli-tools-re
 | `icon-templates-renderer` | console `itr` (pure Python, no container mode) | `v0.2.0` (reports `contract 0.2.0`) | `{name, repo, tag}` manifest + role mirror + verify pin | same five |
 | `wallpaper-effects-generator` | console `weg` + `Dockerfile.imagemagick` + `image` verb | `v0.2.0` (reports `contract 0.2.0`) | same | same five + `image` |
 | `color-scheme-generator` | console `csg` + four Dockerfiles + template catalog + `image` verb | `v0.2.0` (reports `contract 0.2.0`) | same | same five + `image` |
-| `dotfiles-assets` | **data corpus** (no package, no console script): `icons/` (templates + one group map + vocabulary), `templates/`, `configs/`, `content/`, `desktop/` | `v0.3.1` — icons + content + configs populated; `icons/schema.json` `schema_major: 1` | `assets:` block in `dotfiles/provisioning/assets.yaml` + role/verify mirrors; fetched once into `<install>/assets/<tag>/` | `validate validate-icons validate-content lint hermetic` |
+| `dotfiles-assets` | **data corpus** (no package, no console script): `icons/` (templates + one group map + vocabulary), `templates/` (9 Jinja sources + 9 vars schemas), `configs/`, `content/`, `desktop/` | `v0.4.0` — icons + content + configs + templates populated; `icons/schema.json` and every `templates/**/*.vars.schema.json` at `schema_major: 1` | `assets:` block in `dotfiles/provisioning/assets.yaml` + role/verify mirrors (+ a per-render-role pin mirror); fetched once into `<install>/assets/<tag>/` | `validate validate-icons validate-content validate-templates lint hermetic` |
 
 **Two consumption shapes only** (`POST-MIGRATION.md` §2):
 
@@ -140,7 +140,7 @@ equals `0.2.0` (`roles/verify/vars/main.yml:221-272`).
 |---|---|---|
 | `src/runtime/` | `dotfiles-runtime`: hexagon (domain/ports/adapters/application/cli), daemon, clipboard watcher, cache/state | **live, authored here** |
 | `src/provisioning/` | `dotfiles-provision`: hexagon that drives Ansible + the `ansible/` tree (21 roles, 23 playbooks) | **live, authored here** |
-| `dotfiles/config/` | Inputs still authored here: `zsh/.zshrc.j2`, `wlogout/style.css.tpl` (S3 templates) and `btop/` (host state) | **live, shrinking** — the static corpus (hypr, hyprpaper, nvim, rofi, starship, wlogout/layout) moved to `dotfiles-assets` `configs/` in S2; the AGS subtree retired in slice 2; icons/content moved in S1 |
+| `dotfiles/config/` | `btop/active-theme` only — the mutable theme preference (OPEN-5, S7) | **shrunken to one file** — the static corpus moved to `dotfiles-assets` `configs/` (S2), and the last two template sources (`zsh/.zshrc.j2`, `wlogout/style.css.tpl`) moved to its `templates/` class (S3), so no `*.j2`/`*.tpl` is authored here |
 | `dotfiles/provisioning/assets.yaml` | The assets pin (`repo`, `tag`, `classes`) — the corpus itself is `dotfiles-assets` | **live** (single source for the corpus pin) |
 | `dotfiles/applications/`, `dotfiles/scripts/` | `.desktop` files; `toggle-touchpad` | **live** |
 | `dotfiles/provisioning/` | Declarative manifests: `cli-tools.yaml`, `assets.yaml`, `config-copies.yaml`, `filesystem.yaml`, `packages.yaml` | **live** (single source for pins) |
@@ -242,15 +242,25 @@ asserts both carry `{{ item.tag }}` and that no literal tag appears in task code
 
 ### 6.5 assets, settings, verify
 
-- **assets** shallow-clones the **pinned corpus** `dotfiles-assets@v0.3.1` into
-  `<install>/assets/v0.3.1/`, drops the clone's `.git`, writes `<install>/assets/pinned`, and then
+- **assets** shallow-clones the **pinned corpus** `dotfiles-assets@v0.4.0` into
+  `<install>/assets/v0.4.0/`, drops the clone's `.git`, writes `<install>/assets/pinned`, and then
   copies `icons/templates` → `icon-templates/`, `icons/mappings` → `icon-mappings/`, and unpacks
   `content/wallpapers/wallpapers.tar.gz` → `wallpapers/` from that checkout. S2: the two config
   roles read the same checkout's `configs/` class — `compositor_configs` renders the 15 non-bar
   skeletons (13 hypr Lua, hyprpaper.conf, rofi config.rasi) into `<install>/config/{hypr,
   hyprpaper,rofi}/`, and `config_copies` copies `nvim/`, `starship/` and wlogout's `layout`
   per file into `<install>/config/{nvim,starship,wlogout}/`. `hypr/hyprland.lua` carries one
-  render-time token (the module include dir); the other 14 pass through byte-identically. csg templates come
+  render-time token (the module include dir); the other 14 pass through byte-identically. S3: the
+  five rendering roles read the checkout's `templates/` class and keep only the VALUES —
+  `zsh_config` → `templates/zsh/.zshrc.j2`, `kitty_config` → `templates/kitty/kitty.conf.j2`,
+  `btop_config` → `templates/btop/btop.conf.j2` (same pin as its authored themes: one mirror),
+  `wlogout_config` → `templates/wlogout/style.css.tpl`, `display_manager` →
+  `templates/display-manager/{sddm.conf,config.toml}.j2` (the other three DM files are retained
+  fallback contracts, unrendered). Each role carries `<role>_assets_pinned_tag` +
+  `<role>_assets_templates_dir`; its render `src` is `<that dir>/<group>/<file>` and every `dest`,
+  `mode`, `become` and supplied var is unchanged from the pre-split task. `wlogout_config` also
+  **prunes** the pre-S3 `<spine>/config/wlogout/style.css.tpl` (an idempotent `state: absent`),
+  and `verify` asserts it stays absent. csg templates come
   from their own **pinned checkout**
   (`<install>/cli-tools/csg/<tag>/src/color_scheme_generator/defaults/templates`), and
   `config/weg/effects.yaml` is emitted via `weg dump-effects` (`roles/assets/vars/main.yml`). It
@@ -280,11 +290,16 @@ There are three hand-maintained copies of the same pin, by design:
 | Assets verify mirror | `roles/verify/vars/main.yml` (`verify_assets_pinned_tag`) | `TestVerifyVars.test_assets_pin_mirrors_the_manifest` |
 
 Plus per-consumer mirrors where a role cannot read the manifest: `assets_csg_pinned_tag`,
-`settings_weg_image_tag`, `btop_config_authored_themes_pinned_tag` (authored themes live in the
-assets checkout), `compositor_configs_assets_pinned_tag` and `config_copies_assets_pinned_tag`
-(the static config corpus reads `configs/` from the same checkout; both are parity-tested against
-`assets.tag`). A pin bump is therefore a multi-file edit, and the gate that proves it is
-`make deploy-coverage` (section 11, recipe (a)).
+`settings_weg_image_tag`, `btop_config_assets_pinned_tag` (ONE pin for the authored themes AND the
+btop render template — both read the same checkout), `compositor_configs_assets_pinned_tag` and
+`config_copies_assets_pinned_tag` (the static config corpus reads `configs/` from the same
+checkout), and — since S3 — `{zsh,kitty,wlogout,display_manager}_assets_pinned_tag` (the four other
+rendering roles read `templates/`). The five render-role mirrors plus the required-var parity are
+locked by `tests/unit/test_template_vars_parity.py` against `assets.tag`, and their shape (each
+render task reading `<install>/assets/<tag>/templates/`) by `deploy-coverage`. A pin bump is
+therefore a multi-file edit: the manifest (+ its three literal entry sources), the role/verify
+mirrors, and these per-consumer mirrors. The gate that proves it is `make deploy-coverage`
+(section 11, recipe (a)).
 
 ### 6.7 become vs user scope
 
@@ -533,8 +548,8 @@ rather than a `gates` target.
 2. Manifest: `dotfiles/provisioning/cli-tools.yaml` (`tag:` for a CLI).
 3. Role mirror: `roles/cli_tools/vars/main.yml` (`cli_tools:`).
 4. Verify mirror: `roles/verify/vars/main.yml` (`verify_<name>_version`, checkout path, pin file, `verify_<name>_contract_version` if the contract moved).
-5. Role-local mirrors the source feeds: `roles/assets/vars/main.yml` (`assets_csg_pinned_tag`), `roles/settings/vars/main.yml` (`settings_weg_image_tag`), `roles/btop_config/vars/main.yml` (`btop_config_authored_themes_pinned_tag`).
-5a. **Assets corpus**: tag `dotfiles-assets`, then bump `assets.tag` in `dotfiles/provisioning/assets.yaml`, the three `<install>/assets/<tag>/...` entry sources, `roles/assets/vars/main.yml` (`assets_pinned_tag`), `roles/verify/vars/main.yml` (`verify_assets_pinned_tag`) and `roles/btop_config/vars/main.yml` (authored-themes pin). The parity tests named in 6.6 fail on any half-edit.
+5. Role-local mirrors the source feeds: `roles/assets/vars/main.yml` (`assets_csg_pinned_tag`), `roles/settings/vars/main.yml` (`settings_weg_image_tag`), `roles/btop_config/vars/main.yml` (`btop_config_assets_pinned_tag`).
+5a. **Assets corpus**: tag `dotfiles-assets`, then bump `assets.tag` in `dotfiles/provisioning/assets.yaml`, the three `<install>/assets/<tag>/...` entry sources, `roles/assets/vars/main.yml` (`assets_pinned_tag`), `roles/verify/vars/main.yml` (`verify_assets_pinned_tag`), and the five per-consumer mirrors: `roles/{compositor_configs,config_copies}/{vars}` plus `roles/{zsh_config,kitty_config,btop_config,wlogout_config,display_manager}/vars/main.yml` (`<role>_assets_pinned_tag`; btop's one mirror feeds both its themes dir and its render template). The parity tests named in 6.6 fail on any half-edit.
 6. If a library or `contracts` moved: bump `[tool.uv.sources]` in `src/runtime/pyproject.toml` and/or `src/provisioning/pyproject.toml`, then `uv lock` there.
 7. If the contract moved: re-vendor the binding, update `CONTRACT_PIN`, run `make contract-pin-check` against a sibling `contracts` checkout.
 8. Prove: `make deploy-coverage`, `make gates-ci`, and on a host `dotfiles-provision verify` (the only place the pin is asserted *by execution*).
