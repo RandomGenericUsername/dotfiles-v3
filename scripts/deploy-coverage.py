@@ -84,6 +84,15 @@ required):
       role points back into this checkout's `dotfiles/` tree; and every retired
       corpus path (icons/content, configs, templates, desktop — the S1–S4 guard
       constants) is absent.
+  (o) asserts the composition PIN SET (S7): every pin is a semver tag and is
+      mirrored — `installer.pin` ↔ `bootstrap.sh` (the file is read, the tag is
+      never repeated), the assets tag ↔ its role/verify mirrors, every CLI tag
+      ↔ manifest/role/verify, and every library/contract `[tool.uv.sources]`
+      entry a `git` + tag source (never `path`, `editable`, `rev` or `branch`).
+  (p) asserts the terminal COMPOSITION-ONLY shape (S7): `src/` holds `runtime/`
+      only, `dotfiles/` holds `config/` + `provisioning/` (`config/` is exactly
+      the one mutable preference), and `src/provisioning/`, `dotfiles/assets/`,
+      `dotfiles/applications/` and `dotfiles/scripts/` are absent.
 
 The relative-import closure of `dotfiles/config/ags/app.tsx` is still computed
 when that dev/typecheck/test bridge is PRESENT (a developer checkout, or the
@@ -335,7 +344,24 @@ CLI_TOOLS_MANIFEST = "dotfiles/provisioning/cli-tools.yaml"
 # The installer engine is a separate external pin (not a CLI tool): bootstrap
 # installs the tool from this tag and both composition gates read that checkout.
 INSTALLER_PIN = "dotfiles/provisioning/installer.pin"
+# S7 (AD-4/AD-17): the composition pin set, validated as ONE set. The runtime is
+# the only authored Python package left; its `[tool.uv.sources]` pins are the
+# composition's library/contract pins (the other libraries are pinned inside the
+# CLI repos, which this repo does not author). `bootstrap.sh` reads the installer
+# pin file rather than repeating the tag.
+RUNTIME_PYPROJECT = "src/runtime/pyproject.toml"
+BOOTSTRAP = "bootstrap.sh"
+REQUIRED_RUNTIME_PINS = ("cli-output", "cli-invocation-contract")
+# S7 (AD-17 terminal): what a COMPOSITION repo may still author. `dotfiles/`
+# carries the manifests and the one mutable preference (OPEN-5 / R-07); `src/`
+# carries the runtime only. Everything else is a pin.
+COMPOSITION_DOTFILES_ENTRIES = ("config", "provisioning")
+COMPOSITION_CONFIG_FILES = ("btop/active-theme",)
+COMPOSITION_SRC_ENTRIES = ("runtime",)
 RETIRED_ASSETS_DIR = "dotfiles/assets"
+# S6b: the engine's Python package and Ansible tree are the pinned external
+# `dotfiles-provision` repo; this root has no remaining purpose.
+RETIRED_PROVISIONING_ROOT = "src/provisioning"
 RETIRED_ICON_MAPPINGS_DIR = "dotfiles/config/icon-template-color-scheme-mappings"
 
 # S4: the desktop entries and the repo-authored helper script moved to the same
@@ -356,7 +382,7 @@ ASSETS_MANIFEST = "dotfiles/provisioning/assets.yaml"
 ASSETS_ROLE_VARS = "ansible/roles/assets/vars/main.yml"
 VERIFY_ROLE_VARS = "ansible/roles/verify/vars/main.yml"
 ASSETS_CLASSES = ("icons", "templates", "configs", "content", "desktop")
-_ASSETS_SEMVER_TAG = re.compile(r"^v\d+\.\d+\.\d+$")
+_SEMVER_TAG = re.compile(r"^v\d+\.\d+\.\d+$")
 
 # S2: the static config corpus moved to the pinned `dotfiles-assets` repo
 # (configs/ class, v0.3.x). These five directories are gone; S3 retires the last
@@ -2187,7 +2213,7 @@ def assert_assets_shape(root: Path) -> tuple[str, tuple[str, ...]]:
     tag = str(block.get("tag") or "").strip()
     if not repo:
         raise ValueError(f"{ASSETS_MANIFEST} `assets.repo` is empty")
-    if not _ASSETS_SEMVER_TAG.fullmatch(tag):
+    if not _SEMVER_TAG.fullmatch(tag):
         raise ValueError(
             f"{ASSETS_MANIFEST} `assets.tag` must be a semver tag (vX.Y.Z, never "
             f"`latest` or a branch); got {tag!r}"
@@ -2400,6 +2426,251 @@ def assert_manifest_source_scope(root: Path) -> None:
             )
 
 
+def assert_pin_set(root: Path, assets_tag: str) -> tuple[
+    str, dict[str, str], dict[str, str]
+]:
+    """S7 (AD-4/AD-17): every composition pin is a semver tag, and mirrored.
+
+    The composition repo is the ONE place the pin set is declared, so it is the
+    one place it can be validated as a set:
+
+    * **installer engine** — `installer.pin` is the single source; `bootstrap.sh`
+      reads that file (it must not repeat the tag as a literal, which would let
+      a shell-side bump diverge from the one the Python gates read) and keeps
+      its own semver shape check;
+    * **assets corpus** — the tag returned by :func:`assert_assets_shape`, which
+      has already locked the manifest against the role + verify + per-consumer
+      mirrors;
+    * **CLIs** — every non-`source:` manifest entry is a semver tag mirrored by
+      the pinned engine's `cli_tools` role vars AND by `verify` (`version`,
+      tag-bearing checkout path, `pinned` record);
+    * **libraries + contract** — every `[tool.uv.sources]` entry in an authored
+      `src/` package is a `git` + semver `tag` (never `path`, `editable`,
+      `rev` or `branch`), and the runtime still carries the two pins it alone
+      consumes.
+
+    Returns ``(installer_tag, cli_tags, lib_tags)`` for the caller to print.
+    """
+    import yaml
+
+    # 1. The installer engine: ONE pin file, read by shell and Python.
+    installer_tag = read_engine_pin(root)
+    bootstrap_path = root / BOOTSTRAP
+    if not bootstrap_path.is_file():
+        raise ValueError(f"{BOOTSTRAP} is missing — it is the fresh-machine entry point")
+    bootstrap = bootstrap_path.read_text(encoding="utf-8")
+    if INSTALLER_PIN not in bootstrap:
+        raise ValueError(
+            f"{BOOTSTRAP} does not read {INSTALLER_PIN} — the engine tag must "
+            f"come from the one pin file, not a second declaration"
+        )
+    if installer_tag in bootstrap:
+        raise ValueError(
+            f"{BOOTSTRAP} names the engine tag {installer_tag!r} literally — "
+            f"it must only read {INSTALLER_PIN}; a literal can diverge from the "
+            f"tag both Python gates resolve"
+        )
+    if "[0-9]+\\.[0-9]+\\.[0-9]+" not in bootstrap:
+        raise ValueError(
+            f"{BOOTSTRAP} lost its semver shape check for {INSTALLER_PIN} — a "
+            f"branch, `latest` or a SHA must fail in the shell too"
+        )
+
+    # 2. The assets corpus tag (mirrors are already locked by assert_assets_shape).
+    if not _SEMVER_TAG.fullmatch(assets_tag):
+        raise ValueError(
+            f"the assets pin must be a semver tag (vX.Y.Z); got {assets_tag!r}"
+        )
+
+    # 3. Every CLI: manifest tag == role mirror == verify mirror.
+    manifest_path = root / CLI_TOOLS_MANIFEST
+    if not manifest_path.is_file():
+        raise ValueError(f"{CLI_TOOLS_MANIFEST} is missing")
+    manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8")) or {}
+    entries = manifest.get("entries")
+    if not isinstance(entries, list) or not entries:
+        raise ValueError(f"{CLI_TOOLS_MANIFEST} has no `entries` list")
+
+    role_vars_path = engine_path(CLI_TOOLS_ROLE_VARS)
+    verify_vars_path = engine_path(VERIFY_ROLE_VARS)
+    for path, label in (
+        (role_vars_path, CLI_TOOLS_ROLE_VARS),
+        (verify_vars_path, VERIFY_ROLE_VARS),
+    ):
+        if not path.is_file():
+            raise ValueError(f"the role vars file {label} is missing")
+    role_vars = yaml.safe_load(role_vars_path.read_text(encoding="utf-8")) or {}
+    verify_vars = yaml.safe_load(verify_vars_path.read_text(encoding="utf-8")) or {}
+    role_by_name = {
+        str(entry.get("name")): entry
+        for entry in role_vars.get("cli_tools") or []
+        if isinstance(entry, dict) and entry.get("name")
+    }
+
+    cli_tags: dict[str, str] = {}
+    for entry in entries:
+        if not isinstance(entry, dict):
+            raise ValueError(f"{CLI_TOOLS_MANIFEST} entry {entry!r} is not a mapping")
+        name = str(entry.get("name") or "")
+        if not name:
+            raise ValueError(f"{CLI_TOOLS_MANIFEST} has an entry without a name")
+        if "source" in entry:
+            # assert_manifest_source_scope owns the one permitted local source.
+            continue
+        tag = str(entry.get("tag") or "").strip()
+        if not _SEMVER_TAG.fullmatch(tag):
+            raise ValueError(
+                f"{CLI_TOOLS_MANIFEST} entry {name!r} must carry a semver tag "
+                f"(vX.Y.Z, never `latest`, a branch or a SHA); got {tag!r}"
+            )
+        role_entry = role_by_name.get(name)
+        if role_entry is None:
+            raise ValueError(
+                f"{role_vars_path} has no {name!r} cli_tools entry — the role "
+                f"mirror is missing"
+            )
+        role_tag = str(role_entry.get("tag") or "").strip()
+        if role_tag != tag:
+            raise ValueError(
+                f"{role_vars_path} pins {name!r} at {role_tag!r} but "
+                f"{CLI_TOOLS_MANIFEST} pins {tag!r} — bump both or neither"
+            )
+        version_key = f"verify_{name}_version"
+        checkout_key = f"verify_{name}_checkout"
+        pin_key = f"verify_{name}_pin_file"
+        verify_tag = str(verify_vars.get(version_key) or "").strip()
+        if verify_tag != tag:
+            raise ValueError(
+                f"{VERIFY_ROLE_VARS} {version_key} is {verify_tag!r} but the "
+                f"manifest pins {tag!r} — verify would assert a different tag "
+                f"than provisioning installs"
+            )
+        expected_checkout = (
+            "{{ verify_cli_tools_checkout_root }}/" + name + "/{{ " + version_key + " }}"
+        )
+        if verify_vars.get(checkout_key) != expected_checkout:
+            raise ValueError(
+                f"{VERIFY_ROLE_VARS} {checkout_key} must be "
+                f"{expected_checkout!r}; got {verify_vars.get(checkout_key)!r}"
+            )
+        expected_pin = "{{ verify_cli_tools_checkout_root }}/" + name + "/pinned"
+        if verify_vars.get(pin_key) != expected_pin:
+            raise ValueError(
+                f"{VERIFY_ROLE_VARS} {pin_key} must be {expected_pin!r}; got "
+                f"{verify_vars.get(pin_key)!r}"
+            )
+        cli_tags[name] = tag
+
+    # 4. Libraries + contract: a git tag, never a path or an editable install.
+    src = root / "src"
+    if not src.is_dir():
+        raise ValueError(f"{src} is missing — cannot validate the library pins")
+    lib_tags: dict[str, str] = {}
+    for pyproject in sorted(src.rglob("pyproject.toml")):
+        if any(part.startswith(".") for part in pyproject.relative_to(root).parts):
+            continue
+        data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+        sources = data.get("tool", {}).get("uv", {}).get("sources") or {}
+        for dependency, source in sources.items():
+            where = f"{pyproject.relative_to(root)} [tool.uv.sources].{dependency}"
+            if not isinstance(source, dict):
+                raise ValueError(f"{where} is not a mapping: {source!r}")
+            for forbidden in ("path", "editable", "rev", "branch", "workspace"):
+                if forbidden in source:
+                    raise ValueError(
+                        f"{where} pins by {forbidden!r} — every library and "
+                        f"contract is consumed as a git tag (spine AD-3/AD-10)"
+                    )
+            if not str(source.get("git") or "").startswith("https://"):
+                raise ValueError(
+                    f"{where} must carry an https git remote; got {source.get('git')!r}"
+                )
+            lib_tags[dependency] = str(source.get("tag") or "").strip()
+            if not _SEMVER_TAG.fullmatch(lib_tags[dependency]):
+                raise ValueError(
+                    f"{where} must carry a semver tag (vX.Y.Z); got "
+                    f"{source.get('tag')!r}"
+                )
+    runtime_data = tomllib.loads((root / RUNTIME_PYPROJECT).read_text(encoding="utf-8"))
+    runtime_sources = (
+        runtime_data.get("tool", {}).get("uv", {}).get("sources") or {}
+    )
+    missing = [name for name in REQUIRED_RUNTIME_PINS if name not in runtime_sources]
+    if missing:
+        raise ValueError(
+            f"{RUNTIME_PYPROJECT} is missing the composition pins {missing} — the "
+            f"runtime consumes the library and the invocation contract by tag"
+        )
+    return installer_tag, cli_tags, lib_tags
+
+
+def assert_composition_only(root: Path) -> None:
+    """S7 (AD-17 terminal): this repo authors the runtime and the manifests only.
+
+    The per-tree guards above catch a known corpus returning; this catch-all
+    catches ANY new authored tree, which is the failure mode that does not yet
+    have a name. `src/` may hold `runtime/`; `dotfiles/` may hold `config/` and
+    `provisioning/`; `dotfiles/config/` may hold the one mutable preference
+    (`btop/active-theme`, OPEN-5 / R-07). The retired corpus roots and the
+    in-repo engine root are asserted absent here as the terminal sweep, so a
+    fresh checkout that forgets one of the specific guards still fails.
+    """
+    dotfiles = root / "dotfiles"
+    if not dotfiles.is_dir():
+        raise ValueError("dotfiles/ is missing — the composition manifests live there")
+    authored_dotfiles = sorted(
+        child.name
+        for child in dotfiles.iterdir()
+        if not child.name.startswith(".") and child.name not in COMPOSITION_DOTFILES_ENTRIES
+    )
+    if authored_dotfiles:
+        raise ValueError(
+            f"dotfiles/ carries {authored_dotfiles} beyond "
+            f"{list(COMPOSITION_DOTFILES_ENTRIES)} — this repo authors manifests, "
+            f"the runtime and the gates; config/corpus data is the pinned "
+            f"dotfiles-assets repo (AD-17)"
+        )
+
+    config = dotfiles / "config"
+    if not config.is_dir():
+        raise ValueError("dotfiles/config/ is missing — btop/active-theme lives there")
+    config_files = sorted(
+        str(path.relative_to(config))
+        for path in config.rglob("*")
+        if path.is_file()
+        and not any(part.startswith(".") for part in path.relative_to(config).parts)
+    )
+    if config_files != list(COMPOSITION_CONFIG_FILES):
+        raise ValueError(
+            f"dotfiles/config/ must hold exactly {list(COMPOSITION_CONFIG_FILES)} "
+            f"(the one mutable preference); found {config_files} — every other "
+            f"config is a corpus class of the pinned dotfiles-assets repo"
+        )
+
+    src = root / "src"
+    if not src.is_dir():
+        raise ValueError(f"{src} is missing — the runtime lives there")
+    authored_src = sorted(
+        child.name
+        for child in src.iterdir()
+        if not child.name.startswith(".") and child.name not in COMPOSITION_SRC_ENTRIES
+    )
+    if authored_src:
+        raise ValueError(
+            f"src/ carries {authored_src} beyond {list(COMPOSITION_SRC_ENTRIES)} — "
+            f"the only in-repo Python is the runtime; every library, CLI and the "
+            f"installer engine is a pinned repo (AD-17)"
+        )
+
+    for retired in (RETIRED_PROVISIONING_ROOT, RETIRED_ASSETS_DIR, *RETIRED_DESKTOP_DIRS):
+        if (root / retired).exists():
+            raise ValueError(
+                f"the retired tree {retired}/ still exists — this repo is the "
+                f"composition repo only; delete it and bump the pin instead "
+                f"(AD-16/AD-17)"
+            )
+
+
 def assert_itr_provisioned_from_pinned_manifest(root: Path) -> None:
     """cli-tools-repos S4: `itr` (icon renderer) is consumed from its pin."""
     assert_cli_provisioned_from_pinned_manifest(
@@ -2461,9 +2732,9 @@ def main() -> int:
         # The installer engine is external (S6b): a surviving in-repo package
         # would be a second source of truth beside installer.pin, and a stale
         # import would bypass the pinned checkout the gates just resolved.
-        if (root / "src" / "provisioning").exists():
+        if (root / RETIRED_PROVISIONING_ROOT).exists():
             raise ValueError(
-                "src/provisioning/ still exists — the engine is the pinned "
+                f"{RETIRED_PROVISIONING_ROOT}/ still exists — the engine is the pinned "
                 f"external dotfiles-provision repo ({INSTALLER_PIN}); delete the "
                 f"in-repo copy"
             )
@@ -2552,6 +2823,17 @@ def main() -> int:
         # per-class source back into dotfiles/, and every class's retired corpus
         # path absent (the sweep reuses the S1–S4 constants above).
         assets_tag, assets_classes = assert_assets_shape(root)
+        # S7 (AD-4/AD-17): ONE pin set. installer.pin ↔ bootstrap, assets ↔
+        # role/verify, every CLI tag ↔ manifest/role/verify, and every
+        # library/contract source a git + semver tag. This is the executable
+        # answer to "where is the pin list" — ARCHITECTURE section 4.1 documents
+        # the same set for human readers.
+        installer_tag, cli_tags, lib_tags = assert_pin_set(root, assets_tag)
+        # S7 (AD-17 terminal): the catch-all. Anything authored under src/ or
+        # dotfiles/ beyond the runtime + manifests (or any retired corpus/engine
+        # root returning) fails here even if its named per-tree guard was
+        # forgotten.
+        assert_composition_only(root)
     except (RuntimeError, ValueError, FileNotFoundError) as exc:
         print(f"FAIL: {exc}")
         return 1
@@ -2669,6 +2951,24 @@ def main() -> int:
         f"by {ASSETS_ROLE_VARS} and {VERIFY_ROLE_VARS} (repo + tag + class map + "
         f"the AD-12 schema support window); no per-class source points into "
         f"dotfiles/ and every retired corpus path is absent"
+    )
+    print(
+        "deploy-coverage: pin set — installer dotfiles-provision "
+        f"{installer_tag} (from {INSTALLER_PIN}; {BOOTSTRAP} reads it, no literal), "
+        "assets dotfiles-assets "
+        f"{assets_tag}, CLIs "
+        + ", ".join(f"{name} {tag}" for name, tag in sorted(cli_tags.items()))
+        + ", runtime pins "
+        + ", ".join(f"{name} {tag}" for name, tag in sorted(lib_tags.items()))
+        + " — every pin semver and gate-mirrored"
+    )
+    print(
+        "deploy-coverage: COMPOSITION-ONLY — src/ holds runtime/ only, dotfiles/ "
+        f"holds {list(COMPOSITION_DOTFILES_ENTRIES)} (config/ = "
+        f"{list(COMPOSITION_CONFIG_FILES)}), and "
+        f"{RETIRED_PROVISIONING_ROOT}/, {RETIRED_ASSETS_DIR}/, "
+        + ", ".join(f"{path}/" for path in RETIRED_DESKTOP_DIRS)
+        + " are absent"
     )
     print(
         "deploy-coverage: assets classes: "

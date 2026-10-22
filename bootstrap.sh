@@ -91,7 +91,7 @@ ENGINE_REPO_URL="https://github.com/RandomGenericUsername/dotfiles-provision"
 ENGINE_PIN_FILE="$ROOT/dotfiles/provisioning/installer.pin"
 if [ ! -f "$ENGINE_PIN_FILE" ]; then
   red "ERROR: the installer pin is missing: ${ENGINE_PIN_FILE}"
-  red "It must contain one semver engine tag (e.g. v0.1.0)."
+  red "It must contain one semver engine tag (e.g. vX.Y.Z)."
   exit 1
 fi
 ENGINE_PIN="$(tr -d '[:space:]' < "$ENGINE_PIN_FILE")"
