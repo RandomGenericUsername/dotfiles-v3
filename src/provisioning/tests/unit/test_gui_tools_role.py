@@ -8,9 +8,11 @@ in-repo `src/gui-tools/` source root is retired.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
+import pytest
 import yaml
 
 
@@ -29,6 +31,33 @@ _ANSIBLE_DIR = _find_ansible_dir()
 _ROLES_DIR = _ANSIBLE_DIR / "roles" / "gui_tools"
 # _ANSIBLE_DIR is <repo>/src/provisioning/ansible → repo root is 3 up.
 _REPO_ROOT = _ANSIBLE_DIR.parent.parent.parent
+
+
+def _assets_configs_file(relative: str) -> Path | None:
+    """Resolve a file inside the pinned assets `configs/` class (S2).
+
+    The hypr skeletons moved to the pinned corpus, so a cross-check that reads
+    them can only run where that checkout exists. Resolution mirrors
+    `_authored_icons_yaml` in the compositor suite: explicit
+    ``DOTFILES_ASSETS_CONFIGS_DIR``, else the provisioned spine's pinned
+    checkout. ``None`` means "not provided" — the caller skips loudly rather
+    than pinning a copy of the bytes here.
+    """
+    explicit = os.environ.get("DOTFILES_ASSETS_CONFIGS_DIR")
+    candidates: list[Path] = [Path(explicit).expanduser()] if explicit else []
+    manifest = yaml.safe_load(
+        (_REPO_ROOT / "dotfiles" / "provisioning" / "assets.yaml").read_text()
+    )
+    tag = str(manifest["assets"]["tag"])
+    spine = os.environ.get("DOTFILES_INSTALL_SPINE")
+    if spine:
+        candidates.append(Path(spine).expanduser() / "assets" / tag / "configs")
+    else:
+        xdg_data = Path(
+            os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share"
+        )
+        candidates.append(xdg_data / "dotfiles" / "assets" / tag / "configs")
+    return next((base / relative for base in candidates if (base / relative).is_file()), None)
 
 
 def _tasks() -> list[dict[str, object]]:
@@ -581,11 +610,19 @@ class TestBtopStudioRegistration:
         (The bar's app.tsx no longer exists in-repo — the bar deploys whole as
         the pinned external `ags-apps` unit, and the "not registered in the
         bar" assertion is owned there.)"""
-        autostart = (_REPO_ROOT / "dotfiles/config/hypr/autostart.lua").read_text(encoding="utf-8")
+        autostart_path = _assets_configs_file("hypr/autostart.lua")
+        keybinds_path = _assets_configs_file("hypr/keybindings.lua")
+        if autostart_path is None or keybinds_path is None:
+            pytest.skip(
+                "the hypr skeletons are in the pinned corpus (S2): set "
+                "DOTFILES_ASSETS_CONFIGS_DIR=<v0.3.1 checkout>/configs or "
+                "provision the spine, then re-run this cross-check"
+            )
+        autostart = autostart_path.read_text(encoding="utf-8")
         assert "btop-theme-studio" not in autostart and "ags-btop-studio" not in autostart, (
             "the studio must not be autostarted (launch-on-demand only)"
         )
-        keybinds = (_REPO_ROOT / "dotfiles/config/hypr/keybindings.lua").read_text(encoding="utf-8")
+        keybinds = keybinds_path.read_text(encoding="utf-8")
         assert "btop-theme-studio" in keybinds, (
             "the studio must have a provisioned keybind launcher"
         )
