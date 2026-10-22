@@ -77,6 +77,13 @@ required):
       `src/shared/oci-runtime/` is gone, the now-empty `src/shared/` root is
       gone, and no package under `src/` pins it by `path` — csg/weg consume the
       pinned `v0.5.0` repo tag and build images from their own package root.
+  (n) asserts the assets corpus SHAPE (S5): the manifest `assets:` block has a
+      `repo` and a semver `tag`; the role and verify mirrors agree with it
+      (repo/tag/class map + the AD-12 schema support window); the five class
+      dirs are the verify list; no per-class `source:` in the manifest or the
+      role points back into this checkout's `dotfiles/` tree; and every retired
+      corpus path (icons/content, configs, templates, desktop — the S1–S4 guard
+      constants) is absent.
 
 The relative-import closure of `dotfiles/config/ags/app.tsx` is still computed
 when that dev/typecheck/test bridge is PRESENT (a developer checkout, or the
@@ -321,6 +328,18 @@ RETIRED_ICON_MAPPINGS_DIR = "dotfiles/config/icon-template-color-scheme-mappings
 RETIRED_DESKTOP_DIRS = ("dotfiles/applications", "dotfiles/scripts")
 DESKTOP_PIN_ROLE = "compositor_configs"
 
+# S5 (AD-12): the pinned corpus's SHAPE. The manifest `assets:` block is the one
+# source of truth for repo/tag/class map; the role and verify carry mirrors
+# (Ansible does not read manifests) and this gate locks them together, so a pin
+# bump or a widened schema window cannot land on one side only. The retired-path
+# sweep below REUSES the S1–S4 constants — it adds no path literals, it only
+# reports the five classes explicitly.
+ASSETS_MANIFEST = "dotfiles/provisioning/assets.yaml"
+ASSETS_ROLE_VARS = "src/provisioning/ansible/roles/assets/vars/main.yml"
+VERIFY_ROLE_VARS = "src/provisioning/ansible/roles/verify/vars/main.yml"
+ASSETS_CLASSES = ("icons", "templates", "configs", "content", "desktop")
+_ASSETS_SEMVER_TAG = re.compile(r"^v\d+\.\d+\.\d+$")
+
 # S2: the static config corpus moved to the pinned `dotfiles-assets` repo
 # (configs/ class, v0.3.x). These five directories are gone; S3 retires the last
 # two (`zsh/`, whose only file was the .zshrc template, and `wlogout/`, whose
@@ -359,6 +378,22 @@ TEMPLATE_RENDER_ROLES = {
 RETIRED_ROLE_TEMPLATE_DIRS = tuple(
     f"src/provisioning/ansible/roles/{role}/templates" for role in TEMPLATE_RENDER_ROLES
 )
+
+# S5: the retired paths that belonged to each corpus class, sourced from the
+# guard constants above (never re-typed). A class is covered when its retired
+# tree/file is ABSENT; the sweep exists so one assets failure names the CLASS,
+# not a bare path. The S1–S4 assertions still own the detailed messages.
+ASSET_CLASS_RETIRED_PATHS = {
+    "icons": (RETIRED_ASSETS_DIR, RETIRED_ICON_MAPPINGS_DIR),
+    "templates": (
+        RETIRED_STATIC_CONFIG_DIRS
+        + RETIRED_ROLE_TEMPLATE_DIRS
+        + RETIRED_STATIC_CONFIG_FILES
+    ),
+    "configs": RETIRED_STATIC_CONFIG_DIRS + RETIRED_STATIC_CONFIG_FILES,
+    "content": (RETIRED_ASSETS_DIR,),
+    "desktop": RETIRED_DESKTOP_DIRS,
+}
 CLI_TOOLS_ROLE_VARS = "src/provisioning/ansible/roles/cli_tools/vars/main.yml"
 ITR_NAME = "itr"
 RETIRED_ITR_DIR = "src/cli-tools/icon-templates-renderer"
@@ -2091,6 +2126,170 @@ def assert_no_in_tree_desktop_corpus(root: Path) -> None:
         )
 
 
+def assert_assets_shape(root: Path) -> tuple[str, tuple[str, ...]]:
+    """S5 (AD-12): the pinned corpus is consumed through ONE mirrored pin.
+
+    Four things, all CI-runnable (this repo only, no checkout, no network):
+
+    * the manifest `assets:` block carries a `repo` and a SEMVER `tag`, and names
+      exactly the five class dirs with the schema-bearing ones declaring a
+      contract (`configs`/`content` declare `null` — no schema to version);
+    * the role mirror (`assets_repo` / `assets_pinned_tag` / `assets_classes`)
+      and the verify mirror (`verify_assets_pinned_tag` / the five class dirs)
+      agree with the manifest, so a pin bump cannot land on one side;
+    * the AD-12 support window exists on BOTH sides, names exactly the
+      schema-bearing classes, and is EQUAL — a widened window on one side would
+      let the fetch accept a corpus verify rejects (or the reverse);
+    * no per-class `source:` points back into this checkout's `dotfiles/` tree
+      (the split's whole point: the corpus is the pin, not a repo path), and
+      every retired corpus path is absent — reusing the S1–S4 guard constants so
+      one assets failure names the CLASS.
+
+    Returns ``(tag, classes)`` so the caller can print the pin and every class
+    dir it just proved.
+    """
+    import yaml
+
+    manifest_path = root / ASSETS_MANIFEST
+    if not manifest_path.is_file():
+        raise ValueError(f"the assets manifest {ASSETS_MANIFEST} is missing")
+    manifest = yaml.safe_load(manifest_path.read_text()) or {}
+    block = manifest.get("assets") if isinstance(manifest, dict) else None
+    if not isinstance(block, dict):
+        raise ValueError(f"{ASSETS_MANIFEST} has no `assets:` mapping")
+    repo = str(block.get("repo") or "").strip()
+    tag = str(block.get("tag") or "").strip()
+    if not repo:
+        raise ValueError(f"{ASSETS_MANIFEST} `assets.repo` is empty")
+    if not _ASSETS_SEMVER_TAG.fullmatch(tag):
+        raise ValueError(
+            f"{ASSETS_MANIFEST} `assets.tag` must be a semver tag (vX.Y.Z, never "
+            f"`latest` or a branch); got {tag!r}"
+        )
+    classes = block.get("classes")
+    if not isinstance(classes, dict) or set(classes) != set(ASSETS_CLASSES):
+        got = sorted(classes) if isinstance(classes, dict) else classes
+        raise ValueError(
+            f"{ASSETS_MANIFEST} `assets.classes` must name exactly "
+            f"{list(ASSETS_CLASSES)}; got {got!r}"
+        )
+    for name, entry in classes.items():
+        if not isinstance(entry, dict) or entry.get("dest") != name:
+            raise ValueError(
+                f"{ASSETS_MANIFEST} class {name!r} must map to its own dir "
+                f"(dest == {name!r}); got {entry!r}"
+            )
+    schema_bearing = {name for name, entry in classes.items() if entry.get("schema") is not None}
+    schema_less = set(classes) - schema_bearing
+    if schema_less != {"configs", "content"}:
+        raise ValueError(
+            f"{ASSETS_MANIFEST}: `configs` and `content` are the ONLY schema-less "
+            f"classes (catalog.yaml: schema null); got schema-less={sorted(schema_less)}"
+        )
+
+    def _load_vars(relative: str) -> dict:
+        path = root / relative
+        if not path.is_file():
+            raise ValueError(f"the role vars file {relative} is missing")
+        data = yaml.safe_load(path.read_text()) or {}
+        if not isinstance(data, dict):
+            raise ValueError(f"{relative} is not a mapping")
+        return data
+
+    role_vars = _load_vars(ASSETS_ROLE_VARS)
+    verify_vars = _load_vars(VERIFY_ROLE_VARS)
+    if str(role_vars.get("assets_repo")) != repo:
+        raise ValueError(
+            f"{ASSETS_ROLE_VARS}: assets_repo {role_vars.get('assets_repo')!r} must "
+            f"mirror {ASSETS_MANIFEST} `assets.repo` {repo!r}"
+        )
+    if str(role_vars.get("assets_pinned_tag")) != tag:
+        raise ValueError(
+            f"{ASSETS_ROLE_VARS}: assets_pinned_tag "
+            f"{role_vars.get('assets_pinned_tag')!r} must mirror {tag!r}"
+        )
+    if role_vars.get("assets_classes") != classes:
+        raise ValueError(
+            f"{ASSETS_ROLE_VARS}: assets_classes must equal {ASSETS_MANIFEST} "
+            f"`assets.classes` (pin bump edits both or the gate fails)"
+        )
+    if str(verify_vars.get("verify_assets_pinned_tag")) != tag:
+        raise ValueError(
+            f"{VERIFY_ROLE_VARS}: verify_assets_pinned_tag "
+            f"{verify_vars.get('verify_assets_pinned_tag')!r} must mirror {tag!r}"
+        )
+    class_dirs = [str(item) for item in verify_vars.get("verify_assets_class_dirs") or []]
+    expected_dirs = [
+        f"{{{{ verify_assets_tag_dir }}}}/{name}" for name in ASSETS_CLASSES
+    ]
+    if class_dirs != expected_dirs:
+        raise ValueError(
+            f"{VERIFY_ROLE_VARS}: verify_assets_class_dirs must be the five class "
+            f"dirs under the pinned tag; expected {expected_dirs}, got {class_dirs}"
+        )
+
+    support = role_vars.get("assets_schema_support")
+    verify_support = verify_vars.get("verify_assets_schema_support")
+    if not isinstance(support, dict) or set(support) != schema_bearing:
+        raise ValueError(
+            f"{ASSETS_ROLE_VARS}: assets_schema_support must name exactly the "
+            f"schema-bearing classes {sorted(schema_bearing)}; got {support!r}"
+        )
+    if not all(isinstance(value, int) and value >= 1 for value in support.values()):
+        raise ValueError(
+            f"{ASSETS_ROLE_VARS}: every assets_schema_support value must be a "
+            f"positive integer major; got {support!r}"
+        )
+    if support != verify_support:
+        raise ValueError(
+            f"the schema support windows disagree: {ASSETS_ROLE_VARS} has "
+            f"{support!r}, {VERIFY_ROLE_VARS} has {verify_support!r} — the fetch "
+            f"and verify must accept the same corpus"
+        )
+
+    entries = manifest.get("entries")
+    if not isinstance(entries, list) or not entries:
+        raise ValueError(f"{ASSETS_MANIFEST} has no `entries` list")
+    for entry in entries:
+        if not isinstance(entry, dict) or "source" not in entry:
+            continue
+        source = str(entry["source"])
+        if "dotfiles/" in source or source.startswith("dotfiles"):
+            raise ValueError(
+                f"{ASSETS_MANIFEST} entry {entry.get('name')!r} source "
+                f"{source!r} points into this checkout's dotfiles/ tree — the "
+                f"corpus is the pinned assets repo, not a repo path"
+            )
+        if not (
+            source.startswith("{{ install_dir | trim }}/assets/")
+            or source.startswith("{{ install_dir | trim }}/cli-tools/")
+        ):
+            raise ValueError(
+                f"{ASSETS_MANIFEST} entry {entry.get('name')!r} source "
+                f"{source!r} must resolve under the install spine "
+                f"(<install>/assets/ or a pinned cli checkout), never the repo"
+            )
+    for copy in role_vars.get("assets_copies") or []:
+        source = str((copy or {}).get("source", ""))
+        if not source.startswith("{{ assets_checkout_root }}/") or "dotfiles/" in source:
+            raise ValueError(
+                f"{ASSETS_ROLE_VARS}: copy {copy.get('name')!r} source {source!r} "
+                f"must read the pinned assets checkout ({{{{ assets_checkout_root }}}}); "
+                f"a dotfiles/ path would resurrect the retired in-repo corpus"
+            )
+
+    for schema_class, retired_paths in ASSET_CLASS_RETIRED_PATHS.items():
+        for relative in retired_paths:
+            if (root / relative).exists():
+                raise ValueError(
+                    f"the retired {schema_class} corpus path {relative} still exists "
+                    f"— the {schema_class} class is the pinned dotfiles-assets repo "
+                    f"(assets {tag}); delete the in-tree copy and bump the pin"
+                )
+
+    return tag, ASSETS_CLASSES
+
+
 def assert_manifest_source_scope(root: Path) -> None:
     """The CLI manifest has exactly ONE local `source:` — `dotfiles-runtime`.
 
@@ -2271,6 +2470,11 @@ def main() -> int:
         # The retired trees are absent AND the role resolves the pinned class's
         # contract BEFORE the copy (layer 2), reading only the pinned checkout.
         assert_no_in_tree_desktop_corpus(root)
+        # S5 (AD-12): the pinned corpus's shape — one manifest pin mirrored by
+        # the role and verify, the same schema support window on both sides, no
+        # per-class source back into dotfiles/, and every class's retired corpus
+        # path absent (the sweep reuses the S1–S4 constants above).
+        assets_tag, assets_classes = assert_assets_shape(root)
     except (RuntimeError, ValueError, FileNotFoundError) as exc:
         print(f"FAIL: {exc}")
         return 1
@@ -2382,6 +2586,17 @@ def main() -> int:
         "{applications,scripts,desktop.yaml}, resolves the contract's "
         "requires/optional BEFORE the copy, and dotfiles/{applications,scripts} are "
         "retired"
+    )
+    print(
+        f"deploy-coverage: PASS -- the assets corpus pin is {assets_tag}, mirrored "
+        f"by {ASSETS_ROLE_VARS} and {VERIFY_ROLE_VARS} (repo + tag + class map + "
+        f"the AD-12 schema support window); no per-class source points into "
+        f"dotfiles/ and every retired corpus path is absent"
+    )
+    print(
+        "deploy-coverage: assets classes: "
+        + " ".join(assets_classes)
+        + f" (dirs under <install>/assets/{assets_tag}/)"
     )
     print(
         f"deploy-coverage: PASS -- six packages are consumed from their pinned "

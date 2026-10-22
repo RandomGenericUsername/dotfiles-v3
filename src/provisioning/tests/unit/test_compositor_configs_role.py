@@ -1700,6 +1700,12 @@ class TestDeployCoverageGate:
             "btop_config",
             "wlogout_config",
             "display_manager",
+            # S5: the assets shape gate reads the assets + verify pin mirrors and
+            # the AD-12 schema support window, so both roles must be seeded or
+            # every negative test would fail on the missing mirror instead of on
+            # its injected defect.
+            "assets",
+            "verify",
         ),
     ) -> None:
         """Seed a hermetic temp root for the gate.
@@ -1733,6 +1739,12 @@ class TestDeployCoverageGate:
         manifest_dst = root / self._CLI_MANIFEST
         manifest_dst.parent.mkdir(parents=True, exist_ok=True)
         manifest_dst.write_text(manifest_src.read_text())
+        # S5: the assets manifest is the pin the shape gate locks the role +
+        # verify mirrors against. Seeded verbatim; a negative test edits a copy.
+        assets_manifest = root / "dotfiles/provisioning/assets.yaml"
+        assets_manifest.write_text(
+            (repo_root / "dotfiles/provisioning/assets.yaml").read_text()
+        )
 
     def test_gate_passes_on_the_real_tree(self) -> None:
         repo_root = _ANSIBLE_DIR.parents[2]
@@ -1771,6 +1783,110 @@ class TestDeployCoverageGate:
             "parent roots retired and exactly one in-repo source; recap:\n"
             + result.stdout
         )
+        assert "the assets corpus pin is v0.5.0" in result.stdout, (
+            "the gate must print the assets pin it proved; recap:\n" + result.stdout
+        )
+        assert (
+            "assets classes: icons templates configs content desktop" in result.stdout
+        ), "the gate must print the five class dirs; recap:\n" + result.stdout
+
+    def test_gate_fails_when_the_assets_tag_is_not_semver(self) -> None:
+        """S5: the corpus pin is a semver tag. A branch name or `latest` would
+        deploy an unpinned corpus, so the shape gate refuses it."""
+        repo_root = _ANSIBLE_DIR.parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._seed_root(root, repo_root)
+            manifest = root / "dotfiles/provisioning/assets.yaml"
+            manifest.write_text(
+                manifest.read_text().replace("tag: v0.5.0", "tag: main")
+            )
+            result = self._run(root)
+            assert result.returncode != 0, (
+                "the gate must FAIL on a non-semver assets tag; recap:\n"
+                + result.stdout
+            )
+            assert "assets.tag" in result.stdout and "semver" in result.stdout, (
+                "the failure must name assets.tag and the semver rule; recap:\n"
+                + result.stdout
+            )
+
+    def test_gate_fails_when_the_verify_assets_pin_disagrees(self) -> None:
+        """S5: role + verify mirrors the manifest tag; a bump on one side only
+        would make verify check a corpus the fetch never installed."""
+        repo_root = _ANSIBLE_DIR.parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._seed_root(root, repo_root)
+            vars_path = (
+                root / "src/provisioning/ansible/roles/verify/vars/main.yml"
+            )
+            vars_path.write_text(
+                vars_path.read_text().replace(
+                    "verify_assets_pinned_tag: v0.5.0",
+                    "verify_assets_pinned_tag: v0.4.0",
+                )
+            )
+            result = self._run(root)
+            assert result.returncode != 0, (
+                "the gate must FAIL when the verify pin mirror disagrees; recap:\n"
+                + result.stdout
+            )
+            assert "verify_assets_pinned_tag" in result.stdout, (
+                "the failure must name the verify mirror; recap:\n" + result.stdout
+            )
+
+    def test_gate_fails_when_the_assets_schema_windows_disagree(self) -> None:
+        """S5/AD-12: the fetch and verify read the SAME window. A widened window
+        on one side lets the fetch accept a corpus verify then rejects."""
+        repo_root = _ANSIBLE_DIR.parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._seed_root(root, repo_root)
+            vars_path = (
+                root / "src/provisioning/ansible/roles/verify/vars/main.yml"
+            )
+            vars_path.write_text(
+                vars_path.read_text().replace(
+                    "verify_assets_schema_support:\n  icons: 1",
+                    "verify_assets_schema_support:\n  icons: 2",
+                )
+            )
+            result = self._run(root)
+            assert result.returncode != 0, (
+                "the gate must FAIL when the support windows disagree; recap:\n"
+                + result.stdout
+            )
+            assert "schema support windows disagree" in result.stdout, (
+                "the failure must name the diverging windows; recap:\n"
+                + result.stdout
+            )
+
+    def test_gate_fails_when_a_class_source_points_into_dotfiles(self) -> None:
+        """S5: a per-class `source:` back in this checkout is the split undone —
+        the corpus is the pin, never a repo path."""
+        repo_root = _ANSIBLE_DIR.parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._seed_root(root, repo_root)
+            manifest = root / "dotfiles/provisioning/assets.yaml"
+            text = manifest.read_text().replace(
+                'source: "{{ install_dir | trim }}/assets/v0.5.0/icons/templates/"',
+                'source: "dotfiles/assets/icons/templates/"',
+            )
+            assert "dotfiles/assets/icons/templates/" in text, (
+                "seed failed: class source not rewritten"
+            )
+            manifest.write_text(text)
+            result = self._run(root)
+            assert result.returncode != 0, (
+                "the gate must FAIL on a class source pointing into dotfiles/; "
+                f"recap:\n{result.stdout}"
+            )
+            assert "dotfiles/" in result.stdout and "icon-templates" in result.stdout, (
+                "the failure must name the offending entry and path; recap:\n"
+                + result.stdout
+            )
 
     def test_gate_fails_when_the_retired_cli_output_tree_returns(self) -> None:
         """cli-tools-repos S1: `cli-output` is consumed from its pinned repo

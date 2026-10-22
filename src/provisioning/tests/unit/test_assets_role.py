@@ -553,6 +553,9 @@ class TestAssetsTasks:
             "{{ assets_checkout_root }}",
             "{{ install_dir | trim }}",
             "{{ assets_pinned_file }}",
+            # S5: the template contract loop reads the paths the `find` task
+            # returned from the pinned checkout (never a repo-relative path).
+            "{{ item.path }}",
         )
         for task in _load_tasks():
             module_key = _module_key(task)
@@ -836,6 +839,272 @@ class TestAssetsVars:
         assert stats, "the existence probe must stat the resolved checkout source"
         for task in asserts:
             assert task.get("when") == "not ansible_check_mode"
+
+
+# S5 (AD-12): the tasks that make the support window executable at fetch time.
+# Named here because the negative cases below RUN these exact production tasks
+# against a fabricated checkout (a copied assertion is not evidence).
+_SCHEMA_FETCH_TASK_NAMES = (
+    "Find the pinned template schema contracts",
+    "Read the pinned icons schema contract",
+    "Read the pinned desktop schema contract",
+    "Read every pinned template schema contract",
+    "Assert the pinned icons schema_major is in the consumer support window",
+    "Assert the pinned desktop schema_major is in the consumer support window",
+    "Assert the pinned templates ship at least one schema contract",
+    "Assert every pinned template schema_major is in the consumer support window",
+)
+_FIRST_COPY_TASK_NAMES = (
+    "Unpack wallpapers tarball",
+    "Deploy directory asset kinds (mirror, prune deleted files)",
+    "Deploy directory asset kinds that live in a pinned checkout (mirror, prune)",
+)
+
+
+def _selected_tasks(names: tuple[str, ...]) -> list[dict[str, object]]:
+    """Return the named role tasks in file order (fail if one is missing)."""
+    by_name = {str(task.get("name")): task for task in _load_tasks()}
+    missing = [name for name in names if name not in by_name]
+    assert not missing, f"role is missing the S5 tasks {missing}"
+    return [by_name[name] for name in names]
+
+
+def _write_schema_checkout(root: Path, majors: dict[str, int]) -> None:
+    """Materialize the three schema-bearing contracts the role reads."""
+    import json
+
+    (root / "icons").mkdir(parents=True)
+    (root / "icons" / "schema.json").write_text(
+        json.dumps({"schema_major": majors["icons"]}) + "\n"
+    )
+    template_dir = root / "templates" / "zsh"
+    template_dir.mkdir(parents=True)
+    (template_dir / ".zshrc.vars.schema.json").write_text(
+        json.dumps({"schema_major": majors["templates"]}) + "\n"
+    )
+    (root / "desktop").mkdir()
+    (root / "desktop" / "desktop.yaml").write_text(
+        f"schema_major: {majors['desktop']}\n"
+    )
+
+
+def _run_role_tasks(
+    tmp_path: Path,
+    tasks: list[dict[str, object]],
+    extra_vars: dict[str, object],
+    check: bool = False,
+) -> subprocess.CompletedProcess[str]:
+    """Run role tasks as a minimal play — the production task bodies, no role.
+
+    Hermetic: localhost, gather_facts off, a throwaway checkout + playbook. This
+    is how the negative cases prove the fetch assertion really fires (and names
+    the file) instead of asserting that a string contains 'assert'.
+    """
+    ansible_playbook = shutil.which("ansible-playbook")
+    if ansible_playbook is None:
+        pytest.skip("ansible-playbook not installed; skipping task execution")
+    playbook = tmp_path / "play.yml"
+    playbook.write_text(
+        yaml.safe_dump(
+            [
+                {
+                    "name": "S5 schema window probe",
+                    "hosts": "localhost",
+                    "gather_facts": False,
+                    "vars": extra_vars,
+                    "tasks": tasks,
+                }
+            ],
+            sort_keys=False,
+        )
+    )
+    env = dict(os.environ)
+    env["ANSIBLE_CONFIG"] = str(_ANSIBLE_DIR / "ansible.cfg")
+    command = [ansible_playbook, "-i", "localhost,", "-c", "local"]
+    if check:
+        command.append("--check")
+    command.append(str(playbook))
+    return subprocess.run(command, capture_output=True, text=True, env=env)
+
+
+def _schema_extra_vars(checkout_root: Path) -> dict[str, object]:
+    data = _vars()
+    return {
+        "assets_checkout_root": str(checkout_root),
+        "assets_pinned_tag": str(data["assets_pinned_tag"]),
+        "assets_schema_support": data["assets_schema_support"],
+    }
+
+
+class TestAssetsSchemaContract:
+    """S5 (AD-12): the support window is data, asserted before the first copy."""
+
+    def test_schema_support_window_is_declared_per_schema_bearing_class(self) -> None:
+        """The window exists for exactly the classes that ship a contract.
+
+        catalog.yaml: icons/templates/desktop carry a schema; configs/content
+        are `schema: null`. An entry for a schema-less class would be a claim
+        nothing backs, and a missing entry for a schema-bearing one would let
+        the fetch accept any major.
+        """
+        data = _vars()
+        support = data.get("assets_schema_support")
+        assert support == {"icons": 1, "templates": 1, "desktop": 1}, support
+        schema_bearing = {
+            name
+            for name, entry in data["assets_classes"].items()
+            if entry.get("schema") is not None
+        }
+        assert set(support) == schema_bearing, (
+            "assets_schema_support must name exactly the schema-bearing classes "
+            f"(classes={sorted(schema_bearing)}, support={sorted(support)})"
+        )
+        assert "configs" not in support and "content" not in support, (
+            "configs/content ship no schema contract (catalog.yaml: schema null); "
+            "a window entry for them would version nothing"
+        )
+        assert all(isinstance(value, int) and value >= 1 for value in support.values())
+
+    def test_schema_reads_and_asserts_precede_the_first_copy(self) -> None:
+        """AD-12: refuse an unreadable corpus BEFORE deploying anything.
+
+        The find/slurp probes and every assert must sit between the presence
+        assert and the first copy task, or a bad corpus half-deploys first.
+        """
+        names = [str(task.get("name")) for task in _load_tasks()]
+        first_copy_index = min(
+            names.index(name) for name in _FIRST_COPY_TASK_NAMES if name in names
+        )
+        selected = _selected_tasks(_SCHEMA_FETCH_TASK_NAMES)
+        for task in selected:
+            index = names.index(str(task.get("name")))
+            assert index < first_copy_index, (
+                f"{task.get('name')!r} must run before the first copy "
+                f"({names[first_copy_index]!r})"
+            )
+        find = _selected_tasks(("Find the pinned template schema contracts",))[0]
+        module = _module(find)
+        assert module.get("paths") == "{{ assets_checkout_root }}/templates"
+        assert module.get("patterns") == "*.vars.schema.json"
+        assert module.get("recurse") is True
+        # The zsh contract is `.zshrc.vars.schema.json` — hidden. `find`'s
+        # default `hidden: false` silently skipped it (caught by the negative
+        # templates case), leaving one schema unasserted.
+        assert module.get("hidden") is True, (
+            "the templates find must include hidden files or the zsh contract "
+            "is never checked"
+        )
+        assert module.get("file_type") == "file"
+
+    def test_schema_probes_and_asserts_are_check_mode_safe(self) -> None:
+        """A dry run must not read a checkout it never cloned.
+
+        Every new find/slurp/assert declares `when: not ansible_check_mode`
+        (the role's existing probe discipline) and the probes report
+        changed: false, so a second run is a no-op.
+        """
+        for task in _selected_tasks(_SCHEMA_FETCH_TASK_NAMES):
+            assert task.get("when") == "not ansible_check_mode", (
+                f"{task.get('name')!r} must declare its check gate"
+            )
+            assert _module_key(task) != "ansible.builtin.command"
+        assert not [
+            task
+            for task in _selected_tasks(_SCHEMA_FETCH_TASK_NAMES)
+            if task.get("changed_when") not in (None, False)
+        ], "the schema probe tasks must be read-only"
+
+    def test_schema_assert_fail_msg_names_the_file_and_the_window(self) -> None:
+        """The fail_msg is the operator's whole diagnosis: file + window."""
+        expectations = {
+            "Assert the pinned icons schema_major is in the consumer support window": (
+                "assets_icons_schema.source",
+                "assets_schema_support.icons",
+            ),
+            "Assert the pinned desktop schema_major is in the consumer support window": (
+                "assets_desktop_schema.source",
+                "assets_schema_support.desktop",
+            ),
+            "Assert every pinned template schema_major is in the consumer support window": (
+                "item.source",
+                "assets_schema_support.templates",
+            ),
+        }
+        for name, (file_expr, window_expr) in expectations.items():
+            task = _selected_tasks((name,))[0]
+            module = _module(task)
+            assert "schema_major" in str(module.get("that")), name
+            fail_msg = str(module.get("fail_msg"))
+            assert file_expr in fail_msg, (
+                f"{name!r} fail_msg must name the offending file via {file_expr!r}"
+            )
+            assert window_expr in fail_msg, (
+                f"{name!r} fail_msg must state the accepted window ({window_expr!r})"
+            )
+
+    def test_schema_asserts_accept_an_in_window_checkout(self, tmp_path: Path) -> None:
+        """Positive control for the negative cases: valid contracts pass.
+
+        Without this, a task that fails for an unrelated reason (a bad filter,
+        a typo in a var) would make the negative cases look like proof.
+        """
+        checkout = tmp_path / "checkout"
+        _write_schema_checkout(
+            checkout, {"icons": 1, "templates": 1, "desktop": 1}
+        )
+        result = _run_role_tasks(
+            tmp_path,
+            _selected_tasks(_SCHEMA_FETCH_TASK_NAMES),
+            _schema_extra_vars(checkout),
+        )
+        output = result.stdout + result.stderr
+        assert result.returncode == 0, output
+        assert "changed=0" in output, "the schema probes must be read-only"
+        assert "failed=0" in output
+
+    @pytest.mark.parametrize(
+        ("schema_class", "file_fragment"),
+        [
+            ("icons", "icons/schema.json"),
+            ("templates", "templates/zsh/.zshrc.vars.schema.json"),
+            ("desktop", "desktop/desktop.yaml"),
+        ],
+    )
+    def test_fetch_rejects_an_out_of_window_schema(
+        self, tmp_path: Path, schema_class: str, file_fragment: str
+    ) -> None:
+        """AD-12 negative: schema_major too high → the fetch assert fails,
+        naming the file and the accepted window, before any copy."""
+        majors = {"icons": 1, "templates": 1, "desktop": 1}
+        majors[schema_class] = 2
+        checkout = tmp_path / "checkout"
+        _write_schema_checkout(checkout, majors)
+        result = _run_role_tasks(
+            tmp_path,
+            _selected_tasks(_SCHEMA_FETCH_TASK_NAMES),
+            _schema_extra_vars(checkout),
+        )
+        output = result.stdout + result.stderr
+        assert result.returncode != 0, (
+            f"an out-of-window {schema_class} schema_major must fail the fetch"
+        )
+        assert file_fragment in output, (
+            f"the failure must name the offending file ({file_fragment}); got:\n{output}"
+        )
+        assert "declares schema_major 2" in output, output
+        assert f"supports {schema_class} schema_major 1" in output, output
+
+    def test_schema_check_is_skipped_under_check_mode(self, tmp_path: Path) -> None:
+        """Check mode against an absent checkout stays dry and green."""
+        result = _run_role_tasks(
+            tmp_path,
+            _selected_tasks(_SCHEMA_FETCH_TASK_NAMES),
+            _schema_extra_vars(tmp_path / "not-fetched"),
+            check=True,
+        )
+        output = result.stdout + result.stderr
+        assert result.returncode == 0, output
+        assert f"skipped={len(_SCHEMA_FETCH_TASK_NAMES)}" in output, output
 
 
 class TestAssetsPlaybook:

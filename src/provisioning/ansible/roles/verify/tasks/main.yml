@@ -993,9 +993,10 @@
   when: not ansible_check_mode
 
 # S1 (spine AD-6/AD-7): the corpus is a pinned checkout, so verify asserts the
-# pin FILE and the five class dirs the assets role materialized. S5 adds the
-# stronger assertion that the pin file's CONTENT equals the manifest tag; this
-# slice asserts presence (the shape the next slice builds on).
+# pin FILE and the five class dirs the assets role materialized. S5 strengthens
+# it: the pin file's CONTENT must equal the manifest tag (a half bump can leave
+# a stale `pinned` beside a new <tag>/ dir), and every DEPLOYED class contract's
+# `schema_major` must be inside the same support window the fetch enforced.
 - name: Check the pinned assets checkout is present
   ansible.builtin.stat:
     path: "{{ item }}"
@@ -1012,6 +1013,127 @@
       (expected the `pinned` file and the five class dirs under
       {{ verify_assets_tag_dir }}). The assets role fetches repo@tag before
       copying; re-run the assets playbook and check the pin.
+  when: not ansible_check_mode
+
+# S5 (AD-12): presence of `assets/pinned` proves a file exists, not which tag it
+# records. A pre-bump tag left beside the new <tag>/ dir is exactly the half
+# state a manual pin bump produces, and every downstream reader would believe
+# the wrong corpus is live.
+- name: Read the deployed assets pin file
+  ansible.builtin.slurp:
+    src: "{{ verify_assets_pinned_file }}"
+  register: verify_assets_pin_raw
+  when: not ansible_check_mode
+
+- name: Assert the deployed assets pin equals the manifest tag
+  ansible.builtin.assert:
+    that: >-
+      verify_assets_pin_raw.content | b64decode | trim
+      == verify_assets_pinned_tag
+    fail_msg: >-
+      {{ verify_assets_pinned_file }} records
+      '{{ verify_assets_pin_raw.content | b64decode | trim }}', but this
+      consumer's pin is {{ verify_assets_pinned_tag }} (the manifest
+      `assets.tag`, mirrored by the assets role). A stale pin file means the
+      deployed corpus is not the pinned one; re-run the assets playbook so it
+      records the tag beside the checkout.
+  when: not ansible_check_mode
+
+# S5 (AD-12): re-read the DEPLOYED contracts and assert the fetch-time window
+# still holds. The fetch check proves the clone was consumable; this one proves
+# what is on the host now is (a hand-edited checkout, a half-fetched tag, or a
+# pin bump that added a newer-schema tree beside an old `pinned` file is caught
+# here). Read-only + gated like every other verify probe, so --check stays dry.
+- name: Find the deployed template schema contracts
+  ansible.builtin.find:
+    paths: "{{ verify_assets_tag_dir }}/templates"
+    patterns: "*.vars.schema.json"
+    recurse: true
+    # HIDDEN is true on purpose: the zsh contract is `.zshrc.vars.schema.json`
+    # (hidden), so the default `hidden: false` would skip one schema silently.
+    hidden: true
+    file_type: file
+  register: verify_assets_template_schema_files
+  when: not ansible_check_mode
+
+- name: Read the deployed icons schema contract
+  ansible.builtin.slurp:
+    src: "{{ verify_assets_tag_dir }}/icons/schema.json"
+  register: verify_assets_icons_schema
+  when: not ansible_check_mode
+
+- name: Read the deployed desktop schema contract
+  ansible.builtin.slurp:
+    src: "{{ verify_assets_tag_dir }}/desktop/desktop.yaml"
+  register: verify_assets_desktop_schema
+  when: not ansible_check_mode
+
+- name: Read every deployed template schema contract
+  ansible.builtin.slurp:
+    src: "{{ item.path }}"
+  loop: "{{ verify_assets_template_schema_files.files | default([]) }}"
+  loop_control:
+    label: "{{ item.path }}"
+  register: verify_assets_template_schemas
+  when: not ansible_check_mode
+
+- name: Assert the deployed icons schema_major is in the consumer support window
+  ansible.builtin.assert:
+    that: >-
+      (verify_assets_icons_schema.content | b64decode | from_json).schema_major
+      == verify_assets_schema_support.icons
+    fail_msg: >-
+      {{ verify_assets_icons_schema.source }} declares schema_major
+      {{ (verify_assets_icons_schema.content | b64decode | from_json).schema_major }},
+      but this consumer supports icons schema_major
+      {{ verify_assets_schema_support.icons }} (assets {{ verify_assets_pinned_tag }}).
+      The deployed corpus is not the one the fetch accepted — re-run the assets
+      playbook so the pinned checkout is re-fetched, and check for a hand-edited
+      or partial tree under {{ verify_assets_tag_dir }}
+  when: not ansible_check_mode
+
+- name: Assert the deployed desktop schema_major is in the consumer support window
+  ansible.builtin.assert:
+    that: >-
+      (verify_assets_desktop_schema.content | b64decode | from_yaml).schema_major
+      == verify_assets_schema_support.desktop
+    fail_msg: >-
+      {{ verify_assets_desktop_schema.source }} declares schema_major
+      {{ (verify_assets_desktop_schema.content | b64decode | from_yaml).schema_major }},
+      but this consumer supports desktop schema_major
+      {{ verify_assets_schema_support.desktop }} (assets {{ verify_assets_pinned_tag }}).
+      The deployed corpus is not the one the fetch accepted — re-run the assets
+      playbook so the pinned checkout is re-fetched, and check for a hand-edited
+      or partial tree under {{ verify_assets_tag_dir }}
+  when: not ansible_check_mode
+
+- name: Assert the deployed templates ship at least one schema contract
+  ansible.builtin.assert:
+    that: verify_assets_template_schema_files.matched | int > 0
+    fail_msg: >-
+      no `<tag>/templates/**/*.vars.schema.json` contract was found under
+      {{ verify_assets_tag_dir }}/templates — every template has shipped a
+      sibling vars schema since v0.1.0, so an empty result means the deployed
+      checkout is partial or was pruned after the fetch. This consumer supports
+      templates schema_major {{ verify_assets_schema_support.templates }}
+  when: not ansible_check_mode
+
+- name: Assert every deployed template schema_major is in the consumer support window
+  ansible.builtin.assert:
+    that: >-
+      (item.content | b64decode | from_json).schema_major
+      == verify_assets_schema_support.templates
+    fail_msg: >-
+      {{ item.source }} declares schema_major
+      {{ (item.content | b64decode | from_json).schema_major }}, but this
+      consumer supports templates schema_major
+      {{ verify_assets_schema_support.templates }} (assets {{ verify_assets_pinned_tag }}).
+      The deployed corpus is not the one the fetch accepted — re-run the assets
+      playbook so the pinned checkout is re-fetched, and check for a hand-edited
+      or partial tree under {{ verify_assets_tag_dir }}
+  loop: "{{ verify_assets_template_schemas.results | default([]) }}"
+  loop_control:
+    label: "{{ item.source }}"
   when: not ansible_check_mode
 
 # S2: the two config roles copy FROM the pinned `configs/` class, so the class

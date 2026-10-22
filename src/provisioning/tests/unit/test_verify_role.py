@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
@@ -197,6 +198,103 @@ def _sibling_vars(role: str) -> Any:
     data = yaml.safe_load((_ANSIBLE_DIR / "roles" / role / "vars" / "main.yml").read_text())
     assert isinstance(data, dict)
     return data
+
+
+# S5 (AD-12): the verify-side tasks that re-assert the deployed pin and the
+# contracts' support window. Named once because the negative cases RUN these
+# exact production task bodies (a copied assertion is not evidence).
+_VERIFY_ASSETS_TASK_NAMES = (
+    "Read the deployed assets pin file",
+    "Assert the deployed assets pin equals the manifest tag",
+    "Find the deployed template schema contracts",
+    "Read the deployed icons schema contract",
+    "Read the deployed desktop schema contract",
+    "Read every deployed template schema contract",
+    "Assert the deployed icons schema_major is in the consumer support window",
+    "Assert the deployed desktop schema_major is in the consumer support window",
+    "Assert the deployed templates ship at least one schema contract",
+    "Assert every deployed template schema_major is in the consumer support window",
+)
+
+
+def _selected_verify_assets_tasks() -> list[dict[str, object]]:
+    """Return the named verify tasks in file order (fail if one is missing)."""
+    by_name = {str(task.get("name")): task for task in _load_tasks()}
+    missing = [name for name in _VERIFY_ASSETS_TASK_NAMES if name not in by_name]
+    assert not missing, f"role is missing the S5 tasks {missing}"
+    return [by_name[name] for name in _VERIFY_ASSETS_TASK_NAMES]
+
+
+def _write_deployed_assets(spine: Path, pin: str, majors: dict[str, int]) -> None:
+    """Materialize a deployed `<spine>/assets/<tag>/` tree and its pin file."""
+    assets_dir = spine / "assets"
+    tag_dir = assets_dir / str(_vars()["verify_assets_pinned_tag"])
+    (tag_dir / "icons").mkdir(parents=True)
+    (tag_dir / "icons" / "schema.json").write_text(
+        json.dumps({"schema_major": majors["icons"]}) + "\n"
+    )
+    template_dir = tag_dir / "templates" / "zsh"
+    template_dir.mkdir(parents=True)
+    (template_dir / ".zshrc.vars.schema.json").write_text(
+        json.dumps({"schema_major": majors["templates"]}) + "\n"
+    )
+    (tag_dir / "desktop").mkdir()
+    (tag_dir / "desktop" / "desktop.yaml").write_text(
+        f"schema_major: {majors['desktop']}\n"
+    )
+    (assets_dir / "pinned").write_text(pin + "\n")
+
+
+def _verify_assets_extra_vars(spine: Path) -> dict[str, object]:
+    """Resolve the verify asset vars against a fabricated spine (no host state)."""
+    data = _vars()
+    assets_dir = str(spine / "assets")
+    tag = str(data["verify_assets_pinned_tag"])
+    return {
+        "verify_assets_dir": assets_dir,
+        "verify_assets_pinned_file": str(data["verify_assets_pinned_file"]).replace(
+            "{{ verify_assets_dir }}", assets_dir
+        ),
+        "verify_assets_pinned_tag": tag,
+        "verify_assets_tag_dir": str(data["verify_assets_tag_dir"])
+        .replace("{{ verify_assets_dir }}", assets_dir)
+        .replace("{{ verify_assets_pinned_tag }}", tag),
+        "verify_assets_schema_support": data["verify_assets_schema_support"],
+    }
+
+
+def _run_verify_assets_tasks(
+    tmp_path: Path,
+    tasks: list[dict[str, object]],
+    extra_vars: dict[str, object],
+    check: bool = False,
+) -> subprocess.CompletedProcess[str]:
+    """Run the S5 verify tasks as a minimal hermetic play (localhost, no facts)."""
+    ansible_playbook = shutil.which("ansible-playbook")
+    if ansible_playbook is None:
+        pytest.skip("ansible-playbook not installed; skipping task execution")
+    playbook = tmp_path / "play.yml"
+    playbook.write_text(
+        yaml.safe_dump(
+            [
+                {
+                    "name": "S5 verify assets probe",
+                    "hosts": "localhost",
+                    "gather_facts": False,
+                    "vars": extra_vars,
+                    "tasks": tasks,
+                }
+            ],
+            sort_keys=False,
+        )
+    )
+    env = dict(os.environ)
+    env["ANSIBLE_CONFIG"] = str(_ANSIBLE_DIR / "ansible.cfg")
+    command = [ansible_playbook, "-i", "localhost,", "-c", "local"]
+    if check:
+        command.append("--check")
+    command.append(str(playbook))
+    return subprocess.run(command, capture_output=True, text=True, env=env)
 
 
 # The capture-tool AGS GUI moved into the ags-apps unit (slice 5) and deploys
@@ -2901,6 +2999,145 @@ class TestVerifyVars:
         assert hit is None, f"vars/main.yml hardcodes an absolute path: {hit!r} (trim lock)"
 
 
+class TestVerifyAssetsSchemaWindow:
+    """S5 (AD-12): the deployed pin and contracts are re-asserted, not assumed."""
+
+    def test_assets_schema_support_mirrors_the_assets_role(self) -> None:
+        """One window, two readers: the fetch and verify cannot disagree."""
+        verify_support = _vars().get("verify_assets_schema_support")
+        assets_vars = _sibling_vars("assets")
+        assert verify_support == assets_vars["assets_schema_support"], (
+            "verify_assets_schema_support must equal the assets role's "
+            "assets_schema_support (deploy-coverage locks this too)"
+        )
+        schema_bearing = {
+            name
+            for name, entry in assets_vars["assets_classes"].items()
+            if entry.get("schema") is not None
+        }
+        assert set(verify_support) == schema_bearing
+        assert "configs" not in verify_support and "content" not in verify_support, (
+            "configs/content ship no schema contract, so they have no window entry"
+        )
+        assert all(isinstance(value, int) and value >= 1 for value in verify_support.values())
+
+    def test_assets_pin_content_is_asserted_not_just_presence(self) -> None:
+        """A present `pinned` file proves nothing: its CONTENT is the pin.
+
+        A stale tag beside a new <tag>/ dir is the exact half state a manual
+        bump leaves, and presence-only checks pass it.
+        """
+        tasks = _load_tasks()
+        names = [str(task.get("name")) for task in tasks]
+        read = tasks[names.index("Read the deployed assets pin file")]
+        assert _module_key(read) == "ansible.builtin.slurp"
+        assert _module(read).get("src") == "{{ verify_assets_pinned_file }}"
+        assert read.get("when") == "not ansible_check_mode"
+        assertion = tasks[names.index("Assert the deployed assets pin equals the manifest tag")]
+        that = str(_module(assertion).get("that"))
+        assert "verify_assets_pin_raw.content" in that
+        assert "verify_assets_pinned_tag" in that
+        fail_msg = str(_module(assertion).get("fail_msg"))
+        assert "verify_assets_pinned_file" in fail_msg
+        assert assertion.get("when") == "not ansible_check_mode"
+
+    def test_deployed_assets_schema_contracts_are_read_from_the_tag_dir(self) -> None:
+        """verify re-reads the DEPLOYED contracts, not the repo or the manifest."""
+        tasks = _selected_verify_assets_tasks()
+        find = next(
+            task
+            for task in tasks
+            if task.get("name") == "Find the deployed template schema contracts"
+        )
+        module = _module(find)
+        assert module.get("paths") == "{{ verify_assets_tag_dir }}/templates"
+        assert module.get("patterns") == "*.vars.schema.json"
+        assert module.get("hidden") is True, "the zsh contract is hidden"
+        slurps = [task for task in tasks if _module_key(task) == "ansible.builtin.slurp"]
+        assert len(slurps) == 4, (
+            "the pin file + icons + desktop + the template loop are slurped"
+        )
+        for task in slurps:
+            src = str(_module(task).get("src"))
+            if src == "{{ item.path }}":
+                assert "verify_assets_template_schema_files" in str(task.get("loop")), (
+                    f"{task.get('name')!r} loops an unexpected source"
+                )
+                continue
+            assert src == "{{ verify_assets_pinned_file }}" or src.startswith(
+                "{{ verify_assets_tag_dir }}/"
+            ), f"{task.get('name')!r} reads {src!r}, not the deployed tag dir"
+        for task in tasks:
+            assert task.get("when") == "not ansible_check_mode", (
+                f"{task.get('name')!r} must declare its check gate"
+            )
+        for name in (
+            "Assert the deployed icons schema_major is in the consumer support window",
+            "Assert the deployed desktop schema_major is in the consumer support window",
+            "Assert every deployed template schema_major is in the consumer support window",
+        ):
+            assertion = tasks[[str(t.get("name")) for t in tasks].index(name)]
+            module = _module(assertion)
+            assert "verify_assets_schema_support" in str(module.get("that")), name
+            assert "schema_major" in str(module.get("that")), name
+            fail_msg = str(module.get("fail_msg"))
+            assert "verify_assets_schema_support" in fail_msg, (
+                f"{name!r} must name the accepted window"
+            )
+
+    def test_deployed_assets_contracts_pass_in_window(self, tmp_path: Path) -> None:
+        """Positive control: an in-window deployed corpus passes read-only."""
+        spine = tmp_path / "spine"
+        pin = str(_vars()["verify_assets_pinned_tag"])
+        _write_deployed_assets(spine, pin, {"icons": 1, "templates": 1, "desktop": 1})
+        result = _run_verify_assets_tasks(
+            tmp_path, _selected_verify_assets_tasks(), _verify_assets_extra_vars(spine)
+        )
+        output = result.stdout + result.stderr
+        assert result.returncode == 0, output
+        assert "changed=0" in output
+        assert "failed=0" in output
+
+    def test_verify_rejects_a_wrong_assets_pin(self, tmp_path: Path) -> None:
+        """S5 negative: `pinned` recording another tag must fail verify."""
+        spine = tmp_path / "spine"
+        pin = str(_vars()["verify_assets_pinned_tag"])
+        _write_deployed_assets(spine, "v0.4.0", {"icons": 1, "templates": 1, "desktop": 1})
+        result = _run_verify_assets_tasks(
+            tmp_path, _selected_verify_assets_tasks(), _verify_assets_extra_vars(spine)
+        )
+        output = result.stdout + result.stderr
+        assert result.returncode != 0, "a stale pinned tag must fail verify"
+        assert str(spine / "assets" / "pinned") in output, output
+        assert "records 'v0.4.0'" in output, output
+        assert f"pin is {pin}" in output, output
+
+    def test_verify_rejects_an_out_of_window_assets_schema(self, tmp_path: Path) -> None:
+        """S5 negative: a deployed contract ahead of the window must fail."""
+        spine = tmp_path / "spine"
+        pin = str(_vars()["verify_assets_pinned_tag"])
+        _write_deployed_assets(spine, pin, {"icons": 2, "templates": 1, "desktop": 1})
+        result = _run_verify_assets_tasks(
+            tmp_path, _selected_verify_assets_tasks(), _verify_assets_extra_vars(spine)
+        )
+        output = result.stdout + result.stderr
+        assert result.returncode != 0
+        assert "icons/schema.json" in output, output
+        assert "declares schema_major 2" in output
+        assert "supports icons schema_major 1" in output
+
+    def test_verify_assets_schema_check_is_check_mode_safe(self, tmp_path: Path) -> None:
+        """A dry run against an absent spine stays dry and green."""
+        spine = tmp_path / "not-provisioned"
+        tasks = _selected_verify_assets_tasks()
+        result = _run_verify_assets_tasks(
+            tmp_path, tasks, _verify_assets_extra_vars(spine), check=True
+        )
+        output = result.stdout + result.stderr
+        assert result.returncode == 0, output
+        assert f"skipped={len(tasks)}" in output, output
+
+
 class TestVerifyPlaybook:
     _PATH = _ANSIBLE_DIR / "playbooks" / "verify.yaml"
 
@@ -3840,6 +4077,16 @@ def _build_provisioned_layout(
     (desktop_dir / "scripts" / "toggle-touchpad").write_text("#!/bin/sh\nexit 0\n")
     (desktop_dir / "scripts" / "toggle-touchpad").chmod(0o755)
     (desktop_dir / "desktop.yaml").write_text("schema_major: 1\nentries: []\n")
+    # S5 (AD-12): the deployed class contracts verify re-reads. Each carries an
+    # in-window schema_major, so the fixture proves the pass path.
+    (install / "assets" / assets_tag / "icons" / "schema.json").write_text(
+        '{"schema_major": 1}\n'
+    )
+    template_schema_dir = install / "assets" / assets_tag / "templates" / "zsh"
+    template_schema_dir.mkdir(parents=True, exist_ok=True)
+    (template_schema_dir / ".zshrc.vars.schema.json").write_text(
+        '{"schema_major": 1}\n'
+    )
     # S4 layer 3: the DEPLOYED desktop entries the role copies into
     # $XDG_DATA_HOME/applications. Their Exec binaries are the stub dir on PATH
     # (kitty for the two CLI wrappers), so the Exec-resolution gate is a real

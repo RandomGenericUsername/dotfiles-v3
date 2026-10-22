@@ -24,6 +24,29 @@ assets_classes:
   content: { dest: content, schema: null }
   desktop: { dest: desktop, schema: desktop/desktop.yaml }
 
+# assets_schema_support: the AD-12 consumer support WINDOW — the one
+#   `schema_major` this consumer accepts, per SCHEMA-BEARING class. The corpus
+#   states each contract's major in a repo-local file (catalog.yaml maps them:
+#   icons/schema.json, templates/**/*.vars.schema.json, desktop/desktop.yaml),
+#   and the major moves INDEPENDENTLY of the repo tag. A tag that ships a
+#   contract this consumer cannot parse must fail BEFORE the first copy, not
+#   deploy a corpus whose shapes the renderer reads wrongly.
+#
+#   `configs` and `content` are deliberately ABSENT: they ship no schema file
+#   (catalog.yaml: `schema: null` / `schema_major: null`). An absent version is
+#   the statement that there is no contract to version, not a gap to fill in.
+#
+#   The role reads every contract from the pinned checkout after the clone and
+#   asserts its major equals the value here (icons + desktop are slurped,
+#   templates are found with `**/*.vars.schema.json` and slurped one by one),
+#   naming the offending file and this window in the fail_msg. `verify` mirrors
+#   the map as `verify_assets_schema_support` and re-asserts the DEPLOYED
+#   copies; deploy-coverage locks the two maps equal.
+assets_schema_support:
+  icons: 1
+  templates: 1
+  desktop: 1
+
 # assets_checkout_root / assets_pinned_file: the fetched unit and its pin.
 #   The checkout lands at <install>/assets/<tag>/ (the only new spine path,
 #   AD-7) and the pin file sits BESIDE the tag dir, one line, exactly the

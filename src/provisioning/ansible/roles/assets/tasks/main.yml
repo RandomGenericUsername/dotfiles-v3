@@ -17,6 +17,10 @@
 #   (group_vars/all.yml), so an undefined spine root must abort with a friendly
 #   message before any task evaluates. Do NOT alias install_dir into a var —
 #   lazy evaluation could surface a raw undefined-var error instead.
+# - S5 (AD-12): after the clone and before the first copy, every class contract
+#   is read from the checkout and its `schema_major` must equal
+#   `assets_schema_support`. A corpus the consumer cannot parse fails naming the
+#   file and the accepted window, never half-deploys.
 # - THREE different module idempotency shapes live in one role (do NOT
 #   cargo-cult a single pattern):
 #   1. ansible.builtin.file `state: directory` (AC 9) owns idempotency +
@@ -137,6 +141,112 @@
       {{ assets_repo }} at {{ assets_pinned_tag }} before copying, so a missing
       checkout means the clone failed or the pin is wrong. A copy from a missing
       src would silently deploy nothing.
+  when: not ansible_check_mode
+
+# ── AD-12: the contracts must be consumable BEFORE anything is deployed ──
+# Every class contract states its `schema_major`; the consumer accepts exactly
+# the values in `assets_schema_support` (configs/content ship no contract and
+# have no entry). These tasks run after the clone/presence assert and BEFORE
+# the first copy, so a corpus two majors ahead fails naming the file instead of
+# half-deploying shapes the downstream renderer misreads. All probs are
+# read-only (find/slurp report changed: false) and gated `not
+# ansible_check_mode`, mirroring the presence probe above: a dry run never reads
+# a checkout it did not fetch.
+- name: Find the pinned template schema contracts
+  ansible.builtin.find:
+    paths: "{{ assets_checkout_root }}/templates"
+    patterns: "*.vars.schema.json"
+    recurse: true
+    # HIDDEN is true on purpose: the zsh contract is `.zshrc.vars.schema.json`
+    # (hidden), so the default `hidden: false` would silently skip one schema
+    # the consumer renders against.
+    hidden: true
+    file_type: file
+  register: assets_template_schema_files
+  when: not ansible_check_mode
+
+- name: Read the pinned icons schema contract
+  ansible.builtin.slurp:
+    src: "{{ assets_checkout_root }}/icons/schema.json"
+  register: assets_icons_schema
+  when: not ansible_check_mode
+
+- name: Read the pinned desktop schema contract
+  ansible.builtin.slurp:
+    src: "{{ assets_checkout_root }}/desktop/desktop.yaml"
+  register: assets_desktop_schema
+  when: not ansible_check_mode
+
+- name: Read every pinned template schema contract
+  ansible.builtin.slurp:
+    src: "{{ item.path }}"
+  loop: "{{ assets_template_schema_files.files | default([]) }}"
+  loop_control:
+    label: "{{ item.path }}"
+  register: assets_template_schemas
+  when: not ansible_check_mode
+
+- name: Assert the pinned icons schema_major is in the consumer support window
+  ansible.builtin.assert:
+    that: >-
+      (assets_icons_schema.content | b64decode | from_json).schema_major
+      == assets_schema_support.icons
+    fail_msg: >-
+      {{ assets_icons_schema.source }} declares schema_major
+      {{ (assets_icons_schema.content | b64decode | from_json).schema_major }},
+      but this consumer supports icons schema_major
+      {{ assets_schema_support.icons }} (assets {{ assets_pinned_tag }}). The
+      contract's major moves independently of the repo tag, so this is a corpus
+      the installer cannot read — pin an assets tag whose icons contract is
+      {{ assets_schema_support.icons }}, or widen `assets_schema_support`
+      deliberately (a MAJOR bump of the consumer contract)
+  when: not ansible_check_mode
+
+- name: Assert the pinned desktop schema_major is in the consumer support window
+  ansible.builtin.assert:
+    that: >-
+      (assets_desktop_schema.content | b64decode | from_yaml).schema_major
+      == assets_schema_support.desktop
+    fail_msg: >-
+      {{ assets_desktop_schema.source }} declares schema_major
+      {{ (assets_desktop_schema.content | b64decode | from_yaml).schema_major }},
+      but this consumer supports desktop schema_major
+      {{ assets_schema_support.desktop }} (assets {{ assets_pinned_tag }}). The
+      contract's major moves independently of the repo tag, so this is a corpus
+      the installer cannot read — pin an assets tag whose desktop contract is
+      {{ assets_schema_support.desktop }}, or widen `assets_schema_support`
+      deliberately (a MAJOR bump of the consumer contract)
+  when: not ansible_check_mode
+
+- name: Assert the pinned templates ship at least one schema contract
+  ansible.builtin.assert:
+    that: assets_template_schema_files.matched | int > 0
+    fail_msg: >-
+      no `<checkout>/templates/**/*.vars.schema.json` contract was found under
+      {{ assets_checkout_root }}/templates — every template has shipped a
+      sibling vars schema since v0.1.0, so an empty result means the checkout is
+      partial or the tag is wrong. This consumer supports templates schema_major
+      {{ assets_schema_support.templates }}
+  when: not ansible_check_mode
+
+- name: Assert every pinned template schema_major is in the consumer support window
+  ansible.builtin.assert:
+    that: >-
+      (item.content | b64decode | from_json).schema_major
+      == assets_schema_support.templates
+    fail_msg: >-
+      {{ item.source }} declares schema_major
+      {{ (item.content | b64decode | from_json).schema_major }}, but this
+      consumer supports templates schema_major
+      {{ assets_schema_support.templates }} (assets {{ assets_pinned_tag }}).
+      The contract's major moves independently of the repo tag, so this is a
+      corpus the installer cannot read — pin an assets tag whose template
+      contracts are {{ assets_schema_support.templates }}, or widen
+      `assets_schema_support` deliberately (a MAJOR bump of the consumer
+      contract)
+  loop: "{{ assets_template_schemas.results | default([]) }}"
+  loop_control:
+    label: "{{ item.source }}"
   when: not ansible_check_mode
 
 - name: Ensure asset deploy targets exist

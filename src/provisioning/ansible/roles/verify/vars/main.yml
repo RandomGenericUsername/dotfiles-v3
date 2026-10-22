@@ -159,8 +159,9 @@ verify_install_spine_dirs:
 #   repo@tag once into <install>/assets/<tag>/ and records the tag in
 #   <install>/assets/pinned; verify re-checks the pin and the five class dirs
 #   read-only. `verify_assets_pinned_tag` is the mirror of the manifest
-#   `assets.tag` (locked by TestVerifyAssetsPinParity); S5 adds the assertion
-#   that the pin FILE equals this tag, so this slice only asserts presence.
+#   `assets.tag` (locked by TestVerifyAssetsPinParity); since S5 verify also
+#   asserts the pin FILE's content equals this tag and re-reads the deployed
+#   class contracts against `verify_assets_schema_support`.
 verify_assets_dir: "{{ install_dir | trim }}/assets"
 verify_assets_pinned_file: "{{ verify_assets_dir }}/pinned"
 verify_assets_pinned_tag: v0.5.0
@@ -171,6 +172,19 @@ verify_assets_class_dirs:
   - "{{ verify_assets_tag_dir }}/configs"
   - "{{ verify_assets_tag_dir }}/content"
   - "{{ verify_assets_tag_dir }}/desktop"
+
+# verify_assets_schema_support: the AD-12 consumer support window, mirrored from
+#   the assets role's `assets_schema_support` (deploy-coverage asserts the two
+#   maps are equal, so a widened window cannot land on one side only). verify
+#   re-reads the DEPLOYED contracts under <install>/assets/<tag>/ — the same
+#   icons/schema.json, templates/**/*.vars.schema.json and desktop/desktop.yaml
+#   the fetch asserted — and fails on any major outside this window. That makes
+#   a hand-edited or half-fetched checkout loud even when `assets/pinned` is
+#   right. configs/content ship no schema file, so they have no entry.
+verify_assets_schema_support:
+  icons: 1
+  templates: 1
+  desktop: 1
 
 # verify_assets_configs_dirs: the configs SUBDIRECTORIES inside the pinned
 #   checkout (S2). compositor_configs and config_copies copy FROM this tree, so
