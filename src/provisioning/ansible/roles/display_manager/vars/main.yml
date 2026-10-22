@@ -24,6 +24,16 @@ display_manager_type: sddm-pixie
 #   DM type (sddm, or greetd for the fallback).
 display_manager_enable_service: "{{ 'sddm' if display_manager_type == 'sddm-pixie' else 'greetd' }}"
 
+# ── The template source (assets `templates` class, spine AD-9) ────────────────
+# S3: the five DM templates moved to `dotfiles-assets` (`templates/display-manager/`).
+# The role keeps the CONCERN — type selection, package sets, the Pixie repo pin,
+# service enablement/disablement, the login-timeout patch and every `become` — and
+# renders the file bodies from the pinned checkout the assets role materialized
+# before this role runs. Parity-locked to the manifest's `assets.tag` by the
+# required-var parity test; trim lock on the seam.
+display_manager_assets_pinned_tag: v0.4.0
+display_manager_assets_templates_dir: "{{ install_dir | trim }}/assets/{{ display_manager_assets_pinned_tag }}/templates"
+
 # ── SDDM + Pixie (default) ───────────────────────────────────────────────────
 
 # display_manager_sddm_packages: SDDM (Qt6-capable) + the Qt6 modules Pixie

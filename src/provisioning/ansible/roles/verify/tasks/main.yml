@@ -42,7 +42,8 @@
 #       ZDOTDIR at the managed zsh dir (shell-entry seam) + .zshrc sources the
 #       .zshrc.local overlay (zsh_config role)
 #   13. wlogout config rendered+wired → style.css imports the palette
-#       (wlogout_config role)
+#       (wlogout_config role) AND the pre-S3 <spine>/config/wlogout/style.css.tpl
+#       residue is ABSENT (S3: the template source lives only in the corpus)
 #   14. §12 preconditions           → criteria 2/3 + 4 + 8 + 5 — the whole role;
 #       exposed by VerifyCapabilityUseCase (use_cases.py) running verify.yaml
 #       with a REAL check, never --check.
@@ -1888,6 +1889,28 @@
       (expected `@import url(...)` and an @color_1x usage — done-criterion 13,
       shell wiring). The wlogout_config role renders style.css.tpl → style.css;
       run the wlogout-config playbook (needs assets + default_palette first)
+  when: not ansible_check_mode
+
+# S3: the template SOURCE moved to the pinned corpus, so the pre-S3 copy in the
+# spine must be GONE. A stat + assert pair rather than a bare assert: the stat
+# reports the residue's existence, and the message names the file and the prune
+# task that owns its removal.
+- name: Check the pre-S3 wlogout template is absent from the spine
+  ansible.builtin.stat:
+    path: "{{ verify_wlogout_legacy_template_path }}"
+    follow: false
+  register: verify_wlogout_legacy_template_check
+  when: not ansible_check_mode
+
+- name: Assert the pre-S3 wlogout template is absent from the spine
+  ansible.builtin.assert:
+    that: not verify_wlogout_legacy_template_check.stat.exists
+    fail_msg: >-
+      {{ verify_wlogout_legacy_template_path }} still exists — the wlogout
+      stylesheet SOURCE moved to the pinned dotfiles-assets corpus (templates/
+      class, S3) and nothing renders a `.tpl` in the spine any more. The
+      wlogout_config role prunes it; re-run the wlogout-config playbook, or delete
+      the file if a hand copy restored it.
   when: not ansible_check_mode
 
 - name: Check rendered kitty.conf includes the runtime palette

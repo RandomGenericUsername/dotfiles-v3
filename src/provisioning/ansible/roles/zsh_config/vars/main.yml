@@ -12,11 +12,15 @@
 #   fail-loud first-task assert enforces.
 zsh_config_spine_dir: "{{ install_dir | trim }}/config/zsh"
 
-# zsh_config_template_root: where the .zshrc.j2 source lives. It is a
-#   REPO-CONFIG template (dotfiles/config/zsh/.zshrc.j2), not a role-internal
-#   one (unlike the settings-role templates) — mirror of the config_copies
-#   repo-root pattern.
-zsh_config_template_root: "{{ playbook_dir }}/../../../.."
+# zsh_config_assets_pinned_tag / zsh_config_assets_templates_dir: the AD-6 mirror
+#   of the assets pin and the `templates` class directory inside the pinned
+#   checkout. S3: the .zshrc.j2 source is no longer authored here — it ships in
+#   `dotfiles-assets` and is read from the checkout the assets role materialized
+#   BEFORE this role runs (bootstrap order). Parity-locked to
+#   dotfiles/provisioning/assets.yaml `assets.tag` by the required-var parity test
+#   (tests/unit/test_template_vars_parity.py). Trim lock on the seam.
+zsh_config_assets_pinned_tag: v0.4.0
+zsh_config_assets_templates_dir: "{{ install_dir | trim }}/assets/{{ zsh_config_assets_pinned_tag }}/templates"
 
 # zsh_config_xdg_state_home: the state home the runtime owns ($XDG_STATE_HOME,
 #   AD-5: <state>/dotfiles/) — the rendered .zshrc reads the runtime's

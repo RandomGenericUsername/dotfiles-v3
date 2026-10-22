@@ -1,7 +1,9 @@
 # Zsh-config role (Story 3.4 / shell wiring) — renders the user's .zshrc from
-# the authored Jinja template (dotfiles/config/zsh/.zshrc.j2) into the
+# the Jinja template that ships in the pinned `dotfiles-assets` corpus
+# (`templates/zsh/.zshrc.j2`, read from <install>/assets/<tag>/ since S3) into the
 # config-in-spine home <install>/config/zsh/.zshrc, resolving every template
-# variable to the actual provisioned path.
+# variable to the actual provisioned path. The role supplies the values; the
+# corpus supplies the file and its contract (spine AD-8).
 #
 # Previously the .zshrc.j2 was COPIED VERBATIM by config_copies, so zsh (via
 # ZDOTDIR=~/.config/zsh) found no .zshrc and nothing loaded — no starship, no
@@ -58,7 +60,7 @@
 
 - name: Render .zshrc
   ansible.builtin.template:
-    src: "{{ zsh_config_template_root }}/dotfiles/config/zsh/.zshrc.j2"
+    src: "{{ zsh_config_assets_templates_dir }}/zsh/.zshrc.j2"
     dest: "{{ zsh_config_spine_dir }}/.zshrc"
   vars:
     STARSHIP_CONFIG: "{{ install_dir | trim }}/config/starship/starship.toml"

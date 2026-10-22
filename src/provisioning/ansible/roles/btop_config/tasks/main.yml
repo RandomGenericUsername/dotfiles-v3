@@ -1,6 +1,9 @@
-# Btop-config role — renders btop's btop.conf from the authored Jinja template
-# (roles/btop_config/templates/btop.conf.j2) into the config-in-spine home
+# Btop-config role — renders btop's btop.conf from the Jinja template that ships
+# in the pinned `dotfiles-assets` corpus (`templates/btop/btop.conf.j2`, read from
+# <install>/assets/<tag>/ since S3) into the config-in-spine home
 # <install>/config/btop/btop.conf, and ensures the spine's themes/ dir exists.
+# Authored themes come from the SAME checkout (content/btop-themes): one pin, two
+# reads.
 #
 # Design:
 # - The FIRST task is the fail-loud install_dir seam assert, verbatim from the
@@ -74,5 +77,5 @@
 
 - name: Render btop.conf
   ansible.builtin.template:
-    src: btop.conf.j2
+    src: "{{ btop_config_assets_templates_dir }}/btop/btop.conf.j2"
     dest: "{{ btop_config_spine_dir }}/btop.conf"

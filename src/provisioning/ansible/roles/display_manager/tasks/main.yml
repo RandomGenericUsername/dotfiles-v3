@@ -14,6 +14,12 @@
 #   greetd + regreet (fallback, retained): the old templates/tasks remain but
 #     are gated on display_manager_type == 'greetd-regreet' so a user can
 #     switch back without losing the working config.
+#
+# S3 (spine AD-9): the five template BODIES ship in the pinned `dotfiles-assets`
+# corpus (`templates/display-manager/`) and are rendered from
+# <install>/assets/<tag>/. What stays HERE is the concern this role owns and the
+# corpus cannot: DM type selection, the package sets, the Pixie repo pin, the
+# login-timeout patch, service enablement/disablement and every `become`.
 
 - name: Assert fact-gathering provided HOME
   ansible.builtin.assert:
@@ -61,7 +67,7 @@
 
 - name: Render SDDM config (Pixie theme, Wayland greeter)
   ansible.builtin.template:
-    src: sddm.conf.j2
+    src: "{{ display_manager_assets_templates_dir }}/display-manager/sddm.conf.j2"
     dest: "{{ display_manager_sddm_conf }}"
     mode: "0644"
   become: true
@@ -95,7 +101,7 @@
 
 - name: Render greetd config (Cage + regreet)
   ansible.builtin.template:
-    src: config.toml.j2
+    src: "{{ display_manager_assets_templates_dir }}/display-manager/config.toml.j2"
     dest: /etc/greetd/config.toml
     mode: "0644"
   become: true

@@ -1,8 +1,9 @@
 # Zsh-config playbook (Story 3.4 / shell wiring) — one-per-role playbook.
 #
-# Renders the user's .zshrc from dotfiles/config/zsh/.zshrc.j2 into
-# <install>/config/zsh/.zshrc, resolving every template variable to the
-# provisioned path. Runs AFTER packages + zsh_tools (plugins + clone tools
+# Renders the user's .zshrc from the pinned assets corpus template
+# (templates/zsh/.zshrc.j2 in dotfiles-assets, read from
+# <install>/assets/<tag>/ since S3) into <install>/config/zsh/.zshrc, resolving
+# every template variable to the provisioned path. Runs AFTER packages + zsh_tools (plugins + clone tools
 # exist) and BEFORE config_links (which symlinks ~/.config/zsh).
 #
 # User-scoped: NO become. Distro-agnostic at the play level (plugin paths

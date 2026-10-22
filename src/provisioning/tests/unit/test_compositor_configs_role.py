@@ -1209,6 +1209,15 @@ class TestDeployCoverageGate:
             "ags_apps",
             "gui_tools",
             "cli_tools",
+            # S3: the five rendering roles are part of the template shape the gate
+            # asserts (each must carry its pin mirror and read the pinned corpus),
+            # so a hermetic root needs them present — otherwise every negative test
+            # would fail on an incomplete seed instead of on its injected defect.
+            "zsh_config",
+            "kitty_config",
+            "btop_config",
+            "wlogout_config",
+            "display_manager",
         ),
     ) -> None:
         """Seed a hermetic temp root for the gate.
@@ -1405,23 +1414,107 @@ class TestDeployCoverageGate:
             )
 
     def test_gate_fails_when_the_copied_wlogout_layout_returns(self) -> None:
-        """S2: wlogout's DIRECTORY survives (it keeps style.css.tpl for S3), so
-        the guard keys on the copied FILE — `layout` must not come back."""
+        """S3: the whole wlogout directory is retired, so a returning `layout`
+        (with or without the old template) fails on the DIRECTORY. The guard no
+        longer has to key on one file: nothing under dotfiles/config/wlogout is
+        authored here."""
         repo_root = _ANSIBLE_DIR.parents[2]
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             self._seed_root(root, repo_root)
             stray = root / "dotfiles" / "config" / "wlogout"
             stray.mkdir(parents=True)
-            (stray / "style.css.tpl").write_text("x\n")
             (stray / "layout").write_text("{}\n")
             result = self._run(root)
             assert result.returncode != 0, (
                 "the gate must FAIL when the copied wlogout layout returns; "
                 f"recap:\n{result.stdout}"
             )
-            assert "dotfiles/config/wlogout/layout" in result.stdout, (
-                "the failure must name the copied file; recap:\n" + result.stdout
+            assert "dotfiles/config/wlogout" in result.stdout, (
+                "the failure must name the retired dir; recap:\n" + result.stdout
+            )
+
+    def test_gate_fails_when_the_wlogout_template_returns(self) -> None:
+        """S3: `style.css.tpl` is a `templates` asset now. A copy in the tree (or in
+        the spine) is the residue the slice removes — the file guard names it."""
+        repo_root = _ANSIBLE_DIR.parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._seed_root(root, repo_root)
+            stray = root / "dotfiles" / "config" / "wlogout"
+            stray.mkdir(parents=True)
+            (stray / "style.css.tpl").write_text("{{ X }}\n")
+            result = self._run(root)
+            assert result.returncode != 0, (
+                "the gate must FAIL when the wlogout template source returns; "
+                f"recap:\n{result.stdout}"
+            )
+            assert "dotfiles/config/wlogout" in result.stdout, (
+                "the failure must name the retired path; recap:\n" + result.stdout
+            )
+
+    def test_gate_fails_when_the_zsh_template_dir_returns(self) -> None:
+        """S3: `dotfiles/config/zsh/` held only the .zshrc template; the zsh_config
+        role reads the corpus copy now, so an in-tree dir is dead weight."""
+        repo_root = _ANSIBLE_DIR.parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._seed_root(root, repo_root)
+            stray = root / "dotfiles" / "config" / "zsh"
+            stray.mkdir(parents=True)
+            (stray / ".zshrc.j2").write_text("export ZSH={{ OH_MY_ZSH_DIR }}\n")
+            result = self._run(root)
+            assert result.returncode != 0, (
+                "the gate must FAIL when the zsh template dir returns; "
+                f"recap:\n{result.stdout}"
+            )
+            assert "dotfiles/config/zsh" in result.stdout, (
+                "the failure must name the retired dir; recap:\n" + result.stdout
+            )
+
+    def test_gate_fails_when_a_role_carries_its_template_dir_again(self) -> None:
+        """S3: the render tasks read the pinned checkout, so a role-internal
+        `templates/` dir is a second source of truth (spine AD-8/AD-9)."""
+        repo_root = _ANSIBLE_DIR.parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._seed_root(root, repo_root)
+            stray = root / "src" / "provisioning" / "ansible" / "roles" / "kitty_config" / "templates"
+            stray.mkdir(parents=True)
+            (stray / "kitty.conf.j2").write_text("include x\n")
+            result = self._run(root)
+            assert result.returncode != 0, (
+                "the gate must FAIL when a role-internal template dir returns; "
+                f"recap:\n{result.stdout}"
+            )
+            assert "roles/kitty_config/templates" in result.stdout, (
+                "the failure must name the retired role dir; recap:\n" + result.stdout
+            )
+
+    def test_gate_fails_when_a_render_task_reads_its_role_dir(self) -> None:
+        """The shape half: a render task whose src is a bare file name would
+        resolve inside the role's own (now absent) templates/ dir. The gate reads
+        the src prefix, so a revert to `src: kitty.conf.j2` fails before a
+        provision does."""
+        repo_root = _ANSIBLE_DIR.parents[2]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._seed_root(root, repo_root)
+            tasks = root / "src" / "provisioning" / "ansible" / "roles" / "kitty_config" / "tasks" / "main.yml"
+            text = tasks.read_text().replace(
+                'src: "{{ kitty_config_assets_templates_dir }}/kitty/kitty.conf.j2"',
+                "src: kitty.conf.j2",
+            )
+            assert "src: kitty.conf.j2" in text, "seed failed: render src not rewritten"
+            tasks.write_text(text)
+            result = self._run(root)
+            assert result.returncode != 0, (
+                "the gate must FAIL when a render task stops reading the pinned "
+                f"corpus; recap:\n{result.stdout}"
+            )
+            assert "kitty_config" in result.stdout and "pinned corpus" in result.stdout, (
+                "the failure must name the role and the pinned corpus; recap:\n"
+                + result.stdout
             )
 
     def test_gate_fails_when_the_retired_oci_runtime_tree_returns(self) -> None:

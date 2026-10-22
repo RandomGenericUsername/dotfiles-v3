@@ -4,10 +4,22 @@
 #   (config-in-spine home). Trim lock.
 wlogout_config_spine_dir: "{{ install_dir | trim }}/config/wlogout"
 
-# wlogout_config_template_root: where the style.css.tpl source lives — a
-#   REPO-CONFIG template (dotfiles/config/wlogout/style.css.tpl), mirror of the
-#   config_copies repo-root pattern.
-wlogout_config_template_root: "{{ playbook_dir }}/../../../.."
+# wlogout_config_assets_pinned_tag / wlogout_config_assets_templates_dir: the AD-6
+#   mirror of the assets pin and the `templates` class inside the pinned checkout.
+#   S3: style.css.tpl moved to `dotfiles-assets` (`templates/wlogout/`), so the
+#   render reads the checkout the assets role materializes before this role runs.
+#   Parity-locked by the required-var parity test; trim lock on the seam.
+wlogout_config_assets_pinned_tag: v0.4.0
+wlogout_config_assets_templates_dir: "{{ install_dir | trim }}/assets/{{ wlogout_config_assets_pinned_tag }}/templates"
+
+# wlogout_config_legacy_template_path: the PRE-S3 residue this role removes. Before
+#   the template moved to the corpus, `config_copies` copied the whole wlogout dir
+#   (including style.css.tpl) into the spine, so a host provisioned before S3 still
+#   carries <spine>/config/wlogout/style.css.tpl — a template nobody renders, in the
+#   directory wlogout reads. The prune below makes that residue disappear on the
+#   next provision instead of waiting for a hand clean-up; `verify` asserts it is
+#   absent afterwards.
+wlogout_config_legacy_template_path: "{{ wlogout_config_spine_dir }}/style.css.tpl"
 
 # wlogout_config_state_root: the runtime-owned state root ($XDG_STATE_HOME/dotfiles
 #   is the state dir; the runtime current/ pointers live one level below).

@@ -1,7 +1,9 @@
-# Kitty-config role — renders the user's kitty.conf from the authored Jinja
-# template (roles/kitty_config/templates/kitty.conf.j2) into the
-# config-in-spine home <install>/config/kitty/kitty.conf, resolving the runtime
-# palette include to the actual provisioned state path.
+# Kitty-config role — renders the user's kitty.conf from the Jinja template that
+# ships in the pinned `dotfiles-assets` corpus (`templates/kitty/kitty.conf.j2`,
+# read from <install>/assets/<tag>/ since S3) into the config-in-spine home
+# <install>/config/kitty/kitty.conf, resolving the runtime palette include to the
+# actual provisioned state path. The role supplies the value; the corpus supplies
+# the file and its one-name contract (spine AD-8).
 #
 # Design:
 # - The FIRST task is the fail-loud install_dir seam assert, verbatim from the
@@ -42,7 +44,7 @@
 
 - name: Render kitty.conf
   ansible.builtin.template:
-    src: kitty.conf.j2
+    src: "{{ kitty_config_assets_templates_dir }}/kitty/kitty.conf.j2"
     dest: "{{ kitty_config_spine_dir }}/kitty.conf"
 
 - name: Ensure local.conf exists (never clobber user overrides)

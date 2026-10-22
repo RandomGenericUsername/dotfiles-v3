@@ -8,6 +8,8 @@ from typing import Any
 import pytest
 import yaml
 
+from tests.unit import assets_templates
+
 _TASK_KEYWORDS = {
     "name",
     "when",
@@ -66,19 +68,39 @@ def _vars() -> dict[str, Any]:
 
 
 class TestDisplayManagerRoleTree:
-    _REQUIRED_FILES = (
-        "tasks/main.yml",
-        "vars/main.yml",
-        "templates/sddm.conf.j2",
-        "templates/config.toml.j2",
-        "templates/regreet.toml.j2",
-        "templates/regreet.css.j2",
-        "templates/hypr-session.j2",
+    """S3 (spine AD-9): the role keeps the CONCERN; the template BODIES are corpus.
+
+    The five `.j2` files moved to `dotfiles-assets` `templates/display-manager/`,
+    so the role tree is tasks + vars only. Reading the bodies from the corpus here
+    is deliberate: a copy in this repo would be a second source of truth.
+    """
+
+    _REQUIRED_FILES = ("tasks/main.yml", "vars/main.yml")
+    _TEMPLATES = (
+        "display-manager/sddm.conf.j2",
+        "display-manager/config.toml.j2",
+        "display-manager/regreet.toml.j2",
+        "display-manager/regreet.css.j2",
+        "display-manager/hypr-session.j2",
     )
 
     def test_role_tree_exists(self) -> None:
         for relative in self._REQUIRED_FILES:
             assert (_ROLES_DIR / relative).is_file(), f"missing {relative}"
+
+    def test_role_no_longer_carries_a_templates_dir(self) -> None:
+        assert not (_ROLES_DIR / "templates").exists(), (
+            "S3 deleted the role-internal templates/ dir: the five bodies ship in the "
+            "pinned corpus. Re-adding one would split a DM concern across two repos "
+            "(spine AD-9)."
+        )
+
+    def test_all_five_templates_are_in_the_corpus(self) -> None:
+        root = assets_templates.require_templates_root("display_manager")
+        for relative in self._TEMPLATES:
+            assert (root / relative).is_file(), (
+                f"missing {relative} in the pinned assets templates class at {root}"
+            )
 
     def test_playbook_exists(self) -> None:
         assert (_PLAYBOOKS_DIR / "display-manager.yaml").is_file(), (
@@ -114,13 +136,18 @@ class TestSddmPixieTasks:
 
     def test_renders_sddm_config(self) -> None:
         """The role renders /etc/sddm.conf.d with the Pixie theme + Wayland
-        greeter."""
+        greeter, from the pinned assets templates class (S3)."""
         tasks = _load_tasks()
         tmpl = next((t for t in tasks if "Render SDDM config" in str(t.get("name", ""))), None)
         assert tmpl is not None, "missing SDDM config render task"
         body = tmpl.get("ansible.builtin.template")
         assert isinstance(body, dict)
         assert body["dest"] == "{{ display_manager_sddm_conf }}"
+        assert body["src"] == (
+            "{{ display_manager_assets_templates_dir }}/display-manager/sddm.conf.j2"
+        ), "the SDDM body must be read from the pinned corpus, not from the role"
+        assert body.get("mode") == "0644", "assets carries no mode: the role sets it"
+        assert tmpl.get("become") is True, "assets carries no privilege: the role sets it"
 
     def test_sddm_tasks_gated_on_type(self) -> None:
         """The SDDM+Pixie install/config tasks must gate on
@@ -149,8 +176,10 @@ class TestSddmPixieTasks:
 class TestSddmConfigTemplate:
     def test_uses_pixie_theme_and_wayland_greeter(self) -> None:
         """The sddm.conf must enable the Pixie theme and a Wayland greeter (the
-        no-X11-GPU-grab freeze fix)."""
-        body = (_ROLES_DIR / "templates" / "sddm.conf.j2").read_text()
+        no-X11-GPU-grab freeze fix). Read from the corpus: the body is an asset."""
+        body = assets_templates.template_file(
+            "display-manager/sddm.conf.j2", "display_manager"
+        ).read_text()
         assert "Current=pixie" in body
         assert "DisplayServer={{ display_manager_sddm_display_server }}" in body
         assert "wayland" in body.lower() or "QT_QPA_PLATFORM=wayland" in body
@@ -181,17 +210,42 @@ class TestSddmVars:
 
 class TestGreetdFallbackRetained:
     def test_greetd_regreet_config_still_rendered(self) -> None:
-        """The greetd+regreet templates remain so a user can fall back by
-        setting display_manager_type == 'greetd-regreet'."""
-        assert (_ROLES_DIR / "templates" / "config.toml.j2").is_file()
+        """The greetd+regreet files remain (in the corpus) so a user can fall back
+        by setting display_manager_type == 'greetd-regreet'."""
+        assert assets_templates.template_file(
+            "display-manager/config.toml.j2", "display_manager"
+        ).is_file()
+        greetd = next(
+            (t for t in _load_tasks() if "Render greetd config" in str(t.get("name", ""))), None
+        )
+        assert greetd is not None, "missing greetd config render task"
+        body = greetd.get("ansible.builtin.template")
+        assert isinstance(body, dict)
+        assert body["src"] == (
+            "{{ display_manager_assets_templates_dir }}/display-manager/config.toml.j2"
+        )
         for t in _load_tasks():
             if "greetd" in str(t.get("name", "")).lower():
                 assert "display_manager_type == 'greetd-regreet'" in str(t.get("when", "")), (
                     f"greetd task {t.get('name')!r} must gate on greetd-regreet type"
                 )
 
-    def test_hypr_session_wrapper_retained(self) -> None:
-        assert (_ROLES_DIR / "templates" / "hypr-session.j2").is_file()
+    def test_hypr_session_wrapper_retained_in_the_corpus(self) -> None:
+        assert assets_templates.template_file(
+            "display-manager/hypr-session.j2", "display_manager"
+        ).is_file()
+
+    def test_unrendered_fallback_bodies_are_still_assets(self) -> None:
+        """regreet.toml/css and hypr-session have no render task at this tag, but
+        their bodies and contracts are corpus files (spine AD-9) — not role files
+        and not rendered output."""
+        root = assets_templates.require_templates_root("display_manager")
+        for relative in (
+            "display-manager/regreet.toml.j2",
+            "display-manager/regreet.css.j2",
+            "display-manager/hypr-session.j2",
+        ):
+            assert (root / relative).is_file(), f"missing {relative}"
 
 
 class TestDisplayManagerPlaybook:

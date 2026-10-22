@@ -1,6 +1,9 @@
 # Wlogout-config role (Story 3.4 / shell wiring) — renders the wlogout
-# stylesheet from its Jinja template (dotfiles/config/wlogout/style.css.tpl)
-# into the config-in-spine home <install>/config/wlogout/style.css.
+# stylesheet from the Jinja template that ships in the pinned `dotfiles-assets`
+# corpus (`templates/wlogout/style.css.tpl`, read from <install>/assets/<tag>/
+# since S3) into the config-in-spine home <install>/config/wlogout/style.css.
+# The role also PRUNES the pre-S3 residue <spine>/config/wlogout/style.css.tpl —
+# a copied template that nothing rendered and nothing should keep.
 #
 # Previously the .tpl was COPIED VERBATIM by config_copies, so wlogout loaded a
 # template with unresolved {{VARS}} and nonexistent @color16/@color10/@color7
@@ -32,9 +35,20 @@
     path: "{{ wlogout_config_spine_dir }}"
     state: directory
 
+# S3 prune (idempotent): before the template moved to the pinned corpus,
+# `config_copies` copied the whole wlogout dir into the spine, leaving a
+# `style.css.tpl` beside the rendered `style.css`. Nothing reads it, and a stale
+# template in the directory wlogout loads is exactly the residue the split is
+# supposed to remove. `state: absent` is a no-op when it is already gone, so the
+# task converges on a fresh machine and cleans a pre-S3 one in the same pass.
+- name: Remove the pre-S3 wlogout template from the spine (moved to the pinned corpus)
+  ansible.builtin.file:
+    path: "{{ wlogout_config_legacy_template_path }}"
+    state: absent
+
 - name: Render wlogout style.css
   ansible.builtin.template:
-    src: "{{ wlogout_config_template_root }}/dotfiles/config/wlogout/style.css.tpl"
+    src: "{{ wlogout_config_assets_templates_dir }}/wlogout/style.css.tpl"
     dest: "{{ wlogout_config_spine_dir }}/style.css"
   vars:
     COLORS_FILE_PATH: "{{ install_dir | trim }}/config/ags/colors.css"

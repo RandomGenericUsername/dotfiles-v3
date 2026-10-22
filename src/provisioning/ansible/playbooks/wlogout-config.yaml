@@ -1,8 +1,9 @@
 # Wlogout-config playbook (Story 3.4 / shell wiring) — one-per-role playbook.
 #
-# Renders the wlogout stylesheet from dotfiles/config/wlogout/style.css.tpl
-# into <install>/config/wlogout/style.css, resolving template vars to the
-# provisioned paths. Runs AFTER assets + default_palette (icons + wallpaper +
+# Renders the wlogout stylesheet from the pinned assets corpus template
+# (templates/wlogout/style.css.tpl in dotfiles-assets, read from
+# <install>/assets/<tag>/ since S3) into <install>/config/wlogout/style.css,
+# resolving template vars to the provisioned paths. Runs AFTER assets + default_palette (icons + wallpaper +
 # colors.css exist) and BEFORE config_links.
 #
 # User-scoped: NO become. Distro-agnostic.

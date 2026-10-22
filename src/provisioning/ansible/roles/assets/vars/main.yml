@@ -16,7 +16,7 @@
 #   `assets:` block (spine AD-6). `assets_classes` is the destination class map:
 #   class name -> {dest, schema}, class-local and never an absolute path.
 assets_repo: https://github.com/RandomGenericUsername/dotfiles-assets
-assets_pinned_tag: v0.3.1
+assets_pinned_tag: v0.4.0
 assets_classes:
   icons: { dest: icons, schema: icons/schema.json }
   templates: { dest: templates, schema: "**/vars.schema.json" }

@@ -17,6 +17,8 @@ from typing import Any
 import pytest
 import yaml
 
+from tests.unit import assets_templates
+
 _TASK_KEYWORDS = {
     "name",
     "when",
@@ -58,8 +60,13 @@ def _find_ansible_dir() -> Path:
 
 _ANSIBLE_DIR = _find_ansible_dir()
 _ROLES_DIR = _ANSIBLE_DIR / "roles" / "btop_config"
-_TEMPLATE = _ROLES_DIR / "templates" / "btop.conf.j2"
 _PLAYBOOKS_DIR = _ANSIBLE_DIR / "playbooks"
+_BTOP_TEMPLATE = "btop/btop.conf.j2"
+
+
+def _template() -> Path:
+    """The btop.conf.j2 body — it lives in the pinned assets corpus since S3."""
+    return assets_templates.template_file(_BTOP_TEMPLATE, "btop_config")
 
 
 def _load_tasks() -> list[dict[str, object]]:
@@ -98,7 +105,7 @@ def _vars() -> dict[str, Any]:
 
 
 class TestBtopConfigRoleTree:
-    _REQUIRED_FILES = ("tasks/main.yml", "vars/main.yml", "templates/btop.conf.j2")
+    _REQUIRED_FILES = ("tasks/main.yml", "vars/main.yml")
 
     def test_role_tree_exists(self) -> None:
         for relative in self._REQUIRED_FILES:
@@ -143,7 +150,12 @@ class TestBtopConfigTasks:
         assert str(module.get("dest")) == "{{ btop_config_spine_dir }}/btop.conf", (
             "render dest must be {{ btop_config_spine_dir }}/btop.conf (final, not .j2)"
         )
-        assert str(module.get("src")) == "btop.conf.j2"
+        assert str(module.get("src")) == (
+            "{{ btop_config_assets_templates_dir }}/btop/btop.conf.j2"
+        ), (
+            "render src must be the btop.conf.j2 template read from the pinned assets "
+            "templates class (S3: the role no longer carries a templates/ dir)"
+        )
 
     def test_render_has_full_check_mode_support(self) -> None:
         assert _render_task().get("when") is None, (
@@ -197,7 +209,7 @@ class TestBtopConfigVars:
 
 class TestBtopConfigTemplate:
     def test_selects_the_generated_theme_by_filename(self) -> None:
-        text = _TEMPLATE.read_text()
+        text = _template().read_text()
         assert 'color_theme = "{{ btop_config_active_theme }}"' in text, (
             "color_theme must render the repo-owned active-theme setting "
             "(btop-theme-deployment D10), not a hardcoded filename"
@@ -211,19 +223,19 @@ class TestBtopConfigTemplate:
         """Mandatory, not cosmetic: btop defaults it true and truncates +
         rewrites btop.conf on exit, which through the ~/.config/btop spine
         symlink would land the user's UI changes in version control."""
-        assert "save_config_on_exit = false" in _TEMPLATE.read_text()
+        assert "save_config_on_exit = false" in _template().read_text()
 
     def test_no_absolute_theme_path(self) -> None:
         """An absolute path outside btop's scanned theme dirs never loads —
         it resolves to nothing and falls back to Default_theme silently."""
-        for line in _TEMPLATE.read_text().splitlines():
+        for line in _template().read_text().splitlines():
             if line.startswith("color_theme"):
                 assert not line.split("=", 1)[1].strip().startswith(('"/', '"~', '"$')), (
                     f"color_theme must be a bare filename, not an absolute path: {line!r}"
                 )
 
     def test_documents_the_save_config_on_exit_rationale(self) -> None:
-        text = _TEMPLATE.read_text()
+        text = _template().read_text()
         assert "btop_config.cpp" in text and "btop_theme.cpp" in text, (
             "the template must carry the source citations that make "
             "save_config_on_exit = false a defended setting, not a stray flag"
@@ -235,7 +247,7 @@ class TestBtopConfigTemplate:
         own defaults for keys it does not find)."""
         active = [
             line.split("=", 1)[0].strip()
-            for line in _TEMPLATE.read_text().splitlines()
+            for line in _template().read_text().splitlines()
             if line and not line.startswith("#") and "=" in line
         ]
         assert sorted(active) == ["color_theme", "save_config_on_exit"]
@@ -283,6 +295,9 @@ class TestBtopConfigPlaybook:
                 }
             )
             env.pop("XDG_CONFIG_HOME", None)
+            # S3: the template body ships in the pinned corpus; seed the checkout
+            # the assets role would have materialized before this role runs.
+            assets_templates.seed_install(install, "btop_config")
 
             def run() -> subprocess.CompletedProcess[str]:
                 return subprocess.run(
@@ -332,7 +347,8 @@ class TestBtopThemeDeployment:
             "btop_config_repo_root",
             "btop_config_active_theme_file",
             "btop_config_default_active_theme",
-            "btop_config_authored_themes_pinned_tag",
+            "btop_config_assets_pinned_tag",
+            "btop_config_assets_templates_dir",
             "btop_config_authored_themes_repo_dir",
         ):
             assert key in data, f"missing deployment var {key}"
@@ -350,18 +366,21 @@ class TestBtopThemeDeployment:
         value = str(_vars()["btop_config_authored_themes_repo_dir"])
         assert value == (
             "{{ install_dir | trim }}/assets/"
-            "{{ btop_config_authored_themes_pinned_tag }}/content/btop-themes"
+            "{{ btop_config_assets_pinned_tag }}/content/btop-themes"
         )
         assert "dotfiles/assets" not in value, (
             "the in-tree authored-themes tree was retired in S1"
         )
 
-    def test_authored_themes_pin_mirrors_the_assets_manifest(self) -> None:
-        """AD-6: the role's pin mirror equals `assets.tag` in the manifest."""
+    def test_assets_pin_mirrors_the_assets_manifest(self) -> None:
+        """AD-6: the role's ONE pin mirror equals `assets.tag` in the manifest."""
         manifest = yaml.safe_load(
             (_ANSIBLE_DIR.parents[2] / "dotfiles" / "provisioning" / "assets.yaml").read_text()
         )
-        assert str(_vars()["btop_config_authored_themes_pinned_tag"]) == manifest["assets"]["tag"]
+        assert str(_vars()["btop_config_assets_pinned_tag"]) == manifest["assets"]["tag"]
+        assert "{{ btop_config_assets_pinned_tag }}" in str(
+            _vars()["btop_config_assets_templates_dir"]
+        ), "the templates dir must resolve through the same pin mirror (one bump point)"
 
     def test_reads_the_repo_setting_with_a_default(self) -> None:
         slurp = [t for t in _load_tasks() if _module_key(t) == "ansible.builtin.slurp"]
@@ -397,7 +416,7 @@ class TestBtopThemeDeployment:
         assert "colors.btop.theme" not in str(_vars()["btop_config_authored_themes_repo_dir"])
 
     def test_save_config_on_exit_stays_false(self) -> None:
-        assert "save_config_on_exit = false" in _TEMPLATE.read_text()
+        assert "save_config_on_exit = false" in _template().read_text()
 
 
 if __name__ == "__main__":

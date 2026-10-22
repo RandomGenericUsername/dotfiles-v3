@@ -10,6 +10,8 @@ from typing import Any
 import pytest
 import yaml
 
+from tests.unit import assets_templates
+
 _TASK_KEYWORDS = {
     "name",
     "when",
@@ -47,6 +49,12 @@ _ANSIBLE_DIR = _find_ansible_dir()
 _ROLES_DIR = _ANSIBLE_DIR / "roles" / "wlogout_config"
 _PLAYBOOKS_DIR = _ANSIBLE_DIR / "playbooks"
 _REPO_ROOT = _ANSIBLE_DIR.parents[2]
+_WLOGOUT_TEMPLATE = "wlogout/style.css.tpl"
+
+
+def _template() -> Path:
+    """The style.css.tpl body — it lives in the pinned assets corpus since S3."""
+    return assets_templates.template_file(_WLOGOUT_TEMPLATE, "wlogout_config")
 
 
 def _load_tasks() -> list[dict[str, object]]:
@@ -107,12 +115,15 @@ class TestWlogoutConfigTasks:
         assert str(module.get("dest")) == "{{ wlogout_config_spine_dir }}/style.css", (
             "render dest must be the FINAL style.css (not the .tpl)"
         )
-        assert "style.css.tpl" in str(module.get("src", "")), (
-            "render src must be the style.css.tpl template"
+        assert str(module.get("src")) == (
+            "{{ wlogout_config_assets_templates_dir }}/wlogout/style.css.tpl"
+        ), (
+            "render src must be the style.css.tpl template read from the pinned assets "
+            "templates class (S3: the source is no longer authored in this repo)"
         )
 
     def test_render_task_defines_all_template_vars(self) -> None:
-        template = (_REPO_ROOT / "dotfiles" / "config" / "wlogout" / "style.css.tpl").read_text()
+        template = _template().read_text()
         import re
 
         template_vars = set(re.findall(r"\{\{([A-Z_]+)\}\}", template))
@@ -143,11 +154,78 @@ class TestWlogoutConfigTemplate:
     def test_template_uses_palette_color_names(self) -> None:
         """The template must consume the palette's REAL @color_00..@color_15
         names — the nonexistent @color16/@color10/@color7 are gone."""
-        text = (_REPO_ROOT / "dotfiles" / "config" / "wlogout" / "style.css.tpl").read_text()
+        text = _template().read_text()
         for bad in ("@color16", "@color10", "@color7;"):
             assert bad not in text, f"template still uses nonexistent color {bad}"
         for good in ("@color_15", "@color_12", "@color_07"):
             assert good in text, f"template must use real palette color {good}"
+
+    def test_template_has_no_stale_paths(self) -> None:
+        """gt-4-2 follow-up lock: style.css.tpl must reference the RUNTIME
+        state-root current/ pointers (icons + wallpaper) — never the deleted
+        <install>/generated/icons tree or a hardcoded default.png."""
+        template = _template().read_text()
+        assert "generated/icons" not in template, (
+            "style.css.tpl must not reference the deleted generated/icons tree"
+        )
+        assert "{{STATE_ROOT}}/dotfiles/current/icons/" in template, (
+            "style.css.tpl must read icons from the runtime current pointer"
+        )
+        assert "{{CURRENT_WALLPAPER_SYMLINK}}" in template, (
+            "background keeps the CURRENT_WALLPAPER_SYMLINK var seam"
+        )
+        assert "default.png" not in template, (
+            "style.css.tpl must not hardcode the default wallpaper"
+        )
+
+
+class TestPreS3Prune:
+    """S3: the retired in-spine template must disappear on the next provision.
+
+    Before S3, `config_copies` copied the whole wlogout directory into the spine, so
+    a host provisioned earlier still carries `<spine>/config/wlogout/style.css.tpl`.
+    The source lives only in the corpus now; leaving the copy in the directory
+    wlogout loads is exactly the residue the split exists to remove.
+    """
+
+    def _prune_task(self) -> dict[str, object]:
+        matches = [
+            t
+            for t in _load_tasks()
+            if _module_key(t) == "ansible.builtin.file"
+            and _module(t).get("state") == "absent"
+        ]
+        assert len(matches) == 1, (
+            "expected exactly one `state: absent` task pruning the pre-S3 template"
+        )
+        return matches[0]
+
+    def test_prune_targets_the_legacy_template_path(self) -> None:
+        module = _module(self._prune_task())
+        assert str(module.get("path")) == "{{ wlogout_config_legacy_template_path }}"
+
+    def test_prune_is_idempotent_and_check_safe(self) -> None:
+        task = self._prune_task()
+        assert task.get("when") is None, (
+            "a `state: absent` file task is natively idempotent and check-safe — "
+            "gating it would leave the residue on a --check host and skip the prune"
+        )
+
+    def test_legacy_path_is_the_spine_dir_not_the_repo(self) -> None:
+        value = str(_vars()["wlogout_config_legacy_template_path"])
+        assert value == "{{ wlogout_config_spine_dir }}/style.css.tpl", (
+            "the prune must target the SPINE residue, never the corpus"
+        )
+        assert "dotfiles/config" not in value
+
+    def test_prune_runs_before_the_render(self) -> None:
+        names = [str(t.get("name", "")) for t in _load_tasks()]
+        prune = names.index(self._prune_task()["name"])
+        render = names.index("Render wlogout style.css")
+        assert prune < render, (
+            "prune the stale template before rendering, so a failed render cannot "
+            "leave both files in place"
+        )
 
 
 class TestWlogoutConfigPlaybook:
@@ -184,6 +262,12 @@ class TestWlogoutConfigPlaybook:
             (install / "generated" / "icons").mkdir(parents=True)
             (install / "wallpapers").mkdir(parents=True)
             (install / "config" / "ags" / "colors.css").write_text("@define-color color_15 #fff;\n")
+            # S3: the template body ships in the pinned corpus; seed the checkout
+            # the assets role would have materialized before this role runs.
+            assets_templates.seed_install(install, "wlogout_config")
+            # The pre-S3 residue this role must prune on the same pass.
+            wlogout_dir.mkdir(parents=True, exist_ok=True)
+            (wlogout_dir / "style.css.tpl").write_text("{{ legacy }}")
             (install / "generated" / "icons" / "lock.svg").write_text("")
             (install / "wallpapers" / "default.png").write_bytes(b"\x89PNG")
 
@@ -208,25 +292,11 @@ class TestWlogoutConfigPlaybook:
             assert "{{" not in text and "{%" not in text, "unresolved Jinja: " + text
             assert "@import" in text, "rendered style.css must import colors.css"
             assert "@color_15" in text, "rendered style.css must use real palette colors"
+            assert not (wlogout_dir / "style.css.tpl").exists(), (
+                "the pre-S3 style.css.tpl residue must be pruned on the same pass — a "
+                "template nobody renders must not survive in the directory wlogout loads"
+            )
 
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
-
-    def test_template_has_no_stale_paths(self) -> None:
-        """gt-4-2 follow-up lock: the style.css.tpl must reference the RUNTIME
-        state-root current/ pointers (icons + wallpaper) — never the deleted
-        <install>/generated/icons tree or a hardcoded default.png."""
-        template = (_REPO_ROOT / "dotfiles" / "config" / "wlogout" / "style.css.tpl").read_text()
-        assert "generated/icons" not in template, (
-            "style.css.tpl must not reference the deleted generated/icons tree"
-        )
-        assert "{{STATE_ROOT}}/dotfiles/current/icons/" in template, (
-            "style.css.tpl must read icons from the runtime current pointer"
-        )
-        assert "{{CURRENT_WALLPAPER_SYMLINK}}" in template and "current/wallpaper.png" not in template or "{{CURRENT_WALLPAPER_SYMLINK}}" in template, (
-            "background keeps the CURRENT_WALLPAPER_SYMLINK var seam"
-        )
-        assert "default.png" not in template, (
-            "style.css.tpl must not hardcode the default wallpaper"
-        )

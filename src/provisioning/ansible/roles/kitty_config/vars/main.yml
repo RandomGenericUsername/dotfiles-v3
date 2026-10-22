@@ -21,6 +21,15 @@
 #   value the fail-loud first-task assert enforces.
 kitty_config_spine_dir: "{{ install_dir | trim }}/config/kitty"
 
+# kitty_config_assets_pinned_tag / kitty_config_assets_templates_dir: the AD-6
+#   mirror of the assets pin and the `templates` class inside the pinned checkout.
+#   S3: kitty.conf.j2 moved to `dotfiles-assets` (`templates/kitty/`), so the
+#   render reads the checkout the assets role materializes before this role runs;
+#   nothing reads a composition-repo tree. Parity-locked by the required-var
+#   parity test; trim lock on the seam.
+kitty_config_assets_pinned_tag: v0.4.0
+kitty_config_assets_templates_dir: "{{ install_dir | trim }}/assets/{{ kitty_config_assets_pinned_tag }}/templates"
+
 # kitty_config_xdg_state_home: the state home the runtime owns
 #   ($XDG_STATE_HOME, AD-5: <state>/dotfiles/) — the rendered kitty.conf reads
 #   the runtime's current/colors.kitty pointer from it. Provisioning only

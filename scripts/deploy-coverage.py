@@ -314,20 +314,43 @@ RETIRED_ASSETS_DIR = "dotfiles/assets"
 RETIRED_ICON_MAPPINGS_DIR = "dotfiles/config/icon-template-color-scheme-mappings"
 
 # S2: the static config corpus moved to the pinned `dotfiles-assets` repo
-# (configs/ class, v0.3.x). These five directories are gone; wlogout is NOT in
-# the list because its Jinja source (style.css.tpl) is still authored here until
-# S3 renders from the assets templates class — so the guard rejects the COPIED
-# file (layout), not the directory. The byte contract is proven before the
-# deletion; from here on a surviving copy is a second, unowned source of truth
-# that no role reads.
+# (configs/ class, v0.3.x). These five directories are gone; S3 retires the last
+# two (`zsh/`, whose only file was the .zshrc template, and `wlogout/`, whose
+# stylesheet source moved to the templates class while its `layout` already lives
+# in the corpus). The byte contract is proven before each deletion; from here on a
+# surviving copy is a second, unowned source of truth that no role reads.
 RETIRED_STATIC_CONFIG_DIRS = (
     "dotfiles/config/hypr",
     "dotfiles/config/hyprpaper",
     "dotfiles/config/nvim",
     "dotfiles/config/rofi",
     "dotfiles/config/starship",
+    # S3: the last two template sources left, so their directories go too.
+    "dotfiles/config/zsh",
+    "dotfiles/config/wlogout",
 )
-RETIRED_STATIC_CONFIG_FILES = ("dotfiles/config/wlogout/layout",)
+RETIRED_STATIC_CONFIG_FILES = (
+    "dotfiles/config/wlogout/layout",
+    # S3: the wlogout stylesheet SOURCE is a `templates` asset; a copy in the repo
+    # (or in the spine, which the wlogout_config role prunes) is the residue this
+    # slice removes.
+    "dotfiles/config/wlogout/style.css.tpl",
+)
+
+# S3: the five rendering roles read their template bodies from the pinned corpus
+# (`<install>/assets/<tag>/templates/…`). A role-internal `templates/` dir would be
+# a second source of truth; the render task is the only place the path may appear,
+# and it must be the pinned checkout.
+TEMPLATE_RENDER_ROLES = {
+    "zsh_config": 1,
+    "kitty_config": 1,
+    "btop_config": 1,
+    "wlogout_config": 1,
+    "display_manager": 2,
+}
+RETIRED_ROLE_TEMPLATE_DIRS = tuple(
+    f"src/provisioning/ansible/roles/{role}/templates" for role in TEMPLATE_RENDER_ROLES
+)
 CLI_TOOLS_ROLE_VARS = "src/provisioning/ansible/roles/cli_tools/vars/main.yml"
 ITR_NAME = "itr"
 RETIRED_ITR_DIR = "src/cli-tools/icon-templates-renderer"
@@ -1815,10 +1838,9 @@ def assert_no_in_tree_static_configs(root: Path) -> None:
     would be a second, unowned source of truth — exactly the drift the pin exists
     to prevent — so its return fails this gate.
 
-    `dotfiles/config/wlogout/` itself is deliberately NOT retired: it keeps
-    `style.css.tpl`, the Jinja source S3 renders from the assets `templates`
-    class. The guard therefore rejects the copied file (`layout`), not the
-    directory.
+    `dotfiles/config/wlogout/` is retired at S3: its only remaining file was the
+    Jinja source, and that moved to the assets `templates` class with the rest.
+    The guard therefore rejects the directory now, not just the copied `layout`.
     """
     for retired in RETIRED_STATIC_CONFIG_DIRS:
         if (root / retired).exists():
@@ -1836,6 +1858,91 @@ def assert_no_in_tree_static_configs(root: Path) -> None:
                 f"(configs class, S2/AD-6); only the Jinja sources stay in-tree "
                 f"until S3"
             )
+
+
+def assert_no_in_tree_templates(root: Path) -> None:
+    """S3 (AD-8/AD-16): template bodies and their sources live in the corpus.
+
+    Two halves, because a split can fail in two directions:
+
+    * the RETIRED sources are gone — `dotfiles/config/{zsh,wlogout}` and the three
+      role-internal `templates/` dirs. A surviving copy is a second source of truth
+      that no role reads (the render tasks point at the pinned checkout).
+    * every render task that DOES remain reads the pinned checkout: each of the
+      five roles has the declared number of `ansible.builtin.template` tasks, each
+      `src:` resolves through `<role>_assets_templates_dir` (which itself resolves
+      `<install>/assets/<role>_assets_pinned_tag>/templates`), and each role carries
+      that pin mirror. This is the CI-runnable half of AD-8.4: the required-var
+      parity test needs the corpus to read the schemas, so it skips on a runner
+      without a checkout; this assertion needs only this repo and never skips.
+    """
+    for retired in RETIRED_STATIC_CONFIG_DIRS + RETIRED_ROLE_TEMPLATE_DIRS:
+        if (root / retired).exists():
+            raise ValueError(
+                f"the retired template source {retired}/ still exists — the Jinja "
+                f"corpus ships in the pinned dotfiles-assets repo (templates class, "
+                f"S3) and the roles read <install>/assets/<tag>/templates/; delete "
+                f"the in-tree copy and bump the pin instead"
+            )
+    for retired in RETIRED_STATIC_CONFIG_FILES:
+        if (root / retired).exists():
+            raise ValueError(
+                f"the retired template source {retired} still exists — wlogout's only "
+                f"in-repo source is the corpus copy (templates/wlogout/style.css.tpl); "
+                f"delete it"
+            )
+
+    import yaml
+
+    keys = {"name", "when", "become", "become_user", "become_method", "become_flags", "args",
+            "register", "changed_when", "failed_when", "creates", "vars", "loop", "until",
+            "retries", "delay", "tags", "environment", "ignore_errors", "notify", "check_mode"}
+    for role, expected in TEMPLATE_RENDER_ROLES.items():
+        role_dir = root / "src" / "provisioning" / "ansible" / "roles" / role
+        tasks_path = role_dir / "tasks" / "main.yml"
+        vars_path = role_dir / "vars" / "main.yml"
+        if not tasks_path.is_file() or not vars_path.is_file():
+            raise ValueError(f"role {role}: tasks/main.yml or vars/main.yml is missing")
+        role_vars = yaml.safe_load(vars_path.read_text()) or {}
+        templates_dir = role_vars.get(f"{role}_assets_templates_dir")
+        pin = role_vars.get(f"{role}_assets_pinned_tag")
+        if templates_dir != (
+            f"{{{{ install_dir | trim }}}}/assets/{{{{ {role}_assets_pinned_tag }}}}/templates"
+        ):
+            raise ValueError(
+                f"role {role}: {role}_assets_templates_dir must resolve "
+                f"<install>/assets/<{role}_assets_pinned_tag>/templates; got "
+                f"{templates_dir!r}"
+            )
+        if not str(pin or "").startswith("v"):
+            raise ValueError(
+                f"role {role}: {role}_assets_pinned_tag must be a vX.Y.Z pin mirror of "
+                f"assets.tag; got {pin!r}"
+            )
+        tasks = yaml.safe_load(tasks_path.read_text()) or []
+        renders = []
+        for task in tasks:
+            if not isinstance(task, dict):
+                continue
+            module = next((k for k in task if k not in keys and k != "with_items"), None)
+            if module == "ansible.builtin.template":
+                renders.append(task)
+        if len(renders) != expected:
+            raise ValueError(
+                f"role {role}: expected {expected} ansible.builtin.template task(s); found "
+                f"{len(renders)} — a render task that disappeared would leave the "
+                f"spine file stale, and a new one must be counted here"
+            )
+        prefix = f"{{{{ {role}_assets_templates_dir }}}}/"
+        for task in renders:
+            src = str((task.get("ansible.builtin.template") or {}).get("src", ""))
+            if not src.startswith(prefix):
+                raise ValueError(
+                    f"role {role}: render task {task.get('name')!r} must read "
+                    f"`{prefix}<group>/<file>` from the pinned corpus; got {src!r}. A "
+                    f"bare file name resolves inside the role's own templates/ dir "
+                    f"(retired in S3), so the render would fail on a provision."
+                )
 
 
 def assert_manifest_source_scope(root: Path) -> None:
@@ -2008,8 +2115,12 @@ def main() -> int:
         assert_no_assets_corpus(root)
         # S2 (AD-16): the static config corpus moved to the same pin (configs
         # class); the five tool dirs and wlogout's copied `layout` are retired,
-        # while wlogout's Jinja source stays until S3.
+        # and S3 added zsh/ + wlogout/ once their template sources left.
         assert_no_in_tree_static_configs(root)
+        # S3 (AD-8/AD-16): the template bodies are corpus too. The retired sources
+        # are absent AND every render task reads the pinned checkout through its
+        # role's pin mirror — the CI-runnable half of AD-8.4.
+        assert_no_in_tree_templates(root)
     except (RuntimeError, ValueError, FileNotFoundError) as exc:
         print(f"FAIL: {exc}")
         return 1
@@ -2106,8 +2217,14 @@ def main() -> int:
     print(
         "deploy-coverage: PASS -- the static config corpus (hypr, hyprpaper, "
         "nvim, rofi, starship + wlogout/layout) is the pinned dotfiles-assets "
-        "configs class; the in-tree copies are retired and wlogout keeps only "
-        "its S3 template source"
+        "configs class; every in-tree copy is retired, including the last two "
+        "template sources (dotfiles/config/{zsh,wlogout})"
+    )
+    print(
+        "deploy-coverage: PASS -- the template corpus is the pinned dotfiles-assets "
+        f"templates class: {len(TEMPLATE_RENDER_ROLES)} roles read "
+        "<install>/assets/<their pin>/templates/, no role carries a templates/ dir, "
+        "and no in-tree *.j2/*.tpl source remains"
     )
     print(
         f"deploy-coverage: PASS -- six packages are consumed from their pinned "

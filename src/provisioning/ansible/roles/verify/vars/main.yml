@@ -127,7 +127,7 @@ verify_install_spine_dirs:
 #   that the pin FILE equals this tag, so this slice only asserts presence.
 verify_assets_dir: "{{ install_dir | trim }}/assets"
 verify_assets_pinned_file: "{{ verify_assets_dir }}/pinned"
-verify_assets_pinned_tag: v0.3.1
+verify_assets_pinned_tag: v0.4.0
 verify_assets_tag_dir: "{{ verify_assets_dir }}/{{ verify_assets_pinned_tag }}"
 verify_assets_class_dirs:
   - "{{ verify_assets_tag_dir }}/icons"
@@ -875,6 +875,15 @@ verify_config_copy_content:
   - "{{ verify_xdg_config_home }}/wlogout/style.css"
   - "{{ verify_xdg_config_home }}/zsh/.zshrc"
   - "{{ verify_xdg_config_home }}/kitty/kitty.conf"
+
+# verify_wlogout_legacy_template_path: the PRE-S3 residue, asserted ABSENT (S3).
+#   Before the template moved to the pinned corpus, config_copies copied the whole
+#   wlogout dir into the spine, leaving <spine>/config/wlogout/style.css.tpl beside
+#   the rendered style.css. The wlogout_config role prunes it idempotently; verify
+#   re-asserts the absence so a hand-restored copy (or a role that lost the prune)
+#   fails the gate instead of quietly keeping a template in the directory wlogout
+#   loads. Trim lock: one install_dir seam read, no derived second seam.
+verify_wlogout_legacy_template_path: "{{ install_dir | trim }}/config/wlogout/style.css.tpl"
 
 # verify_managed_link_dirs: the FULL set of managed config dirs symlinked by the
 #   config-links role (criterion 9 — the 5-layer symlink check). Union of

@@ -10,6 +10,8 @@ from typing import Any
 import pytest
 import yaml
 
+from tests.unit import assets_templates
+
 _TASK_KEYWORDS = {
     "name",
     "when",
@@ -45,8 +47,8 @@ def _find_ansible_dir() -> Path:
 
 _ANSIBLE_DIR = _find_ansible_dir()
 _ROLES_DIR = _ANSIBLE_DIR / "roles" / "kitty_config"
-_TEMPLATE = _ROLES_DIR / "templates" / "kitty.conf.j2"
 _PLAYBOOKS_DIR = _ANSIBLE_DIR / "playbooks"
+_KITTY_TEMPLATE = "kitty/kitty.conf.j2"
 
 
 def _load_tasks() -> list[dict[str, object]]:
@@ -87,7 +89,7 @@ def _vars() -> dict[str, Any]:
 
 
 class TestKittyConfigRoleTree:
-    _REQUIRED_FILES = ("tasks/main.yml", "vars/main.yml", "templates/kitty.conf.j2")
+    _REQUIRED_FILES = ("tasks/main.yml", "vars/main.yml")
 
     def test_role_tree_exists(self) -> None:
         for relative in self._REQUIRED_FILES:
@@ -115,8 +117,11 @@ class TestKittyConfigTasks:
         assert str(module.get("dest")) == "{{ kitty_config_spine_dir }}/kitty.conf", (
             "render dest must be {{ kitty_config_spine_dir }}/kitty.conf (final, not .j2)"
         )
-        assert str(module.get("src")) == "kitty.conf.j2", (
-            "render src must be the role-internal kitty.conf.j2 template"
+        assert str(module.get("src")) == (
+            "{{ kitty_config_assets_templates_dir }}/kitty/kitty.conf.j2"
+        ), (
+            "render src must be the kitty.conf.j2 template read from the pinned assets "
+            "templates class (S3: the role no longer carries a templates/ dir)"
         )
 
     def test_local_conf_copy_is_create_only(self) -> None:
@@ -189,7 +194,7 @@ class TestKittyConfigVars:
 
 class TestKittyConfigTemplate:
     def test_template_contains_the_exact_managed_config(self) -> None:
-        text = _TEMPLATE.read_text()
+        text = assets_templates.template_file(_KITTY_TEMPLATE, "kitty_config").read_text()
         assert "include {{ kitty_config_state_current_dir }}/colors.kitty" in text, (
             "the template must include the runtime palette at the absolute state path"
         )
@@ -241,6 +246,9 @@ class TestKittyConfigPlaybook:
             palette_dir = state / "dotfiles" / "current"
             palette_dir.mkdir(parents=True)
             (palette_dir / "colors.kitty").write_text("background #000000\n")
+            # S3: the template body ships in the pinned corpus; seed the checkout
+            # the assets role would have materialized before this role runs.
+            assets_templates.seed_install(install, "kitty_config")
 
             env = {k: v for k, v in os.environ.items() if not k.startswith("ANSIBLE_")}
             env.update(

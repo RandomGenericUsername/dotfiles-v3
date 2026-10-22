@@ -10,6 +10,8 @@ from typing import Any
 import pytest
 import yaml
 
+from tests.unit import assets_templates
+
 _TASK_KEYWORDS = {
     "name",
     "when",
@@ -47,6 +49,7 @@ _ANSIBLE_DIR = _find_ansible_dir()
 _ROLES_DIR = _ANSIBLE_DIR / "roles" / "zsh_config"
 _PLAYBOOKS_DIR = _ANSIBLE_DIR / "playbooks"
 _REPO_ROOT = _ANSIBLE_DIR.parents[2]
+_ZSH_TEMPLATE = "zsh/.zshrc.j2"
 
 
 def _load_tasks() -> list[dict[str, object]]:
@@ -109,14 +112,15 @@ class TestZshConfigTasks:
         assert str(module.get("dest")) == "{{ zsh_config_spine_dir }}/.zshrc", (
             "render dest must be {{ zsh_config_spine_dir }}/.zshrc (final, not .j2)"
         )
-        assert ".zshrc.j2" in str(module.get("src", "")), (
-            "render src must be the .zshrc.j2 template"
+        assert str(module.get("src")) == "{{ zsh_config_assets_templates_dir }}/zsh/.zshrc.j2", (
+            "render src must be the .zshrc.j2 template read from the pinned assets "
+            "templates class (S3: the source is no longer authored in this repo)"
         )
 
     def test_render_task_defines_all_template_vars(self) -> None:
         """Every variable the .zshrc.j2 template consumes must be passed to the
         template module (a missing var would render as empty/broken output)."""
-        template = (_REPO_ROOT / "dotfiles" / "config" / "zsh" / ".zshrc.j2").read_text()
+        template = assets_templates.template_file(_ZSH_TEMPLATE, "zsh_config").read_text()
         import re
 
         template_vars = set(re.findall(r"\{\{([A-Z_]+)\}\}", template))
@@ -175,7 +179,8 @@ class TestZshConfigTasks:
 class TestZshConfigVars:
     _REQUIRED_KEYS = {
         "zsh_config_spine_dir",
-        "zsh_config_template_root",
+        "zsh_config_assets_pinned_tag",
+        "zsh_config_assets_templates_dir",
         "zsh_config_xdg_state_home",
         "zsh_config_state_current_dir",
         "zsh_config_plugin_paths",
@@ -249,7 +254,7 @@ class TestZshConfigVars:
         for source_name, source_path in (
             ("tasks", _ROLES_DIR / "tasks" / "main.yml"),
             ("vars", _ROLES_DIR / "vars" / "main.yml"),
-            ("template", _REPO_ROOT / "dotfiles" / "config" / "zsh" / ".zshrc.j2"),
+            ("template", assets_templates.template_file(_ZSH_TEMPLATE, "zsh_config")),
         ):
             text = source_path.read_text()
             assert "generated/palettes" not in text, (
@@ -263,7 +268,7 @@ class TestZshConfigVars:
             )
         assert (
             "COLOR_SCHEME_CURRENT_DIR"
-            in (_REPO_ROOT / "dotfiles" / "config" / "zsh" / ".zshrc.j2").read_text()
+            in assets_templates.template_file(_ZSH_TEMPLATE, "zsh_config").read_text()
         ), "the template must consume COLOR_SCHEME_CURRENT_DIR (gt-3-2)"
 
 
@@ -311,6 +316,9 @@ class TestZshConfigPlaybook:
             (install / "config" / "starship" / "starship.toml").write_text("")
             (state / "dotfiles" / "current").mkdir(parents=True)
             (state / "dotfiles" / "current" / "colors.sequences").write_text("")
+            # S3: the template body ships in the pinned corpus; run the role the way
+            # the assets playbook leaves the host (checkout at the tag).
+            assets_templates.seed_install(install, "zsh_config")
             for d in (home / ".oh-my-zsh", home / ".pyenv"):
                 d.mkdir(parents=True)
 
