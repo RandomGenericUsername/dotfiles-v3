@@ -34,11 +34,19 @@
 #   managed marker is moved aside timestamped (mirror of the config_links
 #   backup guard) before the pointer is written. An already-correct pointer is
 #   a no-op (idempotent re-run).
-# - User-scoped, with ONE privileged exception: changing the login shell
-#   requires root (chsh authenticates via PAM on /dev/tty, which does not
-#   exist under Ansible — an unprivileged chsh dies with "Authentication token
-#   manipulation error" on every fresh bash machine). Only the login-shell
-#   task below uses become; everything else stays unprivileged.
+# - User-scoped, with ONE privileged but CONDITIONAL exception: changing the
+#   login shell requires root (the `user` module's usermod writes /etc/passwd;
+#   an unprivileged chsh cannot authenticate under Ansible). The role first
+#   READS the current login shell with an unprivileged `getent passwd` probe,
+#   records it as a fact, and only then runs the `user` task with become —
+#   gated on the shell actually differing from zsh_config_login_shell. An
+#   already-zsh host therefore never escalates (unattended runs carry no sudo
+#   password), while a wrong shell still converges in the same pass. The probe
+#   is check-mode-safe (`check_mode: false`, read-only) and the mutation is
+#   --check-gated.
+# - It also PRUNES the pre-S3 residue <spine>/config/zsh/.zshrc.j2 — a copied
+#   template that nothing rendered and nothing should keep (zsh reads .zshrc
+#   through ZDOTDIR, never the .j2).
 
 - name: Assert install_dir seam is provided
   ansible.builtin.assert:
@@ -52,6 +60,17 @@
   ansible.builtin.file:
     path: "{{ zsh_config_spine_dir }}"
     state: directory
+
+# S3 prune (idempotent): before the template moved to the pinned corpus,
+# `config_copies` copied the whole zsh dir into the spine, leaving a
+# `.zshrc.j2` beside the rendered `.zshrc`. zsh reads `.zshrc` via ZDOTDIR and
+# never the template, so the copy is dead weight in the live config dir.
+# `state: absent` is a no-op when it is already gone, so the task converges on
+# a fresh machine and cleans a pre-S3 one in the same pass.
+- name: Remove the pre-S3 zsh template from the spine (moved to the pinned corpus)
+  ansible.builtin.file:
+    path: "{{ zsh_config_legacy_template_path }}"
+    state: absent
 
 - name: Check pyenv is present (PYENV_CONFIGURED)
   ansible.builtin.stat:
@@ -134,31 +153,56 @@
     or zsh_config_zshenv_marker.rc is not defined
     or zsh_config_zshenv_marker.rc != 0
 
-- name: Ensure zsh is the login shell
-  ansible.builtin.shell:
-    cmd: |
-      set -e
-      # NOTE: this task runs become:true (root), so $USER is root — the login
-      # user comes from the user_id fact (`ansible_facts['user_id']`), never
-      # the environment.
-      target_user="{{ ansible_facts['user_id'] }}"
-      current="$(getent passwd "$target_user" 2>/dev/null | cut -d: -f7 || echo "")"
-      if [ "$current" = "/bin/zsh" ] || [ "$current" = "/usr/bin/zsh" ]; then
-        echo "already zsh ($current)"
-        exit 0
-      fi
-      zsh_bin="$(command -v zsh 2>/dev/null || echo /bin/zsh)"
-      if [ ! -x "$zsh_bin" ]; then echo "zsh not installed at $zsh_bin" >&2; exit 1; fi
-      # Validate against /etc/shells (space-separated via tr).
-      if ! tr ' ' '\n' < /etc/shells 2>/dev/null | grep -qxF "$zsh_bin"; then
-        echo "not in /etc/shells: $zsh_bin" >&2; exit 1
-      fi
-      chsh -s "$zsh_bin" "$target_user"
-  args:
-    executable: /bin/bash
-  become: true
-  when: not ansible_check_mode
+# Login shell (the role's ONE privileged exception, now CONDITIONAL).
+#
+# The probe is read-only and unprivileged: `getent passwd <user>` answers
+# "which shell is configured right now?" without requiring root. Only when the
+# answer differs from zsh_config_login_shell does the role escalate. `check_mode:
+# false` keeps the probe honest under --check (it reads, it never mutates), so
+# the fact exists and the mutation's `when` evaluates with the same values as a
+# real run. An unconditional become made unattended runs fail with "sudo: a
+# password is required" on a host whose shell was already correct.
+- name: Read the current login shell (unprivileged)
+  ansible.builtin.command:
+    argv:
+      - getent
+      - passwd
+      - "{{ ansible_facts['user_id'] }}"
+  register: zsh_config_passwd_check
+  changed_when: false
+  check_mode: false
   tags: [login_shell]
-  register: zsh_config_chsh
-  changed_when: "'already zsh' not in zsh_config_chsh.stdout"
-  failed_when: zsh_config_chsh.rc != 0
+
+- name: Record the current login shell
+  ansible.builtin.set_fact:
+    zsh_config_current_shell: "{{ (zsh_config_passwd_check.stdout | trim).split(':') | last }}"
+  tags: [login_shell]
+
+- name: Check the target login shell binary is executable
+  ansible.builtin.stat:
+    path: "{{ zsh_config_login_shell }}"
+  register: zsh_config_login_shell_check
+  tags: [login_shell]
+
+- name: Assert the target login shell binary is executable
+  ansible.builtin.assert:
+    that: zsh_config_login_shell_check.stat.executable | default(false)
+    fail_msg: >-
+      {{ zsh_config_login_shell }} is missing or not executable — refusing to
+      point the login shell at a binary that cannot start. Install zsh (the
+      packages role) and re-run.
+  tags: [login_shell]
+
+# `ansible.builtin.user` writes the shell field via usermod (no PAM /dev/tty
+# chsh dance), and its `shell` parameter is idempotent. become is attached to
+# THIS task only; the whole task is skipped when the probe already saw the
+# target shell or when running --check (a dry run must not ask for a password).
+- name: Ensure zsh is the login shell
+  ansible.builtin.user:
+    name: "{{ ansible_facts['user_id'] }}"
+    shell: "{{ zsh_config_login_shell }}"
+  become: true
+  when:
+    - not ansible_check_mode
+    - zsh_config_current_shell != zsh_config_login_shell
+  tags: [login_shell]

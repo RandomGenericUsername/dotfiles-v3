@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -83,6 +84,89 @@ def _vars() -> dict[str, Any]:
     return data
 
 
+def _seed_role_host(root: Path) -> tuple[Path, Path, Path]:
+    """Materialize the minimum host the zsh_config role needs to run in isolation."""
+    home = root / "home"
+    install = root / "install"
+    state = root / "state"
+    home.mkdir()
+    (install / "config" / "starship").mkdir(parents=True)
+    (install / "config" / "starship" / "starship.toml").write_text("")
+    (state / "dotfiles" / "current").mkdir(parents=True)
+    (state / "dotfiles" / "current" / "colors.sequences").write_text("")
+    # S3: the template body ships in the pinned corpus; run the role the way the
+    # assets playbook leaves the host (checkout at the tag).
+    assets_templates.seed_install(install, "zsh_config")
+    for directory in (home / ".oh-my-zsh", home / ".pyenv"):
+        directory.mkdir(parents=True)
+    return home, install, state
+
+
+def _role_env(home: Path, state: Path) -> dict[str, str]:
+    env = {k: v for k, v in os.environ.items() if not k.startswith("ANSIBLE_")}
+    env.update(
+        {
+            "HOME": str(home),
+            "XDG_STATE_HOME": str(state),
+            "ANSIBLE_CONFIG": str(_ANSIBLE_DIR / "ansible.cfg"),
+        }
+    )
+    env.pop("XDG_CONFIG_HOME", None)
+    return env
+
+
+def _run_role_playbook(
+    install: Path,
+    env: dict[str, str],
+    extra_args: list[str] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    args = [
+        shutil.which("ansible-playbook") or "ansible-playbook",
+        str(_PLAYBOOKS_DIR / "zsh-config.yaml"),
+        "-e",
+        f"install_dir={install}",
+        "-e",
+        f"shell_oh_my_zsh_dir={env['HOME']}/.oh-my-zsh",
+        "-e",
+        f"shell_pyenv_dir={env['HOME']}/.pyenv",
+        "-e",
+        f"shell_nvm_dir={env['HOME']}/.nvm",
+        "-e",
+        "shell_font_family=monospace",
+        "-e",
+        "shell_font_size_px=12",
+    ]
+    args.extend(extra_args or [])
+    return subprocess.run(args, capture_output=True, text=True, env=env, timeout=120)
+
+
+def _stub_getent(bin_dir: Path, shell: str) -> None:
+    """A `getent passwd` stub so the probe reads a controlled login shell."""
+    bin_dir.mkdir(parents=True, exist_ok=True)
+    stub = bin_dir / "getent"
+    stub.write_text(f'#!/bin/sh\necho "user:x:1000:1000::/home/user:{shell}"\n')
+    stub.chmod(0o755)
+
+
+def _stub_become(path: Path, marker: Path) -> None:
+    """A fake become exe: records the escalation attempt, then fails loudly."""
+    path.write_text(
+        "#!/bin/sh\n"
+        f"touch '{marker}'\n"
+        "echo FAKE_BECOME_INVOKED >&2\n"
+        "exit 1\n"
+    )
+    path.chmod(0o755)
+
+
+def _fake_shell_binary(root: Path) -> Path:
+    """An executable stand-in so the role's binary assert never depends on the host."""
+    fake = root / "fake-zsh"
+    fake.write_text("#!/bin/sh\nexit 0\n")
+    fake.chmod(0o755)
+    return fake
+
+
 class TestZshConfigRoleTree:
     _REQUIRED_FILES = ("tasks/main.yml", "vars/main.yml")
 
@@ -136,49 +220,241 @@ class TestZshConfigTasks:
         task = _render_task()
         assert task.get("when") is None, "render must not be --check-gated (template is check-safe)"
 
-    def test_no_become_anywhere_in_role(self) -> None:
-        """Only the login-shell task may escalate: chsh authenticates via PAM
-        on /dev/tty, which does not exist under Ansible, so an unprivileged
-        chsh dies on every fresh bash machine. Every other task stays
-        unprivileged (user-scoped role)."""
+    def test_only_the_gated_login_shell_task_escalates(self) -> None:
+        """Only the mutation task may escalate, and only conditionally: the
+        role reads the current shell unprivileged first, so an already-zsh host
+        never needs a sudo password. Every other task stays user-scoped."""
         for task in _load_tasks():
             name = str(task.get("name", ""))
-            if "login shell" in name:
+            if name == "Ensure zsh is the login shell":
                 assert task.get("become", False) is True, (
-                    "the login-shell task must run become:true (chsh needs root)"
+                    "the login-shell mutation must run become:true (usermod writes /etc/passwd)"
                 )
                 continue
             assert not task.get("become", False), (
                 f"zsh_config must not use become outside the login-shell task (task {name!r})"
             )
 
+    def test_login_shell_probe_is_unprivileged_and_read_only(self) -> None:
+        """The current shell is read with a plain `getent passwd` command that
+        needs no root — that is what lets the role skip become entirely on an
+        already-zsh host (the S2/S3 host failure: sudo demanded a password)."""
+        probes = [
+            task
+            for task in _load_tasks()
+            if str(task.get("register", "")) == "zsh_config_passwd_check"
+        ]
+        assert len(probes) == 1, "exactly one task must register the getent probe"
+        probe = probes[0]
+        assert _module_key(probe) == "ansible.builtin.command", (
+            "the probe must be `command` (no shell pipeline, no privilege)"
+        )
+        assert probe.get("become", False) is False, (
+            "the probe must NOT become: that is the bug (sudo password demanded)"
+        )
+        argv = [str(part) for part in _module(probe).get("argv", [])]
+        assert argv[:2] == ["getent", "passwd"], f"unexpected probe argv: {argv}"
+        assert "ansible_facts['user_id']" in argv[2], (
+            "the probe must target the login user from the user_id fact"
+        )
+        assert probe.get("changed_when") is False, "a read-only probe never reports changed"
+        assert probe.get("check_mode") is False, (
+            "the read-only probe must run under --check too, so the mutation's "
+            "when condition is evaluated with real values"
+        )
+        assert "login_shell" in (probe.get("tags") or [])
+
+    def test_current_shell_fact_parses_the_passwd_shell_field(self) -> None:
+        fact_tasks = [
+            task
+            for task in _load_tasks()
+            if _module_key(task) == "ansible.builtin.set_fact"
+            and "zsh_config_current_shell" in _module(task)
+        ]
+        assert len(fact_tasks) == 1, "exactly one task must record the current shell"
+        expression = str(_module(fact_tasks[0])["zsh_config_current_shell"])
+        assert "zsh_config_passwd_check.stdout" in expression
+        assert ".split(':')" in expression and "| last" in expression, (
+            "the getent passwd shell is the LAST colon-separated field; parsing "
+            "anything else risks comparing the wrong column"
+        )
+
+    def test_login_shell_mutation_is_gated_on_the_probe_and_check_mode(self) -> None:
+        task = next(
+            t
+            for t in _load_tasks()
+            if str(t.get("name", "")) == "Ensure zsh is the login shell"
+        )
+        assert _module_key(task) == "ansible.builtin.user", (
+            "the mutation must use ansible.builtin.user (usermod writes the shell "
+            "without the PAM /dev/tty chsh failure)"
+        )
+        module = _module(task)
+        assert str(module.get("name")) == "{{ ansible_facts['user_id'] }}"
+        assert str(module.get("shell")) == "{{ zsh_config_login_shell }}"
+        when = task.get("when")
+        assert isinstance(when, list), "the mutation must carry both gate conditions"
+        assert "not ansible_check_mode" in when, "the mutation must stay --check-gated"
+        assert "zsh_config_current_shell != zsh_config_login_shell" in when, (
+            "become must only happen when the probe saw a non-zsh shell"
+        )
+
     def test_login_shell_targets_login_user_not_environment(self) -> None:
-        """Under become $USER is root — the script must resolve the login user
-        from the user_id fact (`ansible_facts['user_id']`, never the
-        deprecated top-level `ansible_user_id`) and pass it explicitly to
-        chsh, or it would check and change root's shell."""
-        tasks = _load_tasks()
-        task = next(t for t in tasks if "login shell" in str(t.get("name", "")))
-        cmd = str(_module(task).get("cmd", ""))
-        assert "ansible_facts['user_id']" in cmd, (
-            "the login-shell script must use {{ ansible_facts['user_id'] }}, never $USER"
+        """Under become $USER is root — the mutation must target the user_id fact
+        (`ansible_facts['user_id']`, never the deprecated top-level
+        `ansible_user_id`) or it would change root's shell."""
+        task = next(
+            t
+            for t in _load_tasks()
+            if str(t.get("name", "")) == "Ensure zsh is the login shell"
         )
-        assert "ansible_user_id" not in cmd.replace("ansible_facts['user_id']", ""), (
-            "the deprecated top-level ansible_user_id fact must not appear"
-        )
-        assert 'chsh -s "$zsh_bin" "$target_user"' in cmd
-        assert "not ansible_check_mode" in str(task.get("when", "")), (
-            "the login-shell task mutates and must be --check-gated"
-        )
+        module_text = str(_module(task))
+        assert "ansible_facts['user_id']" in module_text
+        assert "ansible_user_id" not in module_text.replace("ansible_facts['user_id']", "")
+        assert "$USER" not in module_text, "the environment is root under become"
         assert "login_shell" in (task.get("tags") or []), (
-            "the login-shell task must carry the login_shell tag so it runs "
-            "under the orchestrator's --tags all yet stays skippable in tests"
+            "the login-shell tasks must carry the login_shell tag so they run "
+            "under the orchestrator's --tags all yet stay skippable in tests"
         )
+
+    def test_login_shell_binary_is_pinned_in_vars(self) -> None:
+        data = _vars()
+        assert data["zsh_config_login_shell"] == "/usr/bin/zsh", (
+            "the converge target is the absolute zsh path both supported distros install"
+        )
+
+
+class TestPreS3Prune:
+    """S3: the retired in-spine template must disappear on the next provision.
+
+    Before S3, `config_copies` copied the whole zsh directory into the spine, so a
+    host provisioned earlier still carries `<spine>/config/zsh/.zshrc.j2`. zsh
+    reads `.zshrc` through ZDOTDIR and never the template, so the copy is dead
+    weight in the live config dir.
+    """
+
+    def _prune_task(self) -> dict[str, object]:
+        matches = [
+            t
+            for t in _load_tasks()
+            if _module_key(t) == "ansible.builtin.file"
+            and _module(t).get("state") == "absent"
+        ]
+        assert len(matches) == 1, (
+            "expected exactly one `state: absent` task pruning the pre-S3 template"
+        )
+        return matches[0]
+
+    def test_prune_targets_the_legacy_template_path(self) -> None:
+        module = _module(self._prune_task())
+        assert str(module.get("path")) == "{{ zsh_config_legacy_template_path }}"
+
+    def test_prune_is_idempotent_and_check_safe(self) -> None:
+        task = self._prune_task()
+        assert task.get("when") is None, (
+            "a `state: absent` file task is natively idempotent and check-safe — "
+            "gating it would leave the residue on a --check host and skip the prune"
+        )
+
+    def test_legacy_path_is_the_spine_dir_not_the_repo(self) -> None:
+        value = str(_vars()["zsh_config_legacy_template_path"])
+        assert value == "{{ zsh_config_spine_dir }}/.zshrc.j2", (
+            "the prune must target the SPINE residue, never the corpus"
+        )
+        assert "dotfiles/config" not in value
+
+    def test_prune_runs_before_the_render(self) -> None:
+        names = [str(t.get("name", "")) for t in _load_tasks()]
+        prune = names.index(str(self._prune_task()["name"]))
+        render = names.index("Render .zshrc")
+        assert prune < render, (
+            "prune the stale template before rendering, so a failed render cannot "
+            "leave both files in place"
+        )
+
+
+class TestLoginShellBecomeGate:
+    """The login-shell probe must never escalate on an already-correct host, and
+    a wrong shell must still reach the gated mutation.
+
+    The real host check that motivated the fix: `getent passwd inumaki | cut -d:
+    -f7` is `/usr/bin/zsh`, yet the unconditional become demanded a sudo
+    password. These tests isolate the decision with a `getent` stub and a fake
+    become exe, so they are deterministic and never touch the host's shell.
+    """
+
+    def test_already_zsh_never_invokes_become(self) -> None:
+        if shutil.which("ansible-playbook") is None:
+            pytest.skip("ansible-playbook not installed; skipping execution test")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            home, install, state = _seed_role_host(root)
+            fake_shell = _fake_shell_binary(root)
+            bin_dir = root / "stub-bin"
+            _stub_getent(bin_dir, str(fake_shell))
+            marker = root / "become-called"
+            become = root / "fake-sudo"
+            _stub_become(become, marker)
+            env = _role_env(home, state)
+            env["PATH"] = f"{bin_dir}:{env['PATH']}"
+            env["ANSIBLE_BECOME_EXE"] = str(become)
+
+            result = _run_role_playbook(
+                install,
+                env,
+                extra_args=["-e", f"zsh_config_login_shell={fake_shell}"],
+            )
+
+            assert result.returncode == 0, result.stdout + result.stderr
+            assert not marker.exists(), (
+                "the role invoked become on a host whose login shell already "
+                "matches — that is the unattended-run failure (sudo: a password "
+                "is required)"
+            )
+            assert re.search(
+                r"TASK \[zsh_config : Ensure zsh is the login shell\].*?skipping:",
+                result.stdout,
+                re.S,
+            ), "the already-correct host must skip the mutation task outright"
+
+    def test_wrong_shell_still_attempts_the_privileged_task(self) -> None:
+        if shutil.which("ansible-playbook") is None:
+            pytest.skip("ansible-playbook not installed; skipping execution test")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            home, install, state = _seed_role_host(root)
+            fake_shell = _fake_shell_binary(root)
+            bin_dir = root / "stub-bin"
+            _stub_getent(bin_dir, "/bin/bash")
+            marker = root / "become-called"
+            become = root / "fake-sudo"
+            _stub_become(become, marker)
+            env = _role_env(home, state)
+            env["PATH"] = f"{bin_dir}:{env['PATH']}"
+            env["ANSIBLE_BECOME_EXE"] = str(become)
+
+            result = _run_role_playbook(
+                install,
+                env,
+                extra_args=["-e", f"zsh_config_login_shell={fake_shell}"],
+            )
+
+            assert marker.is_file(), (
+                "a wrong login shell must still reach the gated mutation — the "
+                "probe/gate fix must not turn the privileged step into a no-op"
+            )
+            assert result.returncode != 0, (
+                "the fake become exe fails by design; a green run would mean the "
+                "mutation never tried to escalate"
+            )
+            assert "FAKE_BECOME_INVOKED" in (result.stdout + result.stderr)
 
 
 class TestZshConfigVars:
     _REQUIRED_KEYS = {
         "zsh_config_spine_dir",
+        "zsh_config_login_shell",
+        "zsh_config_legacy_template_path",
         "zsh_config_assets_pinned_tag",
         "zsh_config_assets_templates_dir",
         "zsh_config_xdg_state_home",
@@ -319,6 +595,9 @@ class TestZshConfigPlaybook:
             # S3: the template body ships in the pinned corpus; run the role the way
             # the assets playbook leaves the host (checkout at the tag).
             assets_templates.seed_install(install, "zsh_config")
+            # The pre-S3 residue the role must prune on the same pass.
+            zsh_dir.mkdir(parents=True, exist_ok=True)
+            (zsh_dir / ".zshrc.j2").write_text("{{ legacy }}")
             for d in (home / ".oh-my-zsh", home / ".pyenv"):
                 d.mkdir(parents=True)
 
@@ -374,6 +653,10 @@ class TestZshConfigPlaybook:
             assert "generated/palettes" not in text, (
                 "rendered .zshrc must NOT reference the orphaned generated/palettes "
                 "tree (Epic 4 removed it)"
+            )
+            assert not (zsh_dir / ".zshrc.j2").exists(), (
+                "the pre-S3 .zshrc.j2 residue must be pruned on the same pass — a "
+                "template nobody renders must not survive in the live config dir"
             )
 
 

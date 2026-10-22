@@ -1066,6 +1066,40 @@ class TestVerifyTasks:
         )
         assert asserts[0].get("when") == "not ansible_check_mode"
 
+    def test_zsh_legacy_template_absence_is_verified(self) -> None:
+        """S3: the .zshrc SOURCE lives only in the pinned corpus, so the pre-S3
+        `.zshrc.j2` copy in the spine must fail verify. Mirror of the wlogout
+        residue gate: a stat + assert pair that names the file and the prune."""
+        stat_tasks = [
+            task
+            for task in _stat_tasks()
+            if "verify_zsh_legacy_template_check" == str(task.get("register"))
+        ]
+        assert len(stat_tasks) == 1, "exactly one stat must probe the pre-S3 zsh residue"
+        stat = stat_tasks[0]
+        assert _module(stat).get("follow") is False, (
+            "the probe must not follow a link: the residue is a regular file, and "
+            "following would let a hand-linked corpus copy pass as absent"
+        )
+        assert str(_module(stat).get("path")) == "{{ verify_zsh_legacy_template_path }}"
+        assert stat.get("when") == "not ansible_check_mode", (
+            "a --check run against a pre-S3 host must stay clean"
+        )
+
+        asserts = [
+            task
+            for task in _assert_tasks()
+            if "verify_zsh_legacy_template_check" in str(_module(task).get("that", ""))
+        ]
+        assert len(asserts) == 1, "exactly one assert must gate the zsh residue"
+        body = _module(asserts[0])
+        assert "not verify_zsh_legacy_template_check.stat.exists" in str(body.get("that"))
+        assert "zsh_config role prunes it" in str(body.get("fail_msg")), (
+            "the failure must name the prune that owns the removal, or the operator "
+            "has no reproducible fix"
+        )
+        assert asserts[0].get("when") == "not ansible_check_mode"
+
     def test_managed_link_dirs_parity_with_config_links(self) -> None:
         """Parity lock: verify_managed_link_dirs mirrors the config_links
         role's managed dir set EXACTLY — the symlink check must cover every
@@ -1459,6 +1493,16 @@ class TestVerifyVars:
         value = str(_vars()["verify_wlogout_legacy_template_path"])
         assert value == "{{ install_dir | trim }}/config/wlogout/style.css.tpl", (
             "the residue is <spine>/config/wlogout/style.css.tpl; a different path "
+            "would verify a file nothing writes and miss the one the prune removes"
+        )
+        assert "dotfiles/config" not in value
+
+    def test_zsh_legacy_template_path_is_the_spine_residue(self) -> None:
+        """S3: the probe points at the SPINE `.zshrc.j2` a pre-S3 `config_copies`
+        run left behind, never at the corpus or the repo tree."""
+        value = str(_vars()["verify_zsh_legacy_template_path"])
+        assert value == "{{ install_dir | trim }}/config/zsh/.zshrc.j2", (
+            "the residue is <spine>/config/zsh/.zshrc.j2; a different path "
             "would verify a file nothing writes and miss the one the prune removes"
         )
         assert "dotfiles/config" not in value

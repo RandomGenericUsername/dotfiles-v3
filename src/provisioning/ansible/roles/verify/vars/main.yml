@@ -885,6 +885,16 @@ verify_config_copy_content:
 #   loads. Trim lock: one install_dir seam read, no derived second seam.
 verify_wlogout_legacy_template_path: "{{ install_dir | trim }}/config/wlogout/style.css.tpl"
 
+# verify_zsh_legacy_template_path: the PRE-S3 zsh residue, asserted ABSENT (S3).
+#   Before the template moved to the pinned corpus, config_copies copied the whole
+#   zsh dir into the spine, leaving <spine>/config/zsh/.zshrc.j2 beside the
+#   rendered .zshrc. zsh reads .zshrc via ZDOTDIR and never the template, so a
+#   stale .j2 in the live config dir is residue. The zsh_config role prunes it
+#   idempotently; verify re-asserts the absence so a hand-restored copy (or a
+#   role that lost the prune) fails the gate. Trim lock: one install_dir seam
+#   read, no derived second seam.
+verify_zsh_legacy_template_path: "{{ install_dir | trim }}/config/zsh/.zshrc.j2"
+
 # verify_managed_link_dirs: the FULL set of managed config dirs symlinked by the
 #   config-links role (criterion 9 — the 5-layer symlink check). Union of
 #   config-copies, compositor, per-tool config dirs, and the GTK consumer dirs

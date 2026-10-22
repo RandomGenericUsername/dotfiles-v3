@@ -223,7 +223,7 @@ class TestYamlManifestReaderPerKindSchemas:
             "  tag: v0.2.0\n"
             "  classes:\n"
             "    icons: { dest: icons, schema: icons/schema.json }\n"
-            "    templates: { dest: templates, schema: '**/vars.schema.json' }\n"
+            "    templates: { dest: templates, schema: '**/*.vars.schema.json' }\n"
             "    configs: { dest: configs, schema: null }\n"
             "    content: { dest: content, schema: null }\n"
             "    desktop: { dest: desktop, schema: desktop/desktop.yaml }\n"

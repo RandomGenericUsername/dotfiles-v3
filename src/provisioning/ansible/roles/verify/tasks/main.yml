@@ -40,7 +40,9 @@
 #       state-root current/colors.sequences (gt-3-2: the runtime's current
 #       pointer, NOT the orphaned generated/palettes tree) + ~/.zshenv sets
 #       ZDOTDIR at the managed zsh dir (shell-entry seam) + .zshrc sources the
-#       .zshrc.local overlay (zsh_config role)
+#       .zshrc.local overlay (zsh_config role) AND the pre-S3
+#       <spine>/config/zsh/.zshrc.j2 residue is ABSENT (S3: the template source
+#       lives only in the corpus)
 #   13. wlogout config rendered+wired → style.css imports the palette
 #       (wlogout_config role) AND the pre-S3 <spine>/config/wlogout/style.css.tpl
 #       residue is ABSENT (S3: the template source lives only in the corpus)
@@ -1867,6 +1869,28 @@
       done-criterion 12; external installers append there so re-provisioning
       never clobbers them). The zsh_config role renders the zshrc template;
       run the zsh-config playbook
+  when: not ansible_check_mode
+
+# S3: the template SOURCE moved to the pinned corpus, so the pre-S3 copy in the
+# spine must be GONE. A stat + assert pair rather than a bare assert: the stat
+# reports the residue's existence, and the message names the file and the prune
+# task that owns its removal.
+- name: Check the pre-S3 zsh template is absent from the spine
+  ansible.builtin.stat:
+    path: "{{ verify_zsh_legacy_template_path }}"
+    follow: false
+  register: verify_zsh_legacy_template_check
+  when: not ansible_check_mode
+
+- name: Assert the pre-S3 zsh template is absent from the spine
+  ansible.builtin.assert:
+    that: not verify_zsh_legacy_template_check.stat.exists
+    fail_msg: >-
+      {{ verify_zsh_legacy_template_path }} still exists — the .zshrc SOURCE
+      moved to the pinned dotfiles-assets corpus (templates class, S3) and zsh
+      reads the RENDERED .zshrc via ZDOTDIR, never a `.j2` in the spine. The
+      zsh_config role prunes it; re-run the zsh-config playbook, or delete the
+      file if a hand copy restored it.
   when: not ansible_check_mode
 
 - name: Check rendered wlogout style.css imports the palette colors

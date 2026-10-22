@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import fnmatch
 import os
 import shutil
 import subprocess
@@ -605,6 +606,28 @@ class TestAssetsVars:
             "{{ install_dir | trim }}/assets/{{ assets_pinned_tag }}"
         )
         assert str(data["assets_pinned_file"]) == "{{ install_dir | trim }}/assets/pinned"
+
+    def test_templates_schema_glob_matches_the_corpus_naming(self) -> None:
+        """The corpus ships `<name>.vars.schema.json` siblings (catalog.yaml:
+        `templates/**/*.vars.schema.json`), not a bare `vars.schema.json`. The
+        manifest and the role mirror must use the same glob, and it must match
+        the real filenames — the stale `**/vars.schema.json` matches none."""
+        data = _vars()
+        manifest_classes = yaml.safe_load(_MANIFEST_PATH.read_text())["assets"]["classes"]
+        for label, classes in (
+            ("manifest", manifest_classes),
+            ("role mirror", data["assets_classes"]),
+        ):
+            glob = str(classes["templates"]["schema"])
+            assert glob == "**/*.vars.schema.json", (
+                f"{label} templates schema glob must match the corpus naming"
+            )
+            assert fnmatch.fnmatch("zsh/.zshrc.vars.schema.json", glob), (
+                f"{label} glob {glob!r} does not match a real schema filename"
+            )
+            assert not fnmatch.fnmatch(
+                "zsh/.zshrc.vars.schema.json", "**/vars.schema.json"
+            ), "the retired bare-filename glob must not match the corpus files"
 
     def test_weg_bin_dir_defaults_under_home(self) -> None:
         """uv's bin-dir resolution: UV_TOOL_BIN_DIR -> XDG_BIN_HOME ->

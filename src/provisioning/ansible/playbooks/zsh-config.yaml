@@ -6,8 +6,10 @@
 # every template variable to the provisioned path. Runs AFTER packages + zsh_tools (plugins + clone tools
 # exist) and BEFORE config_links (which symlinks ~/.config/zsh).
 #
-# User-scoped: NO become. Distro-agnostic at the play level (plugin paths
-# resolve inside the role via ansible_os_family).
+# User-scoped: the role escalates ONLY for the login-shell mutation, and only
+# after an unprivileged `getent passwd` probe proves the shell differs from
+# /usr/bin/zsh (an already-zsh host needs no sudo password). Distro-agnostic at
+# the play level (plugin paths resolve inside the role via ansible_os_family).
 # gather_facts: true REQUIRED — vars derive ansible_facts + the seam.
 - name: Render user zsh config
   hosts: localhost

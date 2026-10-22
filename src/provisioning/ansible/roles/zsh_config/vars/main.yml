@@ -12,6 +12,20 @@
 #   fail-loud first-task assert enforces.
 zsh_config_spine_dir: "{{ install_dir | trim }}/config/zsh"
 
+# zsh_config_login_shell: the login-shell binary the role converges on. The
+#   unprivileged `getent passwd` probe reads the CURRENT shell, and the
+#   privileged `user` task runs only when the two differ — so an already-zsh
+#   host never escalates (unattended runs have no sudo password). Both Arch and
+#   Debian install zsh here.
+zsh_config_login_shell: /usr/bin/zsh
+
+# zsh_config_legacy_template_path: the PRE-S3 residue this role removes. Before
+#   the template moved to the pinned corpus, `config_copies` copied the whole
+#   zsh dir into the spine, including `.zshrc.j2`. zsh reads `.zshrc` via
+#   ZDOTDIR and never the template, so a stale `.j2` in the live config dir is
+#   exactly the residue the split removes. `verify` asserts it stays absent.
+zsh_config_legacy_template_path: "{{ zsh_config_spine_dir }}/.zshrc.j2"
+
 # zsh_config_assets_pinned_tag / zsh_config_assets_templates_dir: the AD-6 mirror
 #   of the assets pin and the `templates` class directory inside the pinned
 #   checkout. S3: the .zshrc.j2 source is no longer authored here — it ships in
