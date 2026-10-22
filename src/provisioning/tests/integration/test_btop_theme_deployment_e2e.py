@@ -19,6 +19,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.unit import assets_templates
+
 pytestmark = pytest.mark.integration
 
 _ANSIBLE_PLAYBOOK = shutil.which("ansible-playbook")
@@ -118,6 +120,9 @@ class TestAuthoredThemeDeployment:
         install = tmp_path / "install"
         for path in (home, xdg, install):
             path.mkdir(parents=True, exist_ok=True)
+        # S3: btop.conf.j2 ships in the pinned assets corpus; seed the checkout the
+        # assets playbook materializes before btop-config on the bootstrap chain.
+        assets_templates.seed_install(install, "btop_config")
         setting = tmp_path / "active-theme"
         setting.write_text(f"{_AUTHORED}\n")
         authored = tmp_path / "btop-themes"
@@ -158,6 +163,7 @@ class TestAuthoredThemeDeployment:
         state = tmp_path / "state"
         for path in (home, xdg, install, state):
             path.mkdir(parents=True, exist_ok=True)
+        assets_templates.seed_install(install, "btop_config")
         setting = tmp_path / "active-theme"
         setting.write_text(f"{_AUTHORED}\n")
         authored = tmp_path / "btop-themes"

@@ -1031,6 +1031,41 @@ class TestVerifyTasks:
         assert "btop" in list(_vars()["verify_managed_link_dirs"])
         assert "btop" in list(_sibling_vars("config_links")["config_links_managed_dirs"])
 
+    def test_wlogout_legacy_template_absence_is_verified(self) -> None:
+        """S3: the stylesheet SOURCE lives only in the pinned corpus, so the
+        pre-S3 copy in the spine must fail verify. The stat + assert pair (rather
+        than a bare assert) is what names the residue and the role task that
+        prunes it — the same shape as the btop/kitty gates above."""
+        stat_tasks = [
+            task
+            for task in _stat_tasks()
+            if "verify_wlogout_legacy_template_check" == str(task.get("register"))
+        ]
+        assert len(stat_tasks) == 1, "exactly one stat must probe the pre-S3 residue"
+        stat = stat_tasks[0]
+        assert _module(stat).get("follow") is False, (
+            "the probe must not follow a link: the residue is a regular file, and "
+            "following would let a hand-linked corpus copy pass as absent"
+        )
+        assert str(_module(stat).get("path")) == "{{ verify_wlogout_legacy_template_path }}"
+        assert stat.get("when") == "not ansible_check_mode", (
+            "a --check run against a pre-S3 host must stay clean"
+        )
+
+        asserts = [
+            task
+            for task in _assert_tasks()
+            if "verify_wlogout_legacy_template_check" in str(_module(task).get("that", ""))
+        ]
+        assert len(asserts) == 1, "exactly one assert must gate the residue"
+        body = _module(asserts[0])
+        assert "not verify_wlogout_legacy_template_check.stat.exists" in str(body.get("that"))
+        assert "wlogout_config role prunes it" in str(body.get("fail_msg")), (
+            "the failure must name the prune that owns the removal, or the operator "
+            "has no reproducible fix"
+        )
+        assert asserts[0].get("when") == "not ansible_check_mode"
+
     def test_managed_link_dirs_parity_with_config_links(self) -> None:
         """Parity lock: verify_managed_link_dirs mirrors the config_links
         role's managed dir set EXACTLY — the symlink check must cover every
@@ -1417,6 +1452,16 @@ class TestVerifyVars:
         assert len(dirs) == 5
         for name in ("icons", "templates", "configs", "content", "desktop"):
             assert f"{{{{ verify_assets_tag_dir }}}}/{name}" in dirs
+
+    def test_wlogout_legacy_template_path_is_the_spine_residue(self) -> None:
+        """S3: the probe points at the SPINE copy a pre-S3 `config_copies` run left
+        behind, never at the corpus or the repo tree."""
+        value = str(_vars()["verify_wlogout_legacy_template_path"])
+        assert value == "{{ install_dir | trim }}/config/wlogout/style.css.tpl", (
+            "the residue is <spine>/config/wlogout/style.css.tpl; a different path "
+            "would verify a file nothing writes and miss the one the prune removes"
+        )
+        assert "dotfiles/config" not in value
 
     def test_xdg_config_home_honors_xdg_and_defaults_to_home(self) -> None:
         """The check targets must resolve to the SAME location the filesystem

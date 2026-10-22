@@ -49,6 +49,7 @@ from tests.integration.btop_theme_harness import (
     assert_theme_applied,
     btop_binary,
 )
+from tests.unit import assets_templates
 
 pytestmark = pytest.mark.integration
 
@@ -153,6 +154,10 @@ class _Machine:
             path.mkdir(parents=True, exist_ok=True)
         self.btop_spine = self.install / "config" / "btop"
         self.btop_xdg = self.xdg / "btop"
+        # S3: btop.conf.j2 ships in the pinned assets corpus. The assets playbook
+        # runs before btop-config on the bootstrap chain; a standalone run of THIS
+        # role must materialize the same checkout shape, or the render has no source.
+        assets_templates.seed_install(self.install, "btop_config")
 
     def provision(self) -> None:
         _run_playbook(_PLAYBOOKS_DIR / "btop-config.yaml", self.install, self.home, self.xdg)

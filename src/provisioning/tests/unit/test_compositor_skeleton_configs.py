@@ -16,7 +16,8 @@ import yaml
 #      assets manifest declares (no role-local pin drift, no repo tree);
 #   2. the 15 compositor skeletons are exactly the configs-class files the
 #      consumer addresses (an unregistered file silently never deploys);
-#   3. the in-tree static corpus is gone, while the S3 template sources stay.
+#   3. the in-tree static corpus is gone, and since S3 so are the template
+#      sources: `dotfiles/config/` holds only the mutable `btop/active-theme`.
 #
 # The corpus's own content checks now belong to the assets repo (configs/README.md
 # and the release acceptance grep); a consumer-side byte test would have to fetch
@@ -73,8 +74,8 @@ _EXPECTED_COMPOSITOR_FILES = {
     "rofi/launcher/config.rasi",
 }
 
-#: Retired in S2 (the copied corpus). wlogout's DIRECTORY stays: it keeps the
-#: Jinja source until S3, so only its copied `layout` is retired.
+#: Retired in S2 (the copied corpus). wlogout retired in S3 with its last in-tree
+#: file, the Jinja source — `test_wlogout_dir_is_gone` asserts that separately.
 _RETIRED_CONFIG_TREES = ("hypr", "hyprpaper", "nvim", "rofi", "starship")
 
 
@@ -131,22 +132,68 @@ class TestRetiredConfigCorpus:
                 "pinned dotfiles-assets repo (configs class)"
             )
 
-    def test_wlogout_keeps_only_its_template_source(self) -> None:
-        wlogout = _CONFIG_DIR / "wlogout"
-        assert wlogout.is_dir(), "wlogout/ must survive: it holds style.css.tpl until S3"
-        assert not (wlogout / "layout").exists(), (
-            "wlogout/layout is copied from the pinned corpus; an in-tree copy is a "
-            "second source of truth"
-        )
-        assert (wlogout / "style.css.tpl").is_file(), (
-            "style.css.tpl is S3's template source and must stay until S3 renders "
-            "from the assets templates class"
+    def test_wlogout_dir_is_gone(self) -> None:
+        """S3: the wlogout directory's last in-tree file was its template source.
+
+        `layout` shipped to the corpus in S2 and `style.css.tpl` in S3, so the
+        directory has no remaining purpose here — its presence would be a
+        half-retired tree (and a place for a stale `layout` to reappear).
+        """
+        assert not (_CONFIG_DIR / "wlogout").exists(), (
+            "dotfiles/config/wlogout/ must be gone: `layout` is the pinned corpus's "
+            "configs class and `style.css.tpl` is its templates class (S3)"
         )
 
-    def test_s3_sources_still_present(self) -> None:
-        assert (_CONFIG_DIR / "zsh" / ".zshrc.j2").is_file(), (
-            "zsh/.zshrc.j2 is S3's template source and must stay until S3"
-        )
+    def test_only_the_mutable_preference_remains(self) -> None:
+        """`btop/active-theme` is host state (AD-11/OPEN-5, S7); nothing else is
+        authored under `dotfiles/config/`."""
         assert (_CONFIG_DIR / "btop" / "active-theme").is_file(), (
-            "btop/active-theme is host state and is not part of the S2 corpus"
+            "btop/active-theme is the mutable preference and stays until S7"
+        )
+        files = sorted(
+            str(p.relative_to(_CONFIG_DIR)) for p in _CONFIG_DIR.rglob("*") if p.is_file()
+        )
+        dirs = sorted(
+            str(p.relative_to(_CONFIG_DIR)) for p in _CONFIG_DIR.rglob("*") if p.is_dir()
+        )
+        assert files == ["btop/active-theme"] and dirs == ["btop"], (
+            f"dotfiles/config/ must hold only btop/active-theme (the mutable preference, "
+            f"S7/OPEN-5); found files={files} dirs={dirs}. Static config is the corpus's "
+            f"configs class; templates are its templates class (S3)"
+        )
+
+    def test_render_sources_are_the_pinned_templates_class(self) -> None:
+        """S3 consumer contract: every rendering role reads
+        `<install>/assets/<its pin>/templates/`, at the manifest's tag."""
+        tag = _assets_tag()
+        rendered: dict[str, str] = {}
+        for role in (
+            "zsh_config",
+            "kitty_config",
+            "btop_config",
+            "wlogout_config",
+            "display_manager",
+        ):
+            data = _vars(role)
+            assert str(data[f"{role}_assets_pinned_tag"]) == tag, (
+                f"{role}_assets_pinned_tag must equal the manifest tag {tag}"
+            )
+            assert str(data[f"{role}_assets_templates_dir"]) == (
+                f"{{{{ install_dir | trim }}}}/assets/"
+                f"{{{{ {role}_assets_pinned_tag }}}}/templates"
+            )
+            tasks = yaml.safe_load((_ROLES_DIR / role / "tasks" / "main.yml").read_text())
+            for task in tasks:
+                if not isinstance(task, dict):
+                    continue
+                body = task.get("ansible.builtin.template")
+                if not isinstance(body, dict):
+                    continue
+                src = str(body.get("src", ""))
+                assert src.startswith(f"{{{{ {role}_assets_templates_dir }}}}/"), (
+                    f"{role} render src must read the pinned templates class; got {src!r}"
+                )
+                rendered[role] = src
+        assert len(rendered) == 5, (
+            f"expected one rendered source per role, got {sorted(rendered)}"
         )

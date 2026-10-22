@@ -1854,9 +1854,8 @@ def assert_no_in_tree_static_configs(root: Path) -> None:
         if (root / retired).exists():
             raise ValueError(
                 f"the retired static config file {retired} still exists — the "
-                f"copied config corpus is the pinned dotfiles-assets repo "
-                f"(configs class, S2/AD-6); only the Jinja sources stay in-tree "
-                f"until S3"
+                f"copied config corpus and its templates now ship in the pinned "
+                f"dotfiles-assets repo (configs + templates classes, S2/S3)"
             )
 
 
