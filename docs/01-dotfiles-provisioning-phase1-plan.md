@@ -27,17 +27,19 @@ The project is a **Desktop State Reconciliation Engine** (§3). Provisioning is 
 
 ### Already built (in-repo Python + assets)
 
-> **Post-migration (cli-tools-repos S6):** the three CLIs (`csg`, `weg`, `itr`)
-> and the three shared libraries (`cli-output`, `config-assembler-engine`,
-> `oci-runtime`) are **consumed from their pinned repos**, not authored here.
-> the `cli-tools/` and `shared/` package roots are retired; the only in-repo
-> Python is `src/runtime/` and `src/provisioning/`. The manifest pins are
-> `dotfiles/provisioning/cli-tools.yaml` (+ the tag pins in each `pyproject.toml`).
+> **Post-migration (cli-tools-repos S6 + installer S6b):** the three CLIs
+> (`csg`, `weg`, `itr`), the three shared libraries (`cli-output`,
+> `config-assembler-engine`, `oci-runtime`) and the installer engine
+> (`dotfiles-provision`) are **consumed from their pinned repos**, not authored
+> here. The `cli-tools/`, `shared/` and `src/provisioning/` package roots are
+> retired; the only in-repo Python is `src/runtime/`. The manifest pins are
+> `dotfiles/provisioning/cli-tools.yaml`, the engine tag in
+> `dotfiles/provisioning/installer.pin`, and the tag pins in each `pyproject.toml`.
 
 | Path | Contents |
 |---|---|
 | `src/runtime/` | `dotfiles-runtime` — desktop-state reconciliation CLIs + adapters |
-| `src/provisioning/` | `dotfiles-provision` — the Ansible-driving hexagonal package |
+| `dotfiles/provisioning/installer.pin` | The pinned installer-engine tag (`v0.1.0`); the engine's Python + Ansible tree is the external `dotfiles-provision` repo |
 | `dotfiles/assets/wallpapers/` | Wallpaper assets |
 | `dotfiles/assets/icon-templates/` | SVG icon templates |
 | `dotfiles/config/icon-template-color-scheme-mappings/` | Per-app icon color-mapping YAMLs (battery, network, power-menu, wallpaper-selector, wlogout, icons, etc.) |
@@ -48,8 +50,9 @@ The project is a **Desktop State Reconciliation Engine** (§3). Provisioning is 
 Pinned external repos (clone at the tag, install from the checkout):
 `color-scheme-generator` (`csg`), `wallpaper-effects-generator` (`weg`),
 `icon-templates-renderer` (`itr`), `cli-output`, `config-assembler-engine`,
-`oci-runtime` — all under `https://github.com/RandomGenericUsername/`, plus the
-`contracts` repo that owns `cli-invocation-contract`.
+`oci-runtime`, `dotfiles-assets`, and the installer engine `dotfiles-provision` —
+all under `https://github.com/RandomGenericUsername/`, plus the `contracts` repo
+that owns `cli-invocation-contract`.
 
 ### Missing / not started
 
@@ -70,7 +73,7 @@ Pinned external repos (clone at the tag, install from the checkout):
 | **Provisioning backend** | **Ansible** | Matches `src/provisioning/ansible/` in §9 repo tree |
 | **Distro support** | Multi-distro: Arch (pacman + AUR) + Debian family (apt) | Distro branching is Ansible-native (`ansible_facts` + `group_vars/{arch,debian-family}.yml`); Python side stays distro-agnostic |
 | **CLI tool install** | Ansible task using `uv tool install` against repo paths | Lives inside the `cli_tools` role — not a separate Python adapter |
-| **Bootstrap** | `scripts/bootstrap.sh` pre-seeds Python+uv, then runs `uv run --directory ./src/provisioning dotfiles-provision bootstrap` | Solves the chicken-and-egg of running a Python provisioner; the provisioner runs from its source dir via `uv run` — no pre-install step |
+| **Bootstrap** | `scripts/bootstrap.sh` pre-seeds Python+uv, installs the pinned `dotfiles-provision` engine as a `uv tool`, then runs `dotfiles-provision bootstrap` with `--manifests-dir` / `--composition-root` | Solves the chicken-and-egg of running a Python provisioner; the engine is consumed from its tag, the composition keeps the manifests |
 | **Ansible install** | `ansible-core` is a runtime dep of `src/provisioning` (`pyproject.toml`) | Resolved by `uv` from the lockfile; no system-wide install. External collections (`community.general`, `ansible.posix`, `kewlfft.aur`) declared in `ansible/requirements.yml` and resolved via `ansible-galaxy` at bootstrap start |
 | **AUR helper (Arch)** | `packages` role self-bootstraps `yay`: pacman installs `base-devel`+`git`, a guarded task builds `yay-bin` via `makepkg -si` (skips if `yay` present), then `kewlfft.aur.aur` drives all AUR installs | Distro logic stays in `vars/arch.yml` — never in `bootstrap.sh` or Python |
 | **Install dir** | `$XDG_DATA_HOME/dotfiles/` (default `~/.local/share/dotfiles/`) | Provisioning resolves it at plan time and bakes absolute paths into rendered settings files |
@@ -309,7 +312,7 @@ Chosen over Option A (XDG `~/.config/color-scheme/templates/`) to preserve spine
 7. Ansible content: `inventory`, `requirements.yml`, `group_vars/{all,arch,debian-family}.yml`, then roles in install order — `packages` → `cli_tools` → `filesystem` → `assets` → `default_palette` → `compositor_configs` → `config_copies` → `settings` → `config_links` → `icons` → `verify`; one playbook per role plus the aggregate `bootstrap.yaml`. (`default_palette` needs `csg` installed by `cli_tools` and wallpapers unpacked by `assets`; `compositor_configs` needs the palette generated by `default_palette`; `config_links` symlinks the managed configs into `~/.config` (config-in-spine); `icons` renders the resolved SVGs via `itr render`; `verify` re-checks all of it.)
 8. The three Jinja settings templates under `roles/settings/templates/`.
 9. Add `dotfiles/config/{hypr,hyprpaper,waybar}/`: Hyprland skeleton (`source = ~/.config/hypr/colors.conf`), Waybar skeleton (`@import "colors.css";`), flat static Hyprpaper (points at `<install>/wallpapers/default.png`).
-10. `scripts/bootstrap.sh` (pre-seed Python+uv, then `uv run --directory ./src/provisioning dotfiles-provision bootstrap`).
+10. `scripts/bootstrap.sh` (pre-seed Python+uv, install the pinned `dotfiles-provision` engine, then `dotfiles-provision bootstrap`).
 11. Integration tests: `--check` runs of every playbook; a verify test that all done-criteria hold after a dry-run bootstrap; a settings-file-parity test invoking each tool with `--config <rendered>` and asserting it parses without error; a default-palette test asserting `csg generate -f conf` output matches the Hyprland syntax contract.
 
 **Prerequisite (done):** CSG `conf` (Hyprland) output format — implemented and verified end-to-end (`openspec/changes/2026-08-03-csg-hyprland-format/`).

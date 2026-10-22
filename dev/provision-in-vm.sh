@@ -30,7 +30,7 @@ done
 
 echo "== mount the shared repo (9p) at /repo =="
 run "sudo mkdir -p /repo && sudo mount -t 9p -o trans=virtio,version=9p2000.L,ro repo /repo 2>/dev/null || echo '(already mounted or mount failed)'"
-run "test -d /repo/src/provisioning && echo REPO_MOUNTED || echo REPO_NOT_MOUNTED"
+run "test -f /repo/dotfiles/provisioning/installer.pin && echo REPO_MOUNTED || echo REPO_NOT_MOUNTED"
 
 echo "== persist /repo 9p mount (fstab) so it survives reboots =="
 run "grep -q 'mount_tag=repo\|repo /repo' /etc/fstab || echo 'repo /repo 9p trans=virtio,version=9p2000.L,ro,nofail,_netdev,x-systemd.automount 0 0' | sudo tee -a /etc/fstab >/dev/null && echo FSTAB_REPO_OK || echo FSTAB_REPO_SKIP"
@@ -41,14 +41,13 @@ run "printf '$U:$VMPASSWORD\n' | sudo chpasswd && echo PASSWORD_OK || echo PASSW
 echo "== install toolchain =="
 run "sudo pacman -Syu --noconfirm --needed >/tmp/up.log 2>&1 && sudo pacman -S --noconfirm --needed uv git base-devel python python-pip >/tmp/tool.log 2>&1 && echo TOOLCHAIN_OK || { echo TOOLCHAIN_FAIL; tail -20 /tmp/tool.log; }"
 
-echo "== install ansible collections =="
-run "export HOME=/home/$U UV_PROJECT_ENVIRONMENT=/home/$U/.venvs/provisioning; cd /repo/src/provisioning; uv run --frozen ansible-galaxy collection install -r ansible/requirements.yml >/tmp/gal.log 2>&1 && echo GALAXY_OK || { echo GALAXY_FAIL; tail -15 /tmp/gal.log; }"
-
 echo "== full provisioning (bootstrap) — this is the real fresh-machine test =="
-run "export HOME=/home/$U XDG_DATA_HOME=/home/$U/.local/share XDG_CONFIG_HOME=/home/$U/.config XDG_STATE_HOME=/home/$U/.local/state XDG_CACHE_HOME=/home/$U/.cache UV_PROJECT_ENVIRONMENT=/home/$U/.venvs/provisioning; cd /repo/src/provisioning; uv run --frozen dotfiles-provision bootstrap > /tmp/bs.log 2>&1; echo BOOTSTRAP_RC=\$?"
+# The repo is mounted read-only, so cache the pinned engine checkout under the
+# guest's XDG cache instead of the default /repo/.dev.
+run "export HOME=/home/$U XDG_DATA_HOME=/home/$U/.local/share XDG_CONFIG_HOME=/home/$U/.config XDG_STATE_HOME=/home/$U/.local/state XDG_CACHE_HOME=/home/$U/.cache DOTFILES_PROVISION_CACHE_DIR=/home/$U/.cache/dotfiles-provision; cd /repo; ./bootstrap.sh > /tmp/bs.log 2>&1; echo BOOTSTRAP_RC=\$?"
 
 echo "== verify =="
-run "export HOME=/home/$U UV_PROJECT_ENVIRONMENT=/home/$U/.venvs/provisioning; cd /repo/src/provisioning; uv run --frozen dotfiles-provision verify > /tmp/vr.log 2>&1; echo VERIFY_RC=\$?"
+run "export HOME=/home/$U DOTFILES_PROVISION_CACHE_DIR=/home/$U/.cache/dotfiles-provision PATH=/home/$U/.local/bin:\$PATH; dotfiles-provision --manifests-dir /repo/dotfiles/provisioning --composition-root /repo --inventory /home/$U/.cache/dotfiles-provision/dotfiles-provision-\$(cat /repo/dotfiles/provisioning/installer.pin)/ansible/inventory/localhost.yaml verify > /tmp/vr.log 2>&1; echo VERIFY_RC=\$?"
 
 echo "== boot into graphical.target (SDDM on next boot) =="
 run "sudo systemctl set-default graphical.target >/dev/null && echo GRAPHICAL_TARGET_SET || echo GRAPHICAL_TARGET_FAIL"

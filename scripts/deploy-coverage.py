@@ -128,16 +128,16 @@ Exit 1 = a stale per-file bar entry remains, the retired platform dir exists, a
          dir exists, or an input is missing/unreadable.
 
 PyYAML is imported and if it is unavailable this gate FAILS rather than
-skipping: the manifest is parsed as YAML, not line-mangled. Run it through the
-provisioning project so PyYAML is importable, exactly as
-`ansible-embedded-template-lint` does:
+skipping: the manifest is parsed as YAML, not line-mangled. The gate runs through
+an ephemeral uv environment so PyYAML is importable without an in-repo project
+(the provisioning package is external now):
 
-    uv run --directory src/provisioning python ../../scripts/deploy-coverage.py
+    uv run --no-project --with pyyaml python scripts/deploy-coverage.py
 
-The `../../` is load-bearing: `--directory` moves the interpreter's CWD to
-src/provisioning, so a `scripts/...` path does not resolve from there. The script
-locates the repo from its own `__file__`, so its own CWD does not matter -- only
-the path you type to reach it does.
+The engine's Ansible tree is read from the PINNED external checkout
+(`dotfiles/provisioning/installer.pin`, cached at
+`.dev/dotfiles-provision-<tag>/`), never from an in-repo copy. The script locates
+the repo from its own `__file__`, so its own CWD does not matter.
 """
 
 from __future__ import annotations
@@ -148,7 +148,22 @@ import sys
 import tomllib
 from pathlib import Path
 
-VARS_FILE = "src/provisioning/ansible/roles/compositor_configs/vars/main.yml"
+from engine_checkout import EngineCheckoutError, engine_checkout, read_engine_pin
+
+# The pinned engine checkout, resolved once in main(). Every role constant below
+# is relative to THAT root (the engine owns `ansible/`); composition-owned paths
+# (`dotfiles/...`, `src/runtime`, `src/cli-tools`) stay relative to `root`.
+_ENGINE_ROOT: Path | None = None
+
+
+def engine_path(relative: str) -> Path:
+    """Resolve an engine-relative path against the pinned checkout."""
+    if _ENGINE_ROOT is None:
+        raise RuntimeError("the pinned engine checkout was not resolved")
+    return _ENGINE_ROOT / relative
+
+
+VARS_FILE = "ansible/roles/compositor_configs/vars/main.yml"
 AGS_DIR = "dotfiles/config/ags"
 SOURCE_PREFIX = "dotfiles/config/ags/"
 ENTRY = "app.tsx"
@@ -163,8 +178,8 @@ ENTRY = "app.tsx"
 # provisioning assertion below can check the unit + shortcut really exist in
 # the role that installs them.
 PLATFORM_PACKAGE = "ags-platform"
-PLATFORM_ROLE_VARS = "src/provisioning/ansible/roles/ags_platform/vars/main.yml"
-PLATFORM_ROLE_TASKS = "src/provisioning/ansible/roles/ags_platform/tasks/main.yml"
+PLATFORM_ROLE_VARS = "ansible/roles/ags_platform/vars/main.yml"
+PLATFORM_ROLE_TASKS = "ansible/roles/ags_platform/tasks/main.yml"
 
 # The retired in-place platform copy (extract-platform-in-place) lived here. It
 # is deleted by this change; a surviving relative import into it would resolve
@@ -175,8 +190,8 @@ RETIRED_PLATFORM_DIR = "dotfiles/config/ags/platform"
 # of the platform constants above. The unit is the monorepo checkout at the
 # pinned tag; the deployed bar is its bar/ subdir.
 BAR_PACKAGE = "ags-apps"
-BAR_ROLE_VARS = "src/provisioning/ansible/roles/ags_apps/vars/main.yml"
-BAR_ROLE_TASKS = "src/provisioning/ansible/roles/ags_apps/tasks/main.yml"
+BAR_ROLE_VARS = "ansible/roles/ags_apps/vars/main.yml"
+BAR_ROLE_TASKS = "ansible/roles/ags_apps/tasks/main.yml"
 
 # The clipboard overlay (ags-apps-bar-first slice 3): the SECOND app moved into
 # the ags-apps unit. It deploys WHOLE the same way as the bar — the ags_apps
@@ -186,7 +201,7 @@ BAR_ROLE_TASKS = "src/provisioning/ansible/roles/ags_apps/tasks/main.yml"
 # gui_tools role (gui_tools_hypr_pano_app_files), not the compositor manifest,
 # so this half reads that role.
 HYPR_PANO_PACKAGE = "hypr-pano"
-GUI_TOOLS_ROLE_VARS = "src/provisioning/ansible/roles/gui_tools/vars/main.yml"
+GUI_TOOLS_ROLE_VARS = "ansible/roles/gui_tools/vars/main.yml"
 
 # The retired in-repo clipboard-overlay source: it moved into the ags-apps
 # monorepo as hypr-pano/. A surviving copy is a second source of truth that no
@@ -226,7 +241,7 @@ RETIRED_CAPTURE_TOOL_DIR = "src/gui-tools/capture-tool"
 # The unit-side backend (the entry point under capture-tool/) + the bin-dir
 # entry point the ags_apps role installs.
 CAPTURE_TOOL_BACKEND = "bin/capture-tool"
-CLI_TOOLS_ROLE_TASKS = "src/provisioning/ansible/roles/cli_tools/tasks/main.yml"
+CLI_TOOLS_ROLE_TASKS = "ansible/roles/cli_tools/tasks/main.yml"
 
 # The wallpaper selector (ags-apps-bar-first slice 6): the FIFTH app moved into
 # the ags-apps unit. It deploys WHOLE like the bar/hypr-pano/notifications/
@@ -317,6 +332,9 @@ RETIRED_SHARED_LIBS_DIR = "src/shared"
 # the same slice that proves the new wiring, so a surviving copy is a second
 # source of truth that no consumer installs.
 CLI_TOOLS_MANIFEST = "dotfiles/provisioning/cli-tools.yaml"
+# The installer engine is a separate external pin (not a CLI tool): bootstrap
+# installs the tool from this tag and both composition gates read that checkout.
+INSTALLER_PIN = "dotfiles/provisioning/installer.pin"
 RETIRED_ASSETS_DIR = "dotfiles/assets"
 RETIRED_ICON_MAPPINGS_DIR = "dotfiles/config/icon-template-color-scheme-mappings"
 
@@ -335,8 +353,8 @@ DESKTOP_PIN_ROLE = "compositor_configs"
 # sweep below REUSES the S1–S4 constants — it adds no path literals, it only
 # reports the five classes explicitly.
 ASSETS_MANIFEST = "dotfiles/provisioning/assets.yaml"
-ASSETS_ROLE_VARS = "src/provisioning/ansible/roles/assets/vars/main.yml"
-VERIFY_ROLE_VARS = "src/provisioning/ansible/roles/verify/vars/main.yml"
+ASSETS_ROLE_VARS = "ansible/roles/assets/vars/main.yml"
+VERIFY_ROLE_VARS = "ansible/roles/verify/vars/main.yml"
 ASSETS_CLASSES = ("icons", "templates", "configs", "content", "desktop")
 _ASSETS_SEMVER_TAG = re.compile(r"^v\d+\.\d+\.\d+$")
 
@@ -376,7 +394,7 @@ TEMPLATE_RENDER_ROLES = {
     "display_manager": 2,
 }
 RETIRED_ROLE_TEMPLATE_DIRS = tuple(
-    f"src/provisioning/ansible/roles/{role}/templates" for role in TEMPLATE_RENDER_ROLES
+    f"ansible/roles/{role}/templates" for role in TEMPLATE_RENDER_ROLES
 )
 
 # S5: the retired paths that belonged to each corpus class, sourced from the
@@ -394,7 +412,7 @@ ASSET_CLASS_RETIRED_PATHS = {
     "content": (RETIRED_ASSETS_DIR,),
     "desktop": RETIRED_DESKTOP_DIRS,
 }
-CLI_TOOLS_ROLE_VARS = "src/provisioning/ansible/roles/cli_tools/vars/main.yml"
+CLI_TOOLS_ROLE_VARS = "ansible/roles/cli_tools/vars/main.yml"
 ITR_NAME = "itr"
 RETIRED_ITR_DIR = "src/cli-tools/icon-templates-renderer"
 WEG_NAME = "weg"
@@ -502,7 +520,7 @@ def parse_deployed_ags_sources(vars_text: str) -> set[str]:
         raise RuntimeError(
             f"PyYAML is not importable ({exc}); this gate parses the manifest as "
             f"YAML rather than by line-mangling and must not guess. Run it as: "
-            f"uv run --directory src/provisioning python ../../scripts/deploy-coverage.py"
+            f"uv run --no-project --with pyyaml python scripts/deploy-coverage.py"
         ) from exc
 
     data = yaml.safe_load(vars_text)
@@ -536,8 +554,8 @@ def assert_platform_provisioning(root: Path) -> None:
     """
     import yaml
 
-    vars_path = root / PLATFORM_ROLE_VARS
-    tasks_path = root / PLATFORM_ROLE_TASKS
+    vars_path = engine_path(PLATFORM_ROLE_VARS)
+    tasks_path = engine_path(PLATFORM_ROLE_TASKS)
     if not vars_path.is_file():
         raise ValueError(
             f"the platform is consumed by bare specifier {PLATFORM_PACKAGE!r} but "
@@ -644,8 +662,8 @@ def assert_bar_provisioning(root: Path) -> None:
     """
     import yaml
 
-    vars_path = root / BAR_ROLE_VARS
-    tasks_path = root / BAR_ROLE_TASKS
+    vars_path = engine_path(BAR_ROLE_VARS)
+    tasks_path = engine_path(BAR_ROLE_TASKS)
     if not vars_path.is_file():
         raise ValueError(
             f"the bar deploys as the external {BAR_PACKAGE!r} unit but "
@@ -754,7 +772,7 @@ def assert_no_per_file_hypr_pano_sources(root: Path) -> None:
             f"ags-apps unit; the in-repo copy is a second source of truth"
         )
 
-    vars_path = root / GUI_TOOLS_ROLE_VARS
+    vars_path = engine_path(GUI_TOOLS_ROLE_VARS)
     if not vars_path.is_file():
         raise ValueError(
             f"the overlay deploys as the external {HYPR_PANO_PACKAGE!r} unit but "
@@ -799,8 +817,8 @@ def assert_hypr_pano_provisioning(root: Path) -> None:
     """
     import yaml
 
-    vars_path = root / BAR_ROLE_VARS
-    tasks_path = root / BAR_ROLE_TASKS
+    vars_path = engine_path(BAR_ROLE_VARS)
+    tasks_path = engine_path(BAR_ROLE_TASKS)
     if not vars_path.is_file():
         raise ValueError(
             f"the overlay deploys as the external {HYPR_PANO_PACKAGE!r} unit but "
@@ -857,7 +875,7 @@ def assert_no_per_file_notifications_sources(root: Path) -> None:
             f"ags-apps unit; the in-repo copy is a second source of truth"
         )
 
-    vars_path = root / GUI_TOOLS_ROLE_VARS
+    vars_path = engine_path(GUI_TOOLS_ROLE_VARS)
     if not vars_path.is_file():
         raise ValueError(
             f"the daemon deploys as the external {NOTIFICATIONS_PACKAGE!r} unit "
@@ -902,8 +920,8 @@ def assert_notifications_provisioning(root: Path) -> None:
     """
     import yaml
 
-    vars_path = root / BAR_ROLE_VARS
-    tasks_path = root / BAR_ROLE_TASKS
+    vars_path = engine_path(BAR_ROLE_VARS)
+    tasks_path = engine_path(BAR_ROLE_TASKS)
     if not vars_path.is_file():
         raise ValueError(
             f"the daemon deploys as the external {NOTIFICATIONS_PACKAGE!r} unit "
@@ -969,7 +987,7 @@ def assert_no_per_file_capture_tool_sources(root: Path) -> None:
     # The retired copy task lived in cli_tools; a stale src reference would
     # resurrect the split (an old backend from this checkout installed over the
     # unit's pinned one).
-    cli_tasks = root / CLI_TOOLS_ROLE_TASKS
+    cli_tasks = engine_path(CLI_TOOLS_ROLE_TASKS)
     if not cli_tasks.is_file():
         raise ValueError(f"{CLI_TOOLS_ROLE_TASKS} is missing")
     if RETIRED_CAPTURE_TOOL_DIR in cli_tasks.read_text():
@@ -978,7 +996,7 @@ def assert_no_per_file_capture_tool_sources(root: Path) -> None:
             f"the backend is installed from the unit by the ags_apps role"
         )
 
-    vars_path = root / GUI_TOOLS_ROLE_VARS
+    vars_path = engine_path(GUI_TOOLS_ROLE_VARS)
     if not vars_path.is_file():
         raise ValueError(
             f"the GUI deploys as the external {CAPTURE_TOOL_PACKAGE!r} unit but "
@@ -1022,8 +1040,8 @@ def assert_capture_tool_provisioning(root: Path) -> None:
     """
     import yaml
 
-    vars_path = root / BAR_ROLE_VARS
-    tasks_path = root / BAR_ROLE_TASKS
+    vars_path = engine_path(BAR_ROLE_VARS)
+    tasks_path = engine_path(BAR_ROLE_TASKS)
     if not vars_path.is_file():
         raise ValueError(
             f"the app deploys as the external {CAPTURE_TOOL_PACKAGE!r} unit but "
@@ -1112,7 +1130,7 @@ def assert_no_per_file_wallpaper_selector_sources(root: Path) -> None:
             f"truth"
         )
 
-    vars_path = root / GUI_TOOLS_ROLE_VARS
+    vars_path = engine_path(GUI_TOOLS_ROLE_VARS)
     if not vars_path.is_file():
         raise ValueError(
             f"the selector deploys as the external {WALLPAPER_SELECTOR_PACKAGE!r} "
@@ -1162,8 +1180,8 @@ def assert_wallpaper_selector_provisioning(root: Path) -> None:
     """
     import yaml
 
-    vars_path = root / BAR_ROLE_VARS
-    tasks_path = root / BAR_ROLE_TASKS
+    vars_path = engine_path(BAR_ROLE_VARS)
+    tasks_path = engine_path(BAR_ROLE_TASKS)
     if not vars_path.is_file():
         raise ValueError(
             f"the selector deploys as the external {WALLPAPER_SELECTOR_PACKAGE!r} "
@@ -1229,7 +1247,7 @@ def assert_no_per_file_icme_sources(root: Path) -> None:
             f"unit; the in-repo copy is a second source of truth"
         )
 
-    vars_path = root / GUI_TOOLS_ROLE_VARS
+    vars_path = engine_path(GUI_TOOLS_ROLE_VARS)
     if not vars_path.is_file():
         raise ValueError(
             f"the editor deploys as the external {ICME_PACKAGE!r} unit but no "
@@ -1274,8 +1292,8 @@ def assert_icme_provisioning(root: Path) -> None:
     """
     import yaml
 
-    vars_path = root / BAR_ROLE_VARS
-    tasks_path = root / BAR_ROLE_TASKS
+    vars_path = engine_path(BAR_ROLE_VARS)
+    tasks_path = engine_path(BAR_ROLE_TASKS)
     if not vars_path.is_file():
         raise ValueError(
             f"the editor deploys as the external {ICME_PACKAGE!r} unit but "
@@ -1334,7 +1352,7 @@ def assert_no_per_file_btop_studio_sources(root: Path) -> None:
             f"ags-apps unit; the in-repo copy is a second source of truth"
         )
 
-    vars_path = root / GUI_TOOLS_ROLE_VARS
+    vars_path = engine_path(GUI_TOOLS_ROLE_VARS)
     if not vars_path.is_file():
         raise ValueError(
             f"the studio deploys as the external {BTOP_STUDIO_PACKAGE!r} unit but "
@@ -1379,8 +1397,8 @@ def assert_btop_studio_provisioning(root: Path) -> None:
     """
     import yaml
 
-    vars_path = root / BAR_ROLE_VARS
-    tasks_path = root / BAR_ROLE_TASKS
+    vars_path = engine_path(BAR_ROLE_VARS)
+    tasks_path = engine_path(BAR_ROLE_TASKS)
     if not vars_path.is_file():
         raise ValueError(
             f"the studio deploys as the external {BTOP_STUDIO_PACKAGE!r} unit but "
@@ -1653,7 +1671,7 @@ def assert_cli_provisioned_from_pinned_manifest(
         )
     tag = str(entry["tag"]).strip()
 
-    role_vars_path = root / CLI_TOOLS_ROLE_VARS
+    role_vars_path = engine_path(CLI_TOOLS_ROLE_VARS)
     if not role_vars_path.is_file():
         raise ValueError(f"{CLI_TOOLS_ROLE_VARS} is missing")
     role_vars = yaml.safe_load(role_vars_path.read_text())
@@ -1690,7 +1708,7 @@ def assert_cli_provisioned_from_pinned_manifest(
             f"<install>/cli-tools (spine AD-10); got {checkout_root!r}"
         )
 
-    tasks_path = root / CLI_TOOLS_ROLE_TASKS
+    tasks_path = engine_path(CLI_TOOLS_ROLE_TASKS)
     if not tasks_path.is_file():
         raise ValueError(f"{CLI_TOOLS_ROLE_TASKS} is missing")
     tasks_text = tasks_path.read_text()
@@ -1918,13 +1936,21 @@ def assert_no_in_tree_templates(root: Path) -> None:
       parity test needs the corpus to read the schemas, so it skips on a runner
       without a checkout; this assertion needs only this repo and never skips.
     """
-    for retired in RETIRED_STATIC_CONFIG_DIRS + RETIRED_ROLE_TEMPLATE_DIRS:
+    for retired in RETIRED_STATIC_CONFIG_DIRS:
         if (root / retired).exists():
             raise ValueError(
                 f"the retired template source {retired}/ still exists — the Jinja "
                 f"corpus ships in the pinned dotfiles-assets repo (templates class, "
                 f"S3) and the roles read <install>/assets/<tag>/templates/; delete "
                 f"the in-tree copy and bump the pin instead"
+            )
+    for retired in RETIRED_ROLE_TEMPLATE_DIRS:
+        if engine_path(retired).exists():
+            raise ValueError(
+                f"the retired role-internal template dir {retired}/ still exists "
+                f"in the pinned engine — the corpus ships in dotfiles-assets "
+                f"(templates class, S3); a role-local templates/ dir is a second "
+                f"source of truth"
             )
     for retired in RETIRED_STATIC_CONFIG_FILES:
         if (root / retired).exists():
@@ -1940,7 +1966,7 @@ def assert_no_in_tree_templates(root: Path) -> None:
             "register", "changed_when", "failed_when", "creates", "vars", "loop", "until",
             "retries", "delay", "tags", "environment", "ignore_errors", "notify", "check_mode"}
     for role, expected in TEMPLATE_RENDER_ROLES.items():
-        role_dir = root / "src" / "provisioning" / "ansible" / "roles" / role
+        role_dir = engine_path(f"ansible/roles/{role}")
         tasks_path = role_dir / "tasks" / "main.yml"
         vars_path = role_dir / "vars" / "main.yml"
         if not tasks_path.is_file() or not vars_path.is_file():
@@ -2015,7 +2041,7 @@ def assert_no_in_tree_desktop_corpus(root: Path) -> None:
 
     import yaml
 
-    role_dir = root / "src" / "provisioning" / "ansible" / "roles" / DESKTOP_PIN_ROLE
+    role_dir = engine_path(f"ansible/roles/{DESKTOP_PIN_ROLE}")
     vars_path = role_dir / "vars" / "main.yml"
     tasks_path = role_dir / "tasks" / "main.yml"
     if not vars_path.is_file() or not tasks_path.is_file():
@@ -2188,7 +2214,7 @@ def assert_assets_shape(root: Path) -> tuple[str, tuple[str, ...]]:
         )
 
     def _load_vars(relative: str) -> dict:
-        path = root / relative
+        path = engine_path(relative)
         if not path.is_file():
             raise ValueError(f"the role vars file {relative} is missing")
         data = yaml.safe_load(path.read_text()) or {}
@@ -2280,7 +2306,14 @@ def assert_assets_shape(root: Path) -> tuple[str, tuple[str, ...]]:
 
     for schema_class, retired_paths in ASSET_CLASS_RETIRED_PATHS.items():
         for relative in retired_paths:
-            if (root / relative).exists():
+            # Role-internal template dirs live in the engine checkout; corpus
+            # paths live in this composition checkout.
+            candidate = (
+                engine_path(relative)
+                if relative in RETIRED_ROLE_TEMPLATE_DIRS
+                else root / relative
+            )
+            if candidate.exists():
                 raise ValueError(
                     f"the retired {schema_class} corpus path {relative} still exists "
                     f"— the {schema_class} class is the pinned dotfiles-assets repo "
@@ -2299,8 +2332,23 @@ def assert_manifest_source_scope(root: Path) -> None:
     the mixed-shape window cannot silently reopen: a stray `source:` on a CLI
     entry is a local path one consumer would resolve while the others use the
     tag.
+
+    The installer engine is NOT a CLI-tool entry: it is a separate pin
+    (`dotfiles/provisioning/installer.pin`) consumed by `bootstrap.sh` and the
+    two composition gates. It must never be smuggled into this manifest as a
+    `dotfiles-provision` tool, because that would give the engine two sources
+    of truth and make `cli-tools.yaml` claim a tool the `cli_tools` role does
+    not install.
     """
     import yaml
+
+    pin_path = root / INSTALLER_PIN
+    if not pin_path.is_file():
+        raise ValueError(
+            f"the installer pin {INSTALLER_PIN} is missing — the engine must be "
+            f"consumed as a pinned external repo"
+        )
+    installer_tag = read_engine_pin(root)
 
     manifest_path = root / CLI_TOOLS_MANIFEST
     if not manifest_path.is_file():
@@ -2309,6 +2357,17 @@ def assert_manifest_source_scope(root: Path) -> None:
     entries = data.get("entries") if isinstance(data, dict) else None
     if not isinstance(entries, list) or not entries:
         raise ValueError(f"{CLI_TOOLS_MANIFEST} has no `entries` list")
+
+    for entry in entries:
+        name = str(entry.get("name")) if isinstance(entry, dict) else ""
+        if name == "dotfiles-provision" or "dotfiles-provision" in str(
+            entry.get("repo") if isinstance(entry, dict) else ""
+        ):
+            raise ValueError(
+                f"{CLI_TOOLS_MANIFEST} names the installer engine {name!r} — the "
+                f"engine is pinned separately in {INSTALLER_PIN} "
+                f"({installer_tag}) and is not a CLI tool entry"
+            )
 
     source_entries = [e for e in entries if isinstance(e, dict) and "source" in e]
     if len(source_entries) != 1:
@@ -2363,7 +2422,16 @@ def main() -> int:
     args = ap.parse_args()
 
     root = Path(args.root) if args.root else Path(__file__).resolve().parent.parent
-    vars_path = root / VARS_FILE
+    try:
+        pin = read_engine_pin(root)
+        engine = engine_checkout(root)
+    except EngineCheckoutError as exc:
+        print(f"FAIL {exc}")
+        return 1
+    global _ENGINE_ROOT
+    _ENGINE_ROOT = engine
+    print(f"CHECK pinned installer engine {pin} at {engine}")
+    vars_path = engine_path(VARS_FILE)
     ags_dir = (root / AGS_DIR).resolve()
 
     if not vars_path.is_file():
@@ -2389,6 +2457,15 @@ def main() -> int:
                 f"the retired in-place platform copy still exists at "
                 f"{RETIRED_PLATFORM_DIR}/ — the bar must consume the external "
                 f"unit (spine AD-17), not a vendored copy"
+            )
+        # The installer engine is external (S6b): a surviving in-repo package
+        # would be a second source of truth beside installer.pin, and a stale
+        # import would bypass the pinned checkout the gates just resolved.
+        if (root / "src" / "provisioning").exists():
+            raise ValueError(
+                "src/provisioning/ still exists — the engine is the pinned "
+                f"external dotfiles-provision repo ({INSTALLER_PIN}); delete the "
+                f"in-repo copy"
             )
         # The bar bridge is retired: the skeleton list must carry no per-file
         # bar source (a stale one templates into the unit tree through the

@@ -45,9 +45,14 @@ Usage: ``python3 scripts/ansible-embedded-template-lint.py [--root REPO_ROOT]``
 Exit 0 = no nested template in any expression-context value.
 Exit 1 = at least one finding; each names file, line and the offending literal.
 
-Needs PyYAML, which ships with the provisioning project -- run it as
-``uv run --directory src/provisioning python ../../scripts/ansible-embedded-template-lint.py``
-(the ``../../`` is required: ``--directory`` moves the interpreter's CWD).
+Needs PyYAML. Run it through an ephemeral uv environment (the provisioning
+package is external now):
+
+    uv run --no-project --with pyyaml python scripts/ansible-embedded-template-lint.py
+
+The Ansible tree is read from the PINNED external engine checkout
+(`dotfiles/provisioning/installer.pin`, cached at
+`.dev/dotfiles-provision-<tag>/`), not from this repo.
 """
 
 from __future__ import annotations
@@ -59,13 +64,15 @@ from pathlib import Path
 import yaml
 from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 
+from engine_checkout import EngineCheckoutError, engine_checkout, read_engine_pin
+
 #: Keys whose value IS a Jinja expression (not a template string). ``that`` is
 #: the assert module's expression key; the others are the standard condition
 #: expressions. A nested template in any of these is the defect.
 EXPR_KEYS = frozenset({"that", "when", "changed_when", "failed_when", "until"})
 
-#: Relative to the repo root. Scoped to the Ansible tree the warning fires in.
-ANSIBLE_SUBTREE = Path("src") / "provisioning" / "ansible"
+#: Relative to the pinned ENGINE checkout root. Scoped to its Ansible tree.
+ANSIBLE_SUBTREE = Path("ansible")
 
 
 def _scalar_values(node: Node) -> list[ScalarNode]:
@@ -166,7 +173,13 @@ def main() -> int:
     args = ap.parse_args()
 
     root = Path(args.root) if args.root else Path(__file__).resolve().parent.parent
-    ansible_root = root / ANSIBLE_SUBTREE
+    try:
+        pin = read_engine_pin(root)
+        engine_root = engine_checkout(root)
+    except EngineCheckoutError as exc:
+        print(f"FAIL {exc}")
+        return 1
+    ansible_root = engine_root / ANSIBLE_SUBTREE
     if not ansible_root.is_dir():
         print(f"FAIL: Ansible tree not found at {ansible_root} (lint cannot run)")
         return 1
@@ -177,11 +190,11 @@ def main() -> int:
 
     findings: list[str] = []
     for path in files:
-        findings.extend(_findings_in_file(path, str(path.relative_to(root))))
+        findings.extend(_findings_in_file(path, str(path.relative_to(engine_root))))
 
     print(
         f"CHECK embedded templates in expression contexts "
-        f"({len(files)} file(s) scanned under {ANSIBLE_SUBTREE})"
+        f"({len(files)} file(s) scanned under engine {pin} {ANSIBLE_SUBTREE})"
     )
 
     if findings:

@@ -1,8 +1,9 @@
 # AGENTS.md — dotfiles-v3 operating contract
 
 Canonical agent instructions for this repo (Claude, OpenCode, and any BMAD/OpenSpec
-skill must follow this). This repo is the dotfiles host: provisioning, the Python
-runtime, the AGS bar, the CLI tools (csg / weg / itr), and the shared harness.
+skill must follow this). This repo is the dotfiles host: the composition manifests
++ pinned installer engine, the Python runtime, the AGS bar, the CLI tools
+(csg / weg / itr), and the shared harness.
 
 ## 1. Worktree discipline — NEVER work on `master`
 
@@ -25,14 +26,18 @@ Run them:
   `ags-apps` repo; this repo keeps `gates-ci` (provisioning shape, per-app drift,
   capture) and `deploy-coverage`.
 
-**New skeleton source files MUST be registered** in
-`src/provisioning/ansible/roles/compositor_configs/vars/main.yml`
+**New skeleton source files MUST be registered** in the pinned installer engine
+repo's `ansible/roles/compositor_configs/vars/main.yml`
 (`compositor_configs_skeleton_files`) **and** the `verify` role mirror — otherwise
-a fresh provision deploys an unresolvable import. This applies to the **non-bar**
-skeletons (hypr / hyprpaper / rofi). Every GUI app now deploys WHOLE from the
-`ags-apps` unit, so this repo has NO in-repo GUI per-app source manifests (the
-old `gui_tools_*_app_files` lists are retired and `src/gui-tools/` is gone):
-extend the unit instead of re-adding a per-file GUI list.
+a fresh provision deploys an unresolvable import. This repo no longer authors the
+Ansible tree: the engine is the pinned external `dotfiles-provision` repo
+(`dotfiles/provisioning/installer.pin`), so register the file there, bump the pin,
+and let `make deploy-coverage` read the cached engine checkout. This applies to
+the **non-bar** skeletons (hypr / hyprpaper / rofi). Every GUI app now deploys
+WHOLE from the `ags-apps` unit, so this repo has NO in-repo GUI per-app source
+manifests (the old `gui_tools_*_app_files` lists are retired and
+`src/gui-tools/` is gone): extend the unit instead of re-adding a per-file GUI
+list.
 
 The **bar is exempt**: it deploys **whole** as the pinned external `ags-apps`
 unit (the `ags_apps` role symlinks the unit's `bar/` subdir as the live
@@ -42,15 +47,18 @@ unit (the `ags_apps` role symlinks the unit's `bar/` subdir as the live
 live-bar link and diverge the live bar from the pinned tag) plus a missing unit /
 live-bar link / resolution shortcut. It is not optional.
 
-**CLI tools and shared libraries deploy from pinned repos — this repo authors NO
-in-repo package sources.** `csg`, `weg` and `itr` are consumed as
-`{name, repo, tag}` entries in `dotfiles/provisioning/cli-tools.yaml`
-(+ its `roles/cli_tools/vars/main.yml` mirror); `cli-output`,
+**CLI tools, the installer engine and shared libraries deploy from pinned repos —
+this repo authors NO in-repo package sources.** `csg`, `weg` and `itr` are consumed
+as `{name, repo, tag}` entries in `dotfiles/provisioning/cli-tools.yaml`
+(+ its `roles/cli_tools/vars/main.yml` mirror in the pinned engine); `cli-output`,
 `config-assembler-engine`, `oci-runtime` and `cli-invocation-contract` are consumed
-as git-tag pins in each `pyproject.toml`. The in-repo `cli-tools/` and `shared/`
-package roots are retired and their absence is gated. The only in-repo Python is
-`src/runtime/` and `src/provisioning/`; `dotfiles-runtime -> src/runtime` is the
-ONE permitted local `source:` in that manifest. Do NOT re-add a per-file GUI/CLI source list or a
+as git-tag pins in each `pyproject.toml`; `dotfiles-provision` (the engine, its
+Python package and its Ansible tree) is consumed as the tag in
+`dotfiles/provisioning/installer.pin`. The in-repo `cli-tools/`, `shared/` and
+`src/provisioning/` package roots are retired and their absence is gated. The only
+in-repo Python is `src/runtime/`; `dotfiles-runtime -> src/runtime` is the ONE
+permitted local `source:` in that manifest — the installer pin is a separate pin,
+never a tool entry. Do NOT re-add a per-file GUI/CLI source list or a
 `path`/`editable` pin — extend the pinned unit/repo and bump the tag. Because
 `HERMETIC_PACKAGES` is empty, `make hermetic` prints an explicit PASS (the six
 extracted packages run `make hermetic` in their own repos).

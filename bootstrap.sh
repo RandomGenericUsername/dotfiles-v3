@@ -9,11 +9,12 @@ set -euo pipefail
 #   git clone <repo>
 #   ./scripts/bootstrap.sh
 #
-# Stage order (CAP-4 flow, plan §3):
+# Stage order (CAP-4 flow, plan §3; installer engine S6b):
 #   1. uv preseed     — pinned release tarball, sha256-verified, if absent
-#   2. collections    — ansible-galaxy collection install -r (loud abort)
-#   3. bootstrap      — uv run dotfiles-provision bootstrap (aggregate, Story 2.12)
-#   4. verify         — uv run dotfiles-provision verify (hard gate, all ten criteria)
+#   2. engine install — pinned dotfiles-provision checkout + editable uv tool
+#   3. collections    — ansible-galaxy collection install -r (loud abort)
+#   4. bootstrap      — dotfiles-provision bootstrap (aggregate, Story 2.12)
+#   5. verify         — dotfiles-provision verify (hard gate, all ten criteria)
 #   + session signal  — after verify, when Hyprland IPC is reachable, report
 #                       whether GloView is actually loaded (green vs DEGRADED)
 #
@@ -36,8 +37,9 @@ set -euo pipefail
 # The chicken-and-egg this solves (plan §3 "Bootstrap"): uv pre-seeds Python
 # AND uv itself (uv downloads a managed interpreter satisfying
 # requires-python >=3.12 when none exists), which makes the provisioner
-# (ansible-core runtime) runnable; collections are resolved at bootstrap start
-# so a missing module aborts loudly instead of failing deep in the run.
+# (ansible-core runtime) runnable; the pinned engine is then installed from its
+# tag and collections are resolved before bootstrap so a missing module aborts
+# loudly instead of failing deep in the run.
 #
 # NFR-3 INVARIANT: NO distro branching in this script. Distro differences
 # live ONLY in ansible/group_vars. Do not add any distro logic here.
@@ -75,14 +77,42 @@ if command -v readlink >/dev/null 2>&1; then
 fi
 ROOT="$(cd "$(dirname "$SCRIPT_SOURCE")" && pwd)"
 
-PROVISION_DIR="$ROOT/src/provisioning"
-REQUIREMENTS_YML="$PROVISION_DIR/ansible/requirements.yml"
-
 # ANSI color helpers strip escape codes when stdout is not a TTY (piped or
 # redirected) so `| tee` logs stay clean and machine-parseable.
 red()   { if [ -t 1 ]; then printf "\033[31m%s\033[0m\n" "$*"; else printf "%s\n" "$*"; fi; }
 green() { if [ -t 1 ]; then printf "\033[32m%s\033[0m\n" "$*"; else printf "%s\n" "$*"; fi; }
 bold()  { if [ -t 1 ]; then printf "\033[1m%s\033[0m\n" "$*"; else printf "%s\n" "$*"; fi; }
+
+# The installer engine is an EXTERNAL pinned repo (S6b): this composition repo
+# owns the manifests, the runtime and the gates; `dotfiles-provision` owns the
+# Python orchestrator and the Ansible tree. ONE pin source is read by shell and
+# by the Python gates: `dotfiles/provisioning/installer.pin` (plain `vX.Y.Z`).
+ENGINE_REPO_URL="https://github.com/RandomGenericUsername/dotfiles-provision"
+ENGINE_PIN_FILE="$ROOT/dotfiles/provisioning/installer.pin"
+if [ ! -f "$ENGINE_PIN_FILE" ]; then
+  red "ERROR: the installer pin is missing: ${ENGINE_PIN_FILE}"
+  red "It must contain one semver engine tag (e.g. v0.1.0)."
+  exit 1
+fi
+ENGINE_PIN="$(tr -d '[:space:]' < "$ENGINE_PIN_FILE")"
+if ! [[ "$ENGINE_PIN" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  red "ERROR: ${ENGINE_PIN_FILE} must contain one semver tag (vX.Y.Z); got '${ENGINE_PIN}'."
+  exit 1
+fi
+
+# The pinned checkout is cached OUTSIDE version control. DOTFILES_PROVISION_CACHE_DIR
+# overrides the default for a read-only composition checkout (the dev VM mounts
+# the repo read-only); the Python gates resolve the same env override.
+ENGINE_CACHE_DIR="${DOTFILES_PROVISION_CACHE_DIR:-$ROOT/.dev}"
+ENGINE_DIR="$ENGINE_CACHE_DIR/dotfiles-provision-$ENGINE_PIN"
+REQUIREMENTS_YML="$ENGINE_DIR/ansible/requirements.yml"
+
+# `uv tool install` must land the console script somewhere THIS run invokes it
+# from. Pin the dir once, export it, and prepend it to PATH so a pre-existing
+# tool install cannot be shadowed by a different uv tool dir.
+UV_TOOL_BIN_DIR="${UV_TOOL_BIN_DIR:-$HOME/.local/bin}"
+export UV_TOOL_BIN_DIR
+PROVISION_BIN="$UV_TOOL_BIN_DIR/dotfiles-provision"
 
 # Temp files from the uv preseed / collections stages are removed on exit no
 # matter the failure path. Guards keep `set -u` happy and exit codes intact.
@@ -271,7 +301,7 @@ if ! command -v uv >/dev/null 2>&1; then
   [ "$("$HOME/.local/bin/uv" --version)" = "uv ${UV_VERSION}" ] \
     || stage_failed "preseed (uv version assert)" 1
 fi
-export PATH="$HOME/.local/bin:$PATH"
+export PATH="$UV_TOOL_BIN_DIR:$HOME/.local/bin:$PATH"
 
 # Behavioral assertion that the preseed actually landed on PATH — the standalone
 # installer can honor XDG_BIN_HOME/UV_INSTALL_DIR and land elsewhere, and a
@@ -296,7 +326,48 @@ fi
 # satisfying requires-python >=3.12 when none exists. Informational only.
 echo "uv: $(command -v uv) — uv will manage the Python interpreter as needed."
 
-# ── Stage 2: Ansible collection resolution (AC 2) ────────────────────────
+# ── Stage 2: pinned installer engine (S6b) ───────────────────────────────
+# The engine is consumed as an immutable TAG, never a path pin. The checkout is
+# cached at `.dev/dotfiles-provision-<tag>/` (gitignored; override with
+# DOTFILES_PROVISION_CACHE_DIR when the composition checkout is read-only).
+#
+# WHY `--editable` AND NOT A `git+…@tag` TOOL INSTALL. The engine's wheel
+# packages only `src/provisioning`; its CLI resolves `ansible/` BESIDE the
+# installed package, and the README states the wheel is not a self-contained
+# provisioner. A plain `uv tool install git+…@tag` therefore installs a console
+# script whose `_ANSIBLE_ROOT` is inside the tool venv, where no `ansible/`
+# tree exists — bootstrap would fail before the first playbook. Installing the
+# PINNED CHECKOUT editable keeps `_ANSIBLE_ROOT` at the checkout (the tag is
+# still the single source of truth) and gives the CLI its playbooks, roles,
+# inventory and ansible.cfg.
+install_engine() {
+  if [ ! -d "$ENGINE_DIR/ansible" ]; then
+    rm -rf "$ENGINE_DIR"
+    mkdir -p "$ENGINE_CACHE_DIR"
+    if ! git clone --quiet --depth 1 --branch "$ENGINE_PIN" \
+        "$ENGINE_REPO_URL" "$ENGINE_DIR"; then
+      rm -rf "$ENGINE_DIR"
+      red "ERROR: cannot fetch the pinned installer engine '${ENGINE_PIN}'."
+      red "  repo:  ${ENGINE_REPO_URL}"
+      red "  cache: ${ENGINE_DIR}"
+      red "Connect to the network once (or pre-populate that cache at the tag), then re-run $0."
+      return 1
+    fi
+  fi
+  uv tool install --force --editable "$ENGINE_DIR" || return $?
+  if [ ! -x "$PROVISION_BIN" ]; then
+    red "ERROR: uv tool install completed but ${PROVISION_BIN} is missing."
+    red "Set UV_TOOL_BIN_DIR to a writable dir and re-run $0."
+    return 1
+  fi
+  if ! "$PROVISION_BIN" version >/dev/null 2>&1; then
+    red "ERROR: ${PROVISION_BIN} is installed but cannot run (version check failed)."
+    return 1
+  fi
+}
+run_stage "engine install (${ENGINE_PIN})" install_engine
+
+# ── Stage 3: Ansible collection resolution (AC 2) ────────────────────────
 # Runs through the project env so ansible-galaxy (ships with ansible-core)
 # is available. Collections install to ~/.ansible/collections by default —
 # the default collections_paths resolves them.
@@ -305,7 +376,7 @@ galaxy_log="$(mktemp)"
 galaxy_rc=0
 # `cmd || galaxy_rc=$?` preserves the TRUE exit code (an `if ! cmd` form would
 # report 0 inside the then-block) while keeping `set -e` from aborting first.
-uv run --directory "$PROVISION_DIR" ansible-galaxy collection install -r "$REQUIREMENTS_YML" \
+uv run --directory "$ENGINE_DIR" --frozen ansible-galaxy collection install -r "$REQUIREMENTS_YML" \
   2>"$galaxy_log" || galaxy_rc=$?
 if [ "$galaxy_rc" -ne 0 ]; then
   red "ERROR: ansible collection resolution FAILED (exit code ${galaxy_rc})."
@@ -342,7 +413,7 @@ if [ ! -d "$collections_dir" ] || [ -z "$(ls -A "$collections_dir" 2>/dev/null |
   exit 1
 fi
 
-# ── Stage 3: aggregate bootstrap (AC 3) ──────────────────────────────────
+# ── Stage 4: aggregate bootstrap (AC 3) ──────────────────────────────────
 # Single password entry: `make bootstrap` takes no flags by default, so a host
 # without passwordless escalation would die deep in the aggregate become
 # play — and a fresh machine would then prompt TWICE (BECOME for the
@@ -412,13 +483,22 @@ unset _has_become_flag _flag
 # passes the install_dir + os_family seam extra-vars. Flags collected in
 # BOOTSTRAP_ARGS above are forwarded verbatim so the aggregate can escalate
 # on hosts without passwordless setup.
-run_stage "bootstrap" uv run --directory "$PROVISION_DIR" dotfiles-provision bootstrap "${BOOTSTRAP_ARGS[@]}"
+#
+# The composition seam is explicit: this repo owns the manifests and runtime,
+# the pinned engine owns the Ansible tree. Both paths are passed as GLOBAL flags
+# (before the command), so no role derives a composition path from playbook_dir.
+ENGINE_ARGS=(
+  --manifests-dir "$ROOT/dotfiles/provisioning"
+  --composition-root "$ROOT"
+  --inventory "$ENGINE_DIR/ansible/inventory/localhost.yaml"
+)
+run_stage "bootstrap" "$PROVISION_BIN" "${ENGINE_ARGS[@]}" bootstrap "${BOOTSTRAP_ARGS[@]}"
 
-# ── Stage 4: verify hard gate (AC 4) ─────────────────────────────────────
+# ── Stage 5: verify hard gate (AC 4) ─────────────────────────────────────
 # The aggregate's internal verify import is plan-gated (check mode); this
 # explicit trailing verify is a REAL check (VerifyCapabilityUseCase runs with
 # check=False) asserting all fourteen done-criteria — the CAP-4 success signal.
-run_stage "verify" uv run --directory "$PROVISION_DIR" dotfiles-provision verify
+run_stage "verify" "$PROVISION_BIN" "${ENGINE_ARGS[@]}" verify
 
 # ── Post-verify GloView session signal: green vs green-but-degraded ────────
 # Verify asserts the plugin artifact is installed but cannot assert it is
@@ -446,8 +526,8 @@ fi
 unset hyprctl_plugins
 
 if $gloview_degraded; then
-  green "Bootstrap complete (stages green): uv preseed → collections → bootstrap → verify."
+  green "Bootstrap complete (stages green): uv preseed → engine install → collections → bootstrap → verify."
 else
-  green "Bootstrap complete: uv preseed → collections → bootstrap → verify all green."
+  green "Bootstrap complete: uv preseed → engine install → collections → bootstrap → verify all green."
 fi
 unset gloview_degraded

@@ -89,11 +89,9 @@ gates-ci: $(GATES)
 # complete has to run in the list it is proving.
 #
 # WHY IT RUNS THROUGH uv AND NOT PLAIN python3. It parses the workflow as YAML
-# (PyYAML ships with the provisioning project) rather than line-mangling it, the
-# same `uv run --directory src/provisioning` mechanism
-# `ansible-embedded-template-lint` uses. It needs no desktop stack, so it
-# also runs in gates-ci. `../../scripts/` is required because --directory moves
-# the interpreter's CWD.
+# (PyYAML is supplied by an ephemeral `uv run --with pyyaml` env; the provisioning
+# package is an external pin now) rather than line-mangling it. It needs no
+# desktop stack, so it also runs in gates-ci.
 #
 # It FAILS rather than skipping when uv or PyYAML is unavailable: a parity check
 # that quietly passes when its toolchain is missing is indistinguishable from one
@@ -103,7 +101,7 @@ gates-ci: $(GATES)
 # `CI_EXCLUDED_GATES`), not here: the Makefile stays the one place the gate set is
 # written, and the script reads `GATES` + the `gates-ci` filter out of it.
 ci-gates-parity:
-	uv run --directory src/provisioning python ../../scripts/ci-gates-parity.py
+	uv run --no-project --with pyyaml python scripts/ci-gates-parity.py
 
 # Hermetic developer target (S0b): every package suite runs with HOME and the
 # XDG dirs scrubbed into a throwaway tree, so a provisioned spine on the host
@@ -114,8 +112,9 @@ ci-gates-parity:
 # EMPTY since cli-tools-repos S6: all six packages (cli-output,
 # config-assembler-engine, oci-runtime, itr, weg, csg) are consumed from their
 # pinned repos and run their own `make hermetic` there. This repo authors NO
-# in-repo package sources anymore — only `src/runtime` and `src/provisioning`,
-# which `make gates-ci` covers. The target stays (and PASSes explicitly) so a
+# in-repo package sources anymore — only `src/runtime`, which `make gates-ci`
+# covers; the installer engine and its Ansible tree are the pinned external
+# `dotfiles-provision` repo. The target stays (and PASSes explicitly) so a
 # future in-repo package can be added by listing it here; it must never be a
 # loop that silently does nothing.
 HERMETIC_PACKAGES :=
@@ -138,8 +137,7 @@ hermetic:
 		echo "hermetic: PASS -- no in-repo package sources; the six extracted"; \
 		echo "  packages (cli-output, config-assembler-engine, oci-runtime,"; \
 		echo "  itr, weg, csg) run their own 'make hermetic' in their pinned"; \
-		echo "  repos; this repo's src/runtime + src/provisioning are covered"; \
-		echo "  by 'make gates-ci'"; \
+		echo "  repos; this repo's src/runtime is covered by 'make gates-ci'"; \
 		exit 0; \
 	fi; \
 	for p in $$packages; do \
@@ -274,16 +272,16 @@ ags-platform-dev:
 #
 # WHY IT RUNS THROUGH uv AND NOT PLAIN python3. It needs PyYAML to PARSE the
 # YAML (both real offenders are folded `>-` block scalars spanning two lines, so
-# a line grep cannot see them) and PyYAML ships with the provisioning project —
-# the same `uv run --directory src/provisioning` mechanism `ci-gates-parity`
-# uses. It needs no desktop stack, so it also runs in gates-ci. `../../scripts/`
-# is required because --directory moves the interpreter's CWD.
+# a line grep cannot see them); the ephemeral `uv run --with pyyaml` env supplies
+# it without an in-repo project. It needs no desktop stack, so it also runs in
+# gates-ci.
 #
 # It FAILS rather than skipping when uv or PyYAML is unavailable: a lint that
 # quietly passes when its toolchain is missing is indistinguishable from one
-# that passes.
+# that passes. The Ansible tree is read from the pinned engine checkout
+# (`dotfiles/provisioning/installer.pin`), fetched on demand into `.dev/`.
 ansible-embedded-template-lint:
-	uv run --directory src/provisioning python ../../scripts/ansible-embedded-template-lint.py
+	uv run --no-project --with pyyaml python scripts/ansible-embedded-template-lint.py
 
 # The AGS bar deploys WHOLE as the pinned external `ags-apps` unit (the
 # `ags_apps` role symlinks the unit's bar/ subdir as the live
@@ -303,15 +301,14 @@ ansible-embedded-template-lint:
 # relative import into the retired in-place platform dir.
 #
 # WHY IT RUNS THROUGH uv AND NOT PLAIN python3. It parses the manifest as YAML
-# (PyYAML ships with the provisioning project) rather than line-mangling it,
-# the same `uv run --directory src/provisioning` mechanism
-# `ansible-embedded-template-lint` uses. It needs no desktop stack, so it
-# also runs in gates-ci. `../../scripts/` is required because --directory moves
-# the interpreter's CWD. It FAILS rather than skipping when uv or PyYAML is
-# unavailable: a coverage gate that quietly passes when its toolchain is
-# missing is indistinguishable from one that passes.
+# (PyYAML is supplied by an ephemeral `uv run --with pyyaml` env; the provisioning
+# package is an external pin now) rather than line-mangling it. It needs no
+# desktop stack, so it also runs in gates-ci. It FAILS rather than skipping when
+# uv or PyYAML is unavailable: a coverage gate that quietly passes when its
+# toolchain is missing is indistinguishable from one that passes. The role files
+# it reads come from the pinned engine checkout, fetched on demand into `.dev/`.
 deploy-coverage:
-	uv run --directory src/provisioning python ../../scripts/deploy-coverage.py
+	uv run --no-project --with pyyaml python scripts/deploy-coverage.py
 
 # Dev dependencies for the VM harness (also auto-runs on first `make vm-*`
 # when incus is missing and the terminal is interactive).

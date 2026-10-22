@@ -46,16 +46,13 @@ Exit 1 = an unmatched entry in either direction, or a declared entry that no
          input.
 
 PyYAML is imported and if it is unavailable this gate FAILS rather than skipping:
-the workflow is parsed as YAML, not line-mangled. Run it through the provisioning
-project so PyYAML is importable, exactly as `ansible-embedded-template-lint`
-does:
+the workflow is parsed as YAML, not line-mangled. The ephemeral uv env supplies
+it without an in-repo project (the provisioning package is an external pin):
 
-    uv run --directory src/provisioning python ../../scripts/ci-gates-parity.py
+    uv run --no-project --with pyyaml python scripts/ci-gates-parity.py
 
-The `../../` is load-bearing: `--directory` moves the interpreter's CWD to
-src/provisioning, so a `scripts/...` path does not resolve from there. The script
-locates the repo from its own `__file__`, so its own CWD does not matter -- only
-the path you type to reach it does.
+The script locates the repo from its own `__file__`, so its own CWD does not
+matter -- only the path you type to reach it does.
 """
 
 from __future__ import annotations
@@ -178,7 +175,7 @@ def parse_workflow_jobs(text: str) -> list[str]:
         raise Drift(
             f"PyYAML is not importable ({exc}); this gate parses the workflow as "
             f"YAML rather than by line-mangling and must not guess. Run it as: "
-            f"uv run --directory src/provisioning python ../../scripts/ci-gates-parity.py"
+            f"uv run --no-project --with pyyaml python scripts/ci-gates-parity.py"
         ) from exc
 
     data = yaml.safe_load(text)

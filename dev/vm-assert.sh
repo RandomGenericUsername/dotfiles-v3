@@ -33,7 +33,7 @@ if ! sudo incus info "$VM_NAME" 2>/dev/null | grep -q "Status: RUNNING"; then
 fi
 
 # 1. The provisioner's own hard gate, re-run read-only inside the guest.
-if gexec_arch 'cd ~/dotfiles-repo-v3 && PATH="$HOME/.local/bin:$PATH" uv run --directory src/provisioning dotfiles-provision verify >/tmp/vm-verify.log 2>&1'; then
+if gexec_arch 'cd ~/dotfiles-repo-v3 && PATH="$HOME/.local/bin:$PATH" dotfiles-provision --manifests-dir "$PWD/dotfiles/provisioning" --composition-root "$PWD" --inventory "$HOME/.cache/dotfiles-provision/dotfiles-provision-$(cat dotfiles/provisioning/installer.pin)/ansible/inventory/localhost.yaml" verify >/tmp/vm-verify.log 2>&1'; then
   pass "dotfiles-provision verify green inside guest"
 else
   fail "dotfiles-provision verify red inside guest (see /tmp/vm-verify.log via 'vm shell')"
