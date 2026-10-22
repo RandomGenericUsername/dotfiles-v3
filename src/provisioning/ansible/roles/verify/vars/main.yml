@@ -57,10 +57,19 @@ verify_xdg_state_home: "{{ ansible_facts.env.XDG_STATE_HOME | default(ansible_fa
 #   introduced. Trim lock (stray-whitespace XDG values bit Story 1.11).
 verify_state_current_dir: "{{ verify_xdg_state_home | trim }}/dotfiles/current"
 
-# verify_bin_scripts: desktop helper scripts the compositor_configs role
-#   installs into the user bin dir (toggle-touchpad is called by the
-#   XF86TouchpadToggle bind in keybindings.lua). Fails loud if absent so a
-#   fresh machine cannot end up with dead Fn keys.
+# verify_bin_scripts: every script or launcher a Hyprland keybind invokes. The
+#   Fn-key/SUPER binds in keybindings.lua shell out to these by NAME, so a
+#   missing or non-executable one is a key that silently does nothing (spine
+#   AD-10 layer 3: "every script/launcher name a hypr keybind invokes exists and
+#   is executable").
+#
+#   Scope boundary (AD-10): SIX of these are AGS launcher wrappers rendered by the
+#   cli_tools role (rofi-ui, capture-ui, hypr-pano-ui, wallpaper-selector-ui,
+#   icon-color-mapping-editor, btop-theme-studio) because they bake installed
+#   binary paths; they stay in cli_tools and are asserted here. `toggle-touchpad`
+#   is the ONE repo-authored static script: since S4 it is corpus data
+#   (dotfiles-assets `desktop/scripts/`) that the compositor_configs role
+#   installs 0755.
 verify_bin_scripts:
   - "{{ verify_cli_bin_dir | trim }}/toggle-touchpad"
   # The capture UI launcher: `capture-ui` (SUPER+PRINT). Installed by the
@@ -71,6 +80,33 @@ verify_bin_scripts:
   # rofi's toggle launcher: the SUPER+D bind calls `rofi-ui` (open+close), so a
   # missing launcher would leave the key dead.
   - "{{ verify_cli_bin_dir | trim }}/rofi-ui"
+  # The remaining keybind launchers (keybindings.lua: pano, wallpaper picker,
+  # icon-mapping editor, btop studio). All four are cli_tools-rendered wrappers;
+  # a missing one is a dead key, exactly like rofi-ui/capture-ui above.
+  - "{{ verify_cli_bin_dir | trim }}/hypr-pano-ui"
+  - "{{ verify_cli_bin_dir | trim }}/wallpaper-selector-ui"
+  - "{{ verify_cli_bin_dir | trim }}/icon-color-mapping-editor"
+  - "{{ verify_cli_bin_dir | trim }}/btop-theme-studio"
+
+# verify_xdg_data_home: the per-user data home that hosts the deployed desktop
+#   entries ($XDG_DATA_HOME/applications, spec default ~/.local/share). Same
+#   derivation as compositor_configs_xdg_data_home (ansible_facts.env, F4 lock):
+#   the deploy target and the layer-3 assertion must name the same directory.
+verify_xdg_data_home: "{{ ansible_facts.env.XDG_DATA_HOME | default(ansible_facts.env.HOME | default(ansible_facts.user_dir) + '/.local/share', true) }}"
+
+# verify_desktop_entry_files: the deployed desktop entries (spine AD-10 layer 3:
+#   "the deployed set is present"). The set mirrors compositor_configs'
+#   compositor_configs_desktop_entries `file` list — a contract test locks the two
+#   (TestVerifyVars.test_desktop_entry_files_mirror_the_deploy_set), so a new
+#   corpus entry cannot be deployed without a verify assertion. The Exec binary of
+#   each is resolved from the DEPLOYED file, not from a copy of the corpus.
+verify_desktop_entry_files:
+  - "{{ verify_xdg_data_home | trim }}/applications/tidal-hifi.desktop"
+  - "{{ verify_xdg_data_home | trim }}/applications/antigravity-ide.desktop"
+  - "{{ verify_xdg_data_home | trim }}/applications/code.desktop"
+  - "{{ verify_xdg_data_home | trim }}/applications/devin-desktop.desktop"
+  - "{{ verify_xdg_data_home | trim }}/applications/copilot.desktop"
+  - "{{ verify_xdg_data_home | trim }}/applications/codex.desktop"
 verify_xdg_cache_home: "{{ ansible_facts.env.XDG_CACHE_HOME | default(ansible_facts.env.HOME | default(ansible_facts.user_dir) + '/.cache', true) }}"
 
 # verify_xdg_dirs: the three XDG base dirs criterion 8 asserts exist (mirror of
@@ -127,7 +163,7 @@ verify_install_spine_dirs:
 #   that the pin FILE equals this tag, so this slice only asserts presence.
 verify_assets_dir: "{{ install_dir | trim }}/assets"
 verify_assets_pinned_file: "{{ verify_assets_dir }}/pinned"
-verify_assets_pinned_tag: v0.4.0
+verify_assets_pinned_tag: v0.5.0
 verify_assets_tag_dir: "{{ verify_assets_dir }}/{{ verify_assets_pinned_tag }}"
 verify_assets_class_dirs:
   - "{{ verify_assets_tag_dir }}/icons"
@@ -150,6 +186,19 @@ verify_assets_configs_dirs:
   - "{{ verify_assets_tag_dir }}/configs/rofi"
   - "{{ verify_assets_tag_dir }}/configs/starship"
   - "{{ verify_assets_tag_dir }}/configs/wlogout"
+
+# verify_assets_desktop_paths: the desktop class pieces the compositor_configs
+#   role reads (S4). The class dir alone proves nothing (it exists in every tag
+#   since v0.1.0, empty until v0.5.0): the two subdirs, the layer-2 contract and
+#   the helper script must be there, or the role's stat+assert would be the only
+#   thing standing between a partial checkout and a machine with no touchpad
+#   toggle. The six entry FILES are not mirrored here — the contract is their
+#   inventory, and the deployed-set assertion below proves what landed.
+verify_assets_desktop_paths:
+  - "{{ verify_assets_tag_dir }}/desktop/applications"
+  - "{{ verify_assets_tag_dir }}/desktop/scripts"
+  - "{{ verify_assets_tag_dir }}/desktop/scripts/toggle-touchpad"
+  - "{{ verify_assets_tag_dir }}/desktop/desktop.yaml"
 
 # verify_install_spine_files: the file node(s) that must exist IN the spine
 #   (criterion 1 + 4). weg-effects.yaml is a FILE emitted by the assets role

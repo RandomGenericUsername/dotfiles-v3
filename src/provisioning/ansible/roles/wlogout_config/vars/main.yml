@@ -9,7 +9,7 @@ wlogout_config_spine_dir: "{{ install_dir | trim }}/config/wlogout"
 #   S3: style.css.tpl moved to `dotfiles-assets` (`templates/wlogout/`), so the
 #   render reads the checkout the assets role materializes before this role runs.
 #   Parity-locked by the required-var parity test; trim lock on the seam.
-wlogout_config_assets_pinned_tag: v0.4.0
+wlogout_config_assets_pinned_tag: v0.5.0
 wlogout_config_assets_templates_dir: "{{ install_dir | trim }}/assets/{{ wlogout_config_assets_pinned_tag }}/templates"
 
 # wlogout_config_legacy_template_path: the PRE-S3 residue this role removes. Before

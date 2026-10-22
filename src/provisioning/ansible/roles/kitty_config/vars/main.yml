@@ -27,7 +27,7 @@ kitty_config_spine_dir: "{{ install_dir | trim }}/config/kitty"
 #   render reads the checkout the assets role materializes before this role runs;
 #   nothing reads a composition-repo tree. Parity-locked by the required-var
 #   parity test; trim lock on the seam.
-kitty_config_assets_pinned_tag: v0.4.0
+kitty_config_assets_pinned_tag: v0.5.0
 kitty_config_assets_templates_dir: "{{ install_dir | trim }}/assets/{{ kitty_config_assets_pinned_tag }}/templates"
 
 # kitty_config_xdg_state_home: the state home the runtime owns

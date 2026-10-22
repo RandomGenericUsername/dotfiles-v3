@@ -108,9 +108,10 @@ entries:
   # on Arch (see `aur_packages` in roles/packages/vars/arch.yml) and are
   # therefore mapped ONLY in group_vars/arch.yml — a Debian-family host does
   # not receive them (documented scope, not drift). Each IDE is made
-  # rofi-launchable by a user-scoped desktop-entry override under
-  # dotfiles/applications/ (compositor_configs_desktop_entries); the two CLIs
-  # get kitty terminal launchers so they appear in rofi's drun mode too.
+  # rofi-launchable by a user-scoped desktop-entry override from the PINNED
+  # `dotfiles-assets` desktop class (compositor_configs_desktop_entries, S4);
+  # the two CLIs get kitty terminal launchers so they appear in rofi's drun
+  # mode too.
   #
   #   windsurf -> devin-desktop: Windsurf (Codeium) was rebranded "Devin
   #   Desktop"; there is no `windsurf` AUR package any more. The logical key

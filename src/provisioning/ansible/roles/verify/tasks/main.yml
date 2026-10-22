@@ -13,6 +13,11 @@
 #      verify_cli_bin_dir on PATH)
 #   4. assets deployed              → default.png + icon-templates/ +
 #      icon-mappings/ + csg-templates/ + weg-effects.yaml
+#   4b. desktop entries deployed     → the six entries at
+#      $XDG_DATA_HOME/applications, every deployed Exec binary resolves on
+#      PATH, and every keybind-invoked script/launcher is executable (spine
+#      AD-10 layer 3; layer 1 is the corpus's validate-desktop, layer 2 is
+#      compositor_configs' requires/optional resolution)
 #   5. settings render and parse    → settings files exist AND spine targets
 #      resolve AND csg/weg/itr gates exit 0
 #   5b. btop config rendered+wired  → btop.conf selects
@@ -827,14 +832,86 @@
   loop: "{{ verify_bin_scripts }}"
   register: verify_bin_script_checks
 
-- name: Assert desktop helper scripts exist
+- name: Assert desktop helper scripts exist and are executable
   ansible.builtin.assert:
-    that: verify_bin_script_checks.results | selectattr('stat.exists') | list | length == verify_bin_scripts | length
+    that:
+      - verify_bin_script_checks.results | selectattr('stat.exists') | list | length == verify_bin_scripts | length
+      - verify_bin_script_checks.results | selectattr('stat.executable') | list | length == verify_bin_scripts | length
     fail_msg: >-
-      desktop helper script(s) missing (expected {{ verify_bin_scripts | join(', ') }})
-      — the compositor_configs role installs them from dotfiles/scripts/ into the
-      user bin dir; run the compositor-configs playbook first. Without them the
-      XF86TouchpadToggle Fn binding silently does nothing.
+      keybind script/launcher(s) missing or not executable (expected
+      {{ verify_bin_scripts | join(', ') }}).
+      {{ (verify_bin_script_checks.results | rejectattr('stat.exists') | map(attribute='item') | list)
+         + (verify_bin_script_checks.results | selectattr('stat.exists') | rejectattr('stat.executable') | map(attribute='item') | list) }}
+      — six of these are rendered by the cli_tools role and `toggle-touchpad` is
+      installed 0755 by compositor_configs from the pinned desktop corpus (spine
+      AD-10 layer 3). Run the cli-tools and compositor-configs playbooks first.
+      Without them the corresponding Hyprland keybind silently does nothing.
+  when: not ansible_check_mode
+
+# Desktop entries (spine AD-10 layer 3). The compositor_configs role deploys them
+# from the pinned `desktop/` corpus; verify re-asserts the DEPLOYED set, then
+# reads each deployed file's own `Exec` line and resolves its argv[0] against
+# PATH. Reading the deployed artifact — not a copy of the corpus — is the point:
+# a stale or hand-edited entry on the host must fail HERE, and a corpus-only
+# assertion would stay green while the menu entry is dead.
+- name: Check deployed desktop entries exist
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop: "{{ verify_desktop_entry_files }}"
+  register: verify_desktop_entry_checks
+
+- name: Assert the deployed desktop entries are present
+  ansible.builtin.assert:
+    that: verify_desktop_entry_checks.results | selectattr('stat.isreg') | list | length == verify_desktop_entry_files | length
+    fail_msg: >-
+      deployed desktop entry file(s) missing under
+      {{ verify_xdg_data_home | trim }}/applications (expected
+      {{ verify_desktop_entry_files | map('basename') | list }}). compositor_configs
+      deploys them from the pinned desktop corpus; a missing entry means the
+      playbook did not run — or layer 2 SKIPPED the entry because an optional
+      binary is absent (the provision log names it).
+  when: not ansible_check_mode
+
+- name: Resolve every deployed desktop entry's Exec binary (layer 3)
+  ansible.builtin.command:
+    argv:
+      - sh
+      - -c
+      - |
+        # argv[0] of the deployed Exec line. Layer 1 tokenizes the corpus copy
+        # properly; the deployed file is byte-identical, and the corpus gate
+        # refuses a quoted/odd argv[0] shape, so a plain first-token split is the
+        # right check here — and an unparsable line fails LOUDLY below.
+        exec_line=$(grep -m1 '^Exec=' "$1") || { echo "no Exec line"; exit 1; }
+        bin=${exec_line#Exec=}
+        bin=${bin%% *}
+        if [ -z "$bin" ]; then echo "empty Exec"; exit 1; fi
+        if [ "${bin#/}" != "$bin" ]; then
+          test -x "$bin" || { echo "missing $bin"; exit 1; }
+          echo "$bin"
+        else
+          command -v "$bin" || { echo "missing $bin"; exit 1; }
+        fi
+      - sh
+      - "{{ item }}"
+  loop: "{{ verify_desktop_entry_files }}"
+  register: verify_desktop_exec_checks
+  changed_when: false
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Assert every deployed desktop entry's Exec binary resolves
+  ansible.builtin.assert:
+    that: verify_desktop_exec_checks.results | rejectattr('rc', 'equalto', 0) | list | length == 0
+    fail_msg: >-
+      a deployed desktop entry launches a binary that does not resolve:
+      {{ verify_desktop_exec_checks.results | rejectattr('rc', 'equalto', 0)
+         | map(attribute='item') | list }}
+      — the probe reported
+      {{ verify_desktop_exec_checks.results | rejectattr('rc', 'equalto', 0)
+         | map(attribute='stdout') | list }} (spine AD-10 layer 3). rofi's drun
+      mode would list the entry and the click would do nothing. Install the
+      package (packages role) or reprovision the desktop corpus.
   when: not ansible_check_mode
 
 - name: Check install-dir subtree exists
@@ -959,6 +1036,30 @@
       starship and wlogout). compositor_configs and config_copies read this tree,
       so a missing subdir means the config roles deployed nothing; re-run the
       assets playbook and check the pin.
+  when: not ansible_check_mode
+
+# S4: the desktop class is corpus data too. The class dir exists in every tag
+# since v0.1.0 (empty until v0.5.0), so its presence proves nothing; the two
+# subdirs, the layer-2 contract and the helper script are what the role reads.
+- name: Check the pinned desktop corpus pieces are present
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop: "{{ verify_assets_desktop_paths }}"
+  register: verify_assets_desktop_checks
+  when: not ansible_check_mode
+
+- name: Assert the pinned desktop corpus pieces are present
+  ansible.builtin.assert:
+    that: >-
+      verify_assets_desktop_checks.results | selectattr('stat.exists') | list | length
+      == verify_assets_desktop_paths | length
+    fail_msg: >-
+      the pinned assets desktop corpus is incomplete under
+      {{ verify_assets_tag_dir }}/desktop (expected applications/, scripts/,
+      scripts/toggle-touchpad and desktop.yaml). compositor_configs deploys the
+      entries and the helper from this tree and resolves desktop.yaml before the
+      copy, so a missing piece means the pin is wrong or the checkout is partial;
+      re-run the assets playbook and check the pin.
   when: not ansible_check_mode
 
 - name: Check runtime palette files exist under the runtime current dir

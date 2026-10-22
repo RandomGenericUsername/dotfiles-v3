@@ -12,32 +12,47 @@
 #   (a) vs 2.6 assets (copy + pinned checkout): since S2 both roles read the SAME
 #       pinned `dotfiles-assets` checkout: 2.6 copies the asset kinds into the
 #       spine; 2.9 renders the static skeletons from its `configs/` class into
-#       the spine config dirs. No task reads a composition-repo tree for the
-#       skeleton set (the bin scripts and desktop entries are still repo
-#       content — S4 moves the desktop entries). `remote_src` is NOT set: the
-#       skeleton task uses `template`, which renders locally.
+#       the spine config dirs and, since S4, deploys the desktop entries and the
+#       toggle-touchpad helper from its `desktop/` class (before S4 those two
+#       were the last repo-authored content in this role). No task reads a
+#       composition-repo tree any more. `remote_src` is NOT set: the skeleton
+#       task uses `template`, which renders locally.
 #   (b) vs 2.5 filesystem (XDG config home): 2.5 CREATES the dirs; 2.9 COPIES
 #       into them. Share the exact XDG derivation — do not duplicate logic with
 #       a different result.
+#   (c) vs verify (S4 layer 3): this role RESOLVES the desktop contract's
+#       `requires`/`optional` before it copies (spine AD-10 layer 2); verify
+#       re-asserts the deployed entries and their `Exec` binaries afterwards.
+#       The same pin mirror is therefore locked in both roles.
 
-# compositor_configs_repo_root: repo root derived from this playbook's
-#   location. Only the bin scripts and desktop entries still come from the repo
-#   (dotfiles/scripts/, dotfiles/applications/), so
-#   <repo> = {{ playbook_dir }}/../../../.. (mirror assets_repo_root /
-#   cli_tools_repo_root exactly).
-compositor_configs_repo_root: "{{ playbook_dir }}/../../../.."
+# compositor_configs_repo_root is GONE (S4): the last two repo-authored inputs —
+# the bin scripts and the desktop entries — now come from the pinned corpus's
+# `desktop/` class, so this role reads no composition-repo tree at all. A
+# `{{ playbook_dir }}/../../../..` derivation here would be a path that resolves
+# to a file no consumer ships.
 
-# compositor_configs_assets_pinned_tag / compositor_configs_assets_configs_dir:
-#   the S2 source of the static skeletons. The corpus is the PINNED
-#   dotfiles-assets repo (`configs/` class), which the assets role materialized
-#   at <install>/assets/<tag>/ BEFORE this role runs (bootstrap order:
+# compositor_configs_assets_pinned_tag / compositor_configs_assets_configs_dir /
+# compositor_configs_assets_desktop_dir:
+#   the S2/S4 sources. The corpus is the PINNED dotfiles-assets repo (`configs/`
+#   and `desktop/` classes), which the assets role materialized at
+#   <install>/assets/<tag>/ BEFORE this role runs (bootstrap order:
 #   assets.yaml -> ags-platform -> ags-apps -> compositor-configs.yaml), so the
-#   checkout exists by the time the skeletons render. The pin is parity-locked
-#   to dotfiles/provisioning/assets.yaml `assets.tag` (AD-6/AD-11). Trim lock:
-#   the checkout path consumes the same validated {{ install_dir | trim }} value
-#   the fail-loud first-task assert enforces.
-compositor_configs_assets_pinned_tag: v0.4.0
+#   checkout exists by the time the skeletons render and the desktop entries
+#   deploy. The pin is parity-locked to dotfiles/provisioning/assets.yaml
+#   `assets.tag` (AD-6/AD-11). Trim lock: the checkout path consumes the same
+#   validated {{ install_dir | trim }} value the fail-loud first-task assert
+#   enforces.
+compositor_configs_assets_pinned_tag: v0.5.0
 compositor_configs_assets_configs_dir: "{{ install_dir | trim }}/assets/{{ compositor_configs_assets_pinned_tag }}/configs"
+compositor_configs_assets_desktop_dir: "{{ install_dir | trim }}/assets/{{ compositor_configs_assets_pinned_tag }}/desktop"
+
+# compositor_configs_desktop_contract_file: the class contract the layer-2
+#   resolution reads (spine AD-10). One record per entry with `requires` (the
+#   binaries the entry cannot work without) and `optional` (the payload whose
+#   absence makes the entry pointless but not the host unprovisionable). Assets
+#   declares; this role resolves against the target — it never claims a package
+#   is installed.
+compositor_configs_desktop_contract_file: "{{ compositor_configs_assets_desktop_dir }}/desktop.yaml"
 
 # compositor_configs_xdg_config_home: the target config home the filesystem
 #   role (2.5) used when creating the compositor config dirs. Identical
@@ -147,9 +162,11 @@ compositor_configs_skeleton_files:
 # compositor_configs_bin_scripts: executable desktop helpers the XF86 binds in
 #   keybindings.lua call (deployed to the user's XDG bin dir, 0755). These are
 #   provision-owned so a fresh machine gets working Fn keys with zero manual
-#   steps (owner decision 2026-09-02).
+#   steps (owner decision 2026-09-02). Since S4 the source is the PINNED corpus's
+#   `desktop/scripts/` (repo-authored static data), not a composition-repo tree:
+#   the same checkout the skeleton render reads.
 compositor_configs_bin_scripts:
-  - { name: toggle-touchpad, source: dotfiles/scripts/toggle-touchpad, dest: "{{ compositor_configs_xdg_bin_home }}/toggle-touchpad" }
+  - { name: toggle-touchpad, source: "{{ compositor_configs_assets_desktop_dir }}/scripts/toggle-touchpad", dest: "{{ compositor_configs_xdg_bin_home }}/toggle-touchpad" }
 
 # compositor_configs_xdg_data_home: the XDG data home that hosts per-user
 #   application desktop entries ($XDG_DATA_HOME, spec default ~/.local/share).
@@ -162,8 +179,15 @@ compositor_configs_xdg_data_home: "{{ ansible_facts.env.XDG_DATA_HOME | default(
 #   placed into $XDG_DATA_HOME/applications. A user entry SHADOWS the package's
 #   own /usr/share/applications entry (XDG data-dir priority), which is how we
 #   add launch flags a package does not ship — currently TIDAL's Electron
-#   /dev/shm workaround so rofi's drun launcher starts it reliably. Authored
-#   under dotfiles/applications/ and repo-authoritative (force: true).
+#   /dev/shm workaround so rofi's drun launcher starts it reliably.
+#
+#   Since S4 the entries are corpus data: each `file` names a `.desktop` in the
+#   PINNED checkout's `desktop/applications/` (the same name the class contract
+#   `desktop.yaml` records), and `dest` stays exactly what it was pre-split.
+#   Deploy is repo-authoritative (force: true) and goes through layer 2: the
+#   contract's `requires`/`optional` are resolved BEFORE the copy, so an entry
+#   whose launcher is missing fails the run and an entry whose optional payload
+#   is missing is reported and skipped.
 #
 # provision-ai-ides-and-clis adds five more:
 #   - the three IDE overrides add the Ozone/Wayland launch flags so the VS
@@ -172,12 +196,12 @@ compositor_configs_xdg_data_home: "{{ ansible_facts.env.XDG_DATA_HOME | default(
 #   - copilot/codex ship no packaged entry at all, so their kitty terminal
 #     launchers are what makes the two CLIs searchable in rofi's drun mode.
 compositor_configs_desktop_entries:
-  - { name: tidal-hifi, source: dotfiles/applications/tidal-hifi.desktop, dest: "{{ compositor_configs_xdg_data_home }}/applications/tidal-hifi.desktop" }
-  - { name: antigravity-ide, source: dotfiles/applications/antigravity-ide.desktop, dest: "{{ compositor_configs_xdg_data_home }}/applications/antigravity-ide.desktop" }
-  - { name: code, source: dotfiles/applications/code.desktop, dest: "{{ compositor_configs_xdg_data_home }}/applications/code.desktop" }
-  - { name: devin-desktop, source: dotfiles/applications/devin-desktop.desktop, dest: "{{ compositor_configs_xdg_data_home }}/applications/devin-desktop.desktop" }
-  - { name: copilot, source: dotfiles/applications/copilot.desktop, dest: "{{ compositor_configs_xdg_data_home }}/applications/copilot.desktop" }
-  - { name: codex, source: dotfiles/applications/codex.desktop, dest: "{{ compositor_configs_xdg_data_home }}/applications/codex.desktop" }
+  - { name: tidal-hifi, file: tidal-hifi.desktop, dest: "{{ compositor_configs_xdg_data_home }}/applications/tidal-hifi.desktop" }
+  - { name: antigravity-ide, file: antigravity-ide.desktop, dest: "{{ compositor_configs_xdg_data_home }}/applications/antigravity-ide.desktop" }
+  - { name: code, file: code.desktop, dest: "{{ compositor_configs_xdg_data_home }}/applications/code.desktop" }
+  - { name: devin-desktop, file: devin-desktop.desktop, dest: "{{ compositor_configs_xdg_data_home }}/applications/devin-desktop.desktop" }
+  - { name: copilot, file: copilot.desktop, dest: "{{ compositor_configs_xdg_data_home }}/applications/copilot.desktop" }
+  - { name: codex, file: codex.desktop, dest: "{{ compositor_configs_xdg_data_home }}/applications/codex.desktop" }
 
 # The icon mappings are authored once under icon-mappings and converted to the
 # JSON shape consumed by AGS during provisioning.

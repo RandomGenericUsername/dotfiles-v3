@@ -55,7 +55,7 @@
 #   bootstrap chain runs BEFORE this role, so <install>/assets/<tag>/ exists by
 #   the time the copies run. Parity-locked to dotfiles/provisioning/assets.yaml
 #   `assets.tag`.
-config_copies_assets_pinned_tag: v0.4.0
+config_copies_assets_pinned_tag: v0.5.0
 
 # config_copies_assets_configs_dir: the `configs/` class directory inside the
 #   pinned checkout. Trim lock: consumes the same validated

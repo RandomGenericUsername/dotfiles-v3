@@ -74,7 +74,7 @@ btop_config_default_active_theme: "colors.btop.theme"
 #   <install>/assets/<tag>/ exists by the time this role reads it;
 #   TestBtopAssetsPinParity fails if this mirror drifts from
 #   dotfiles/provisioning/assets.yaml `assets.tag`.
-btop_config_assets_pinned_tag: v0.4.0
+btop_config_assets_pinned_tag: v0.5.0
 
 # btop_config_assets_templates_dir: the `templates` class inside that checkout.
 #   Trim lock: the same validated {{ install_dir | trim }} seam value.

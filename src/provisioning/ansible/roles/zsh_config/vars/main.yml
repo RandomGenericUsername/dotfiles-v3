@@ -33,7 +33,7 @@ zsh_config_legacy_template_path: "{{ zsh_config_spine_dir }}/.zshrc.j2"
 #   BEFORE this role runs (bootstrap order). Parity-locked to
 #   dotfiles/provisioning/assets.yaml `assets.tag` by the required-var parity test
 #   (tests/unit/test_template_vars_parity.py). Trim lock on the seam.
-zsh_config_assets_pinned_tag: v0.4.0
+zsh_config_assets_pinned_tag: v0.5.0
 zsh_config_assets_templates_dir: "{{ install_dir | trim }}/assets/{{ zsh_config_assets_pinned_tag }}/templates"
 
 # zsh_config_xdg_state_home: the state home the runtime owns ($XDG_STATE_HOME,

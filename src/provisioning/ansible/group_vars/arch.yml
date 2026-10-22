@@ -151,7 +151,8 @@ packages:
   # (kewlfft.aur.aur + yay), NOT ansible.builtin.package. Arch-only keys: a
   # Debian-family host does not receive these (documented scope). See
   # dotfiles/provisioning/packages.yaml for the logical manifest entries and
-  # dotfiles/applications/*.desktop for the rofi launch overrides.
+  # the pinned dotfiles-assets `desktop/applications/*.desktop` for the rofi
+  # launch overrides (S4).
   antigravity-ide: antigravity-ide # Google Antigravity IDE (VS Code fork)
   windsurf: devin-desktop # Windsurf, rebranded "Devin Desktop" upstream
   vscode: visual-studio-code-bin # Microsoft build (Marketplace + Copilot)
