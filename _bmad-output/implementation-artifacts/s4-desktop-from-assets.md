@@ -107,7 +107,7 @@ openspec validate --specs -> 41 passed, 8 failed (cli-runtime-engine-scope,
   S4 touches no spec.
 ```
 
-Deletion diffstat (commit `6edf524f`): 7 files, 145 deletions —
+Deletion diffstat (commit `2318d1c3`): 7 files, 145 deletions —
 `dotfiles/applications/{antigravity-ide,code,codex,copilot,devin-desktop,tidal-hifi}.desktop`
 (110 lines) + `dotfiles/scripts/toggle-touchpad` (35 lines).
 
