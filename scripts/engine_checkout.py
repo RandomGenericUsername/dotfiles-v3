@@ -13,7 +13,9 @@ demand. `DOTFILES_PROVISION_CACHE_DIR` overrides the parent dir for a read-only
 composition checkout (the dev VM mounts the repo read-only).
 
 Offline behaviour: an ABSENT cache fails loudly with the pin and the exact cache
-path — the gates never fall back to a stale in-repo copy (there is none).
+path — the gates never fall back to a stale in-repo copy (there is none). Set
+`DOTFILES_PROVISION_OFFLINE=1` to turn a miss into one sentence and guarantee no
+clone attempt (a sealed runner with a pre-populated cache still gates).
 """
 
 from __future__ import annotations
@@ -62,30 +64,43 @@ def cache_root(repo_root: Path) -> Path:
     return repo_root / ".dev"
 
 
+def offline() -> bool:
+    """True when the caller forbids network fetches (R-16)."""
+    return os.environ.get("DOTFILES_PROVISION_OFFLINE", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
 def engine_checkout(repo_root: Path, fetch: bool = True) -> Path:
     """Return a checkout of the engine at the pin, fetching it when absent.
 
     A present cache is validated at the git level when possible: a checkout
     whose HEAD is not the pinned tag is replaced, so a hand-edited or stale
-    cache can never silently become the gate's input.
+    cache can never silently become the gate's input. With
+    `DOTFILES_PROVISION_OFFLINE=1` (or `fetch=False`) a miss never attempts a
+    clone: it fails with the one-sentence pre-populate instruction.
     """
     tag = read_engine_pin(repo_root)
     dest = cache_root(repo_root) / f"dotfiles-provision-{tag}"
+    no_fetch = not fetch or offline()
 
     if _checkout_matches_pin(dest, tag):
         return dest
     if dest.exists():
-        if not fetch:
+        if no_fetch:
             raise EngineCheckoutError(
-                f"the cached engine checkout {dest} is not at {tag}; re-fetch "
-                f"with network access"
+                f"offline: the cached engine checkout {dest} is not at {tag}; "
+                f"pre-populate it at {tag} or unset DOTFILES_PROVISION_OFFLINE"
             )
         _remove(dest)
 
-    if not fetch:
+    if no_fetch:
         raise EngineCheckoutError(
-            f"the pinned engine checkout is missing at {dest}; run once with "
-            f"network access (or pre-populate that directory at {tag})"
+            f"offline: the pinned engine checkout is missing at {dest}; "
+            f"pre-populate that directory at {tag} or unset DOTFILES_PROVISION_OFFLINE"
         )
 
     dest.parent.mkdir(parents=True, exist_ok=True)

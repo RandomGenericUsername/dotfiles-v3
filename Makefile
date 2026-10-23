@@ -1,9 +1,17 @@
-.PHONY: bootstrap contracts-check runtime-architecture contract-pin-check gates gates-ci ci-gates-parity hermetic ags-platform-dev dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-verify vm-help per-app-drift-symbol-suites
+.PHONY: bootstrap provision contracts-check runtime-architecture contract-pin-check gates gates-ci ci-gates-parity hermetic ags-platform-dev dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-verify vm-help per-app-drift-symbol-suites
 
 # Bootstrap the host machine (full provisioning).
 # Pass become/check flags through, e.g. `make bootstrap ARGS="--ask-become-pass"`.
 bootstrap:
 	./bootstrap.sh $(ARGS)
+
+# R-13: after bootstrap the engine console is installed in UV_TOOL_BIN_DIR.
+# This is the short form for plan/apply/verify/bootstrap; the old
+# `uv run --directory src/provisioning` path was deleted with the in-tree engine.
+provision:
+	@command -v dotfiles-provision >/dev/null 2>&1 || { \
+		echo "dotfiles-provision is not on PATH; run ./bootstrap.sh first"; exit 1; }
+	dotfiles-provision $(ARGS)
 
 # Contract conformance (AD-44): embedded schemas equal their canonical
 # definitions, the D-Bus wire XML agrees with the event contract JSON, and
