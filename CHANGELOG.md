@@ -15,6 +15,15 @@ this summary:
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-10-23 — runtime-seed fix
+
+### Fixed
+
+- Installer engine pin `v0.1.7` → `v0.1.8`: the `runtime-seed` playbook no longer invokes the
+  deleted `composition_root/src/runtime`; it runs the installed pinned `dotfiles-runtime` from
+  the uv tool bin dir (BUG-001 in `dotfiles-provision`). Bootstrap/apply now reaches the seed
+  step after the runtime extraction.
+
 ## [0.6.0] - 2026-10-23 — runtime repo consumption (REQ-002)
 
 ### Changed
