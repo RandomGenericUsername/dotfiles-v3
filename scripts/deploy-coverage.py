@@ -355,8 +355,7 @@ REQUIRED_RUNTIME_PINS = ("cli-output", "cli-invocation-contract")
 # S7 (AD-17 terminal): what a COMPOSITION repo may still author. `dotfiles/`
 # carries the manifests and the one mutable preference (OPEN-5 / R-07); `src/`
 # carries the runtime only. Everything else is a pin.
-COMPOSITION_DOTFILES_ENTRIES = ("config", "provisioning")
-COMPOSITION_CONFIG_FILES = ("btop/active-theme",)
+COMPOSITION_DOTFILES_ENTRIES = ("provisioning",)
 COMPOSITION_SRC_ENTRIES = ("runtime",)
 RETIRED_ASSETS_DIR = "dotfiles/assets"
 # S6b: the engine's Python package and Ansible tree are the pinned external
@@ -2609,11 +2608,12 @@ def assert_composition_only(root: Path) -> None:
 
     The per-tree guards above catch a known corpus returning; this catch-all
     catches ANY new authored tree, which is the failure mode that does not yet
-    have a name. `src/` may hold `runtime/`; `dotfiles/` may hold `config/` and
-    `provisioning/`; `dotfiles/config/` may hold the one mutable preference
-    (`btop/active-theme`, OPEN-5 / R-07). The retired corpus roots and the
-    in-repo engine root are asserted absent here as the terminal sweep, so a
-    fresh checkout that forgets one of the specific guards still fails.
+    have a name. `src/` may hold `runtime/`; `dotfiles/` may hold `provisioning/`
+    only. `dotfiles/config/` is absent since R-07: the btop active-theme is host
+    state in the install spine, and every static config is the pinned assets
+    `configs` class. The retired corpus roots and the in-repo engine root are
+    asserted absent here as the terminal sweep, so a fresh checkout that forgets
+    one of the specific guards still fails.
     """
     dotfiles = root / "dotfiles"
     if not dotfiles.is_dir():
@@ -2632,19 +2632,11 @@ def assert_composition_only(root: Path) -> None:
         )
 
     config = dotfiles / "config"
-    if not config.is_dir():
-        raise ValueError("dotfiles/config/ is missing — btop/active-theme lives there")
-    config_files = sorted(
-        str(path.relative_to(config))
-        for path in config.rglob("*")
-        if path.is_file()
-        and not any(part.startswith(".") for part in path.relative_to(config).parts)
-    )
-    if config_files != list(COMPOSITION_CONFIG_FILES):
+    if config.exists():
         raise ValueError(
-            f"dotfiles/config/ must hold exactly {list(COMPOSITION_CONFIG_FILES)} "
-            f"(the one mutable preference); found {config_files} — every other "
-            f"config is a corpus class of the pinned dotfiles-assets repo"
+            "dotfiles/config/ must be absent — the btop active-theme preference is "
+            "host state in the install spine (R-07/OPEN-5), and every static config "
+            "is the pinned dotfiles-assets configs class"
         )
 
     src = root / "src"
@@ -2964,8 +2956,8 @@ def main() -> int:
     )
     print(
         "deploy-coverage: COMPOSITION-ONLY — src/ holds runtime/ only, dotfiles/ "
-        f"holds {list(COMPOSITION_DOTFILES_ENTRIES)} (config/ = "
-        f"{list(COMPOSITION_CONFIG_FILES)}), and "
+        f"holds {list(COMPOSITION_DOTFILES_ENTRIES)} (config/ is absent; the "
+        "active-theme is spine host state), and "
         f"{RETIRED_PROVISIONING_ROOT}/, {RETIRED_ASSETS_DIR}/, "
         + ", ".join(f"{path}/" for path in RETIRED_DESKTOP_DIRS)
         + " are absent"
