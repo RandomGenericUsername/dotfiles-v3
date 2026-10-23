@@ -49,8 +49,8 @@ recorded).
 | This ledger's worktree | `.worktrees/residuals/`, branch `ticket/residuals-assets-split-residuals` (guard-created, docs-only) |
 | Host | Linux; `python3 --version` → `Python 3.14.7`; `uv --version` → `uv 0.9.22`; `openspec --version` → `1.14.1` |
 | Ansible | from the installed engine `v0.1.2` tool env; the CLI prepends that env's bin dir to the child `PATH` (R-15) |
-| Pins | assets `v0.5.0` (`dotfiles/provisioning/assets.yaml:20`); installer engine `v0.1.4` (`d97c697`, `dotfiles/provisioning/installer.pin`); ags-apps `v0.4.1` (`66dc3c9`); six CLI/library pins per `deploy-coverage` |
-| Engine release | `dotfiles-provision` `v0.1.4` = `d97c697` (v0.1.1 = `de0b92c`, v0.1.2 = `1b2195f`, v0.1.3 = `b957432`); wheel carries 87 `provisioning/_ansible/` entries |
+| Pins | assets `v0.5.0` (`dotfiles/provisioning/assets.yaml:20`); installer engine `v0.1.5` (`9a9ec2b`, `dotfiles/provisioning/installer.pin`); ags-apps `v0.4.1` (`66dc3c9`); six CLI/library pins per `deploy-coverage` |
+| Engine release | `dotfiles-provision` `v0.1.5` = `9a9ec2b` (v0.1.1 = `de0b92c`, v0.1.2 = `1b2195f`, v0.1.3 = `b957432`, v0.1.4 = `d97c697`); wheel carries 87 `provisioning/_ansible/` entries |
 | Assets release | `dotfiles-assets` `v0.5.1` = `4683c76` (gate-only `validate-configs`; zero corpus bytes); the composition still pins `v0.5.0` |
 | Measurement date | 2026-10-22 |
 
@@ -250,13 +250,19 @@ stays on `v0.5.0`. Status: **CLOSED**.
 plan/apply/verify/bootstrap (exit 0); `ARCHITECTURE.md` §6.1 documents the short form and marks the
 old in-tree `uv run --directory` path retired. Status: **CLOSED**.
 
-### R-14 — Stale-env / `start-limit` trap — **CLOSED** (engine `v0.1.2`, `1b2195f`)
+### R-14 — Stale-env / `start-limit` trap — **CLOSED** (engine `v0.1.5`, `9a9ec2b`)
 
 Three executable mitigations: `reset-failed` before enable/start (v0.1.1); a post-install
 `direct_url.json` scan that fails naming any `file://` checkout that no longer exists (negative
 fixture → `stale uv tool direct_url(s): …` rc=1); and a deployed-unit assert that `ExecStart`
 carries no `{%`/`%}` or swallowed `#` continuation. Targeted tests: `92 passed`; the full targeted
-suite is `347 passed, 12 deselected`. Status: **CLOSED**.
+suite is `347 passed, 12 deselected`.
+
+**v0.1.5 hotfix (2026-10-23):** the v0.1.4 assert string contained literal `{%`/`%}`, which Ansible
+parsed as a Jinja block before evaluating and broke bootstrap with `tag name expected` /
+`CapturedExceptionMarker`. The assert now uses the `[{]%` / `%[}]` character classes; verified with
+`ansible-playbook ansible/playbooks/runtime-daemon.yaml` → `failed=0` and unit tests `32 passed`.
+Status: **CLOSED**.
 
 ### R-16 — Composition gates need the cached engine checkout — **CLOSED** (this sweep)
 
