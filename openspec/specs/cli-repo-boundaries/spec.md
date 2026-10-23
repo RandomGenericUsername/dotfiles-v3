@@ -50,16 +50,16 @@ Each of the six repos SHALL contain exactly one `pyproject.toml` at its root and
 
 ### Requirement: dotfiles-v3 is a consumer, never an importer or vendor
 
-`dotfiles-v3` SHALL consume the six packages as pinned tools and git dependencies. No runtime module SHALL import a CLI package, and after the last slice no in-tree copy of any of the six SHALL remain under `src/`.
+`dotfiles-v3` SHALL consume the six packages and `dotfiles-runtime` as pinned tools and git dependencies. No runtime module SHALL import a CLI package, and after the last slice no in-tree copy of any of the six or the runtime SHALL remain under `src/`.
 
 #### Scenario: the runtime boundary is subprocess-only
 
-- **WHEN** `src/runtime` is searched for `import` or `from` of `color_scheme_generator`, `wallpaper_effects_generator`, `icon_templates_renderer`, `config_assembler_engine` or `oci_runtime`
+- **WHEN** the `dotfiles-runtime` repo is searched for `import` or `from` of `color_scheme_generator`, `wallpaper_effects_generator`, `icon_templates_renderer`, `config_assembler_engine` or `oci_runtime`
 - **THEN** no match exists
 
 #### Scenario: no in-tree copy remains
 
-- **WHEN** `git ls-files 'src/cli-tools/*' 'src/shared/*'` is run after the final slice
+- **WHEN** `git ls-files 'src/cli-tools/*' 'src/shared/*' 'src/runtime/*'` is run after the final slice
 - **THEN** the output is empty
 
 #### Scenario: the dotfiles tree is not a build context

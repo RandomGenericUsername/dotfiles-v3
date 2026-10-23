@@ -7,21 +7,21 @@ Defines how provisioning addresses an extracted CLI — manifest entry, checkout
 
 ### Requirement: The manifest is the single source of truth for extracted tools
 
-`dotfiles/provisioning/cli-tools.yaml` SHALL be the single source of truth. After the last CLI slice every extracted CLI entry SHALL carry `name`, `repo` and `tag` (matching `^v\d+\.\d+\.\d+$`) and SHALL NOT carry a `source` key. `dotfiles-runtime -> src/runtime` SHALL remain the only in-repo `source` entry (OPEN-7); it is not extracted, and its install path and systemd units are unchanged.
+`dotfiles/provisioning/cli-tools.yaml` SHALL be the single source of truth. Every entry, including `dotfiles-runtime`, SHALL carry `name`, `repo` and `tag` matching `^v\d+\.\d+\.\d+$` and SHALL NOT carry `source`.
 
 #### Scenario: every extracted entry is repo + tag
 
-- **WHEN** `dotfiles/provisioning/cli-tools.yaml` is read after S6
-- **THEN** the csg, weg and itr entries carry `name`, `repo` and `tag`, and no `source` key
+- **WHEN** `dotfiles/provisioning/cli-tools.yaml` is read after the runtime slice
+- **THEN** csg, weg, itr and dotfiles-runtime carry `name`, `repo` and `tag`, and no entry carries `source`
 
 #### Scenario: the only local source left is dotfiles-runtime
 
-- **WHEN** `rg -n 'source:' dotfiles/provisioning/cli-tools.yaml` is run after S6
-- **THEN** exactly one match exists, `source: src/runtime` on the `dotfiles-runtime` entry; no extracted-package source path remains, and `make deploy-coverage` asserts the same scope
+- **WHEN** `rg -n 'source:' dotfiles/provisioning/cli-tools.yaml` is run after the runtime slice
+- **THEN** it exits 1 with no matches — the historical last source (`dotfiles-runtime -> src/runtime`) is gone — and `make deploy-coverage` asserts the same scope
 
 #### Scenario: a source-only entry is rejected
 
-- **WHEN** an extracted CLI entry is given `source:` instead of `repo` + `tag`
+- **WHEN** an entry is given `source:` instead of `repo` + `tag`
 - **THEN** the provisioning manifest gate fails and names the entry
 
 #### Scenario: the tag format is exact
@@ -88,24 +88,24 @@ Provisioning SHALL render `image_tag` from the pinned tag and SHALL verify the e
 
 ### Requirement: `deploy-coverage` asserts the pin shape and the retired-tree absence
 
-`deploy-coverage` SHALL fail when an extracted manifest entry lacks `repo` or `tag`, when role/verify/manifest pins disagree, when a `path`/`editable` pin or a `src/cli-tools` asset source remains, or when a retired tree exists. Each slice SHALL add or extend the absence assertion for the tree it deletes; S6 SHALL add the terminal catch-all for `src/cli-tools/` and `src/shared/`.
+`deploy-coverage` SHALL fail when an entry lacks `repo` or `tag`, when role/verify/manifest pins disagree, when a `path`/`editable` pin or `src/cli-tools` source remains, or when a retired tree exists. It SHALL assert `src/runtime/` is absent and that no manifest entry carries `source`.
 
 #### Scenario: a missing pin key is caught
 
-- **WHEN** an extracted entry loses `repo` or `tag`
+- **WHEN** an entry loses `repo` or `tag`
 - **THEN** `make deploy-coverage` exits non-zero and names the entry
 
 #### Scenario: a stale local source is caught
 
-- **WHEN** `src/cli-tools` still appears as an asset source or a runtime input fallback after the relevant slice
+- **WHEN** any manifest entry still carries `source`, or `src/cli-tools` appears as an asset source
 - **THEN** `make deploy-coverage` exits non-zero
 
 #### Scenario: each slice asserts the tree it deleted
 
-- **WHEN** `make deploy-coverage` runs after S1, S2, S3, S4 or S5
-- **THEN** it exits 0 only while the tree that slice deleted (`src/shared/cli-output`, `src/shared/config-assembler-engine`, `src/shared/oci-runtime`, `src/cli-tools/icon-templates-renderer`, `src/cli-tools/wallpaper-effects-generator`) is absent, so a reappearance fails the gate at that slice's own guard
+- **WHEN** `make deploy-coverage` runs after S1–S6 and the runtime slice
+- **THEN** it exits 0 only while each deleted tree — including `src/runtime/` — is absent, so a reappearance fails the gate at the guard that owns it
 
 #### Scenario: the retired trees are absent
 
-- **WHEN** `make deploy-coverage` runs after S6
-- **THEN** it exits 0 and asserts that neither `src/cli-tools/` nor `src/shared/` exists
+- **WHEN** `make deploy-coverage` runs after the runtime slice
+- **THEN** it exits 0 and asserts that `src/cli-tools/`, `src/shared/` and `src/runtime/` do not exist
