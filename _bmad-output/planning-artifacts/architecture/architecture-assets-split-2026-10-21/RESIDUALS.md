@@ -4,7 +4,7 @@ type: residual-ledger
 purpose: 'Keep every known gap in the assets split visible, with its evidence, until it is closed by executed evidence'
 status: open
 created: '2026-10-22'
-updated: '2026-10-22'
+updated: '2026-10-23'
 baseline: '2f5ee95e'
 companions:
   - ARCHITECTURE-SPINE.md
@@ -63,9 +63,7 @@ belong here, and an entry is not closed because the code "looks right".
 | --- | --- | --- | --- | --- |
 | R-07 | P1 | `dotfiles/config/btop/active-theme` — mutable preference still in the composition repo (OPEN-5); the studio still writes the pre-split path | ags-apps studio release + S7 closeout | OPEN-BLOCKED |
 | R-10 | P1 | VM end-to-end gate never run — `incus` unavailable here; every slice marks it `PLANNED` | final end-to-end (S7 or dedicated) | OPEN-BLOCKED |
-| R-01 | P1 | AD-8.4 required-var parity is not run in CI (and would skip without an assets checkout); only the static shape is gated by `deploy-coverage` | engine v0.1.2 CI job / first push | OPEN-BLOCKED |
 | R-04 | P2 | Display-manager host apply skipped after the template move; only the file render is proven byte-identical | dedicated host apply | OPEN-BLOCKED (no passwordless sudo) |
-| R-03 | P2 | `contracts-check` + `runtime-architecture` fail in CI on `pillow==11.3.0` under CPython 3.15 (pre-existing) | dedicated CI cleanup | OPEN-BLOCKED |
 
 ---
 
@@ -130,52 +128,6 @@ belong here, and an entry is not closed because the code "looks right".
 - **Closure proof:** `make vm-verify` exit 0 inside the freshly provisioned guest; `dev/vm-assert.sh`
   reports no failure; the `dotfiles-provision verify` log in the guest ends `failed=0`.
 
-### R-01 — AD-8.4 parity is developer-only; CI would skip it
-
-- **Priority / status:** P1 · OPEN-BLOCKED (fix landed, awaiting the first pushed CI run) ·
-  **Owner:** S7 (composition gate set) or a dedicated CI cleanup.
-- **Fix landed (engine `v0.1.1`, `de0b92c`):** `scripts/assets-parity.py` reads the pinned
-  `assets.repo`/`assets.tag`, clones `dotfiles-assets` at that tag, exports
-  `DOTFILES_ASSETS_REPO`/`DOTFILES_ASSETS_TEMPLATES_DIR`, runs the parity module with a JUnit
-  report, and fails on any skip or clone failure. `Makefile` exposes `make assets-parity`; the
-  engine workflow adds the `assets-parity` job and `scripts/ci-gates-parity.py` declares it in
-  `CI_ONLY_EXEMPT`, so `GATES` stays at five. Executed here:
-  `make assets-parity` → `PASS assets-parity: 7 tests executed, 0 skipped` (2026-10-22). The
-  remaining closure observation is the pushed run's job log plus the fake-required-name negative;
-  no CI run was executed in this sweep.
-- **Evidence:**
-  - `src/provisioning/tests/unit/assets_templates.py:18-21` states the skip rule: *"CI has no assets
-    checkout, so most of these tests skip there — which is why `test_template_vars_parity.py`
-    reports its coverage instead of pretending a skip is a pass."* The skip itself is at `:99-108`
-    (`require_templates_root`).
-  - `test_template_vars_parity.py:160-222` (`TestRequiredVarsAreSupplied`) resolves the corpus
-    through `assets_templates.schema_for` → `require_templates_root`, so both the forward
-    (`required[] ⊆ supplied`) and reverse (`explicit vars ⊆ properties`) assertions skip when the
-    corpus is absent.
-  - `scripts/deploy-coverage.py:1864-1876` is explicit about the split: the CI-runnable half is the
-    static shape (retired sources gone, render tasks read `<role>_assets_templates_dir`, pin mirror
-    present); the parity test needs the corpus "and skips on a runner without a checkout".
-  - Measured: `grep -c 'DOTFILES_ASSETS' .github/workflows/gates.yml` → `0`; `grep -c
-    'src/provisioning' .github/workflows/gates.yml` → `0`. The workflow's six jobs are `contracts-check`,
-    `runtime-architecture`, `ansible-embedded-template-lint`, `deploy-coverage`, `ci-gates-parity`,
-    `per-app-drift-symbol-suites` (`gates.yml:59-143`). The provisioning unit suite — including the
-    parity test — runs in **no** CI job today.
-  - **Precision correction:** "skips in CI" is true only counterfactually (it would skip if a job ran
-    it on a bare checkout). The measured state is stronger: it is not run at all.
-- **Impact:** AD-8.4 — the only executable link between the assets schemas and the installer's
-  render tasks — is proven on a developer machine with the sibling checkout, never on a push. A
-  schema rename or a new required var can merge and pass all six gates; it fails later, on a user's
-  machine, at render time.
-- **Planned resolution:** add a CI-only job (e.g. `assets-parity`) declared in `CI_ONLY_EXEMPT`
-  (`scripts/ci-gates-parity.py:93`) so `gates-ci` stays at its six targets: checkout
-  `dotfiles-assets` at the manifest's `assets.tag`, export `DOTFILES_ASSETS_TEMPLATES_DIR`, run
-  `uv run --directory src/provisioning pytest tests/unit/test_template_vars_parity.py -q -rs`, and
-  fail if any parity test is skipped. Alternatively add `make assets-parity` to `GATES` and accept a
-  seventh gate (then update `SLICES.md` S7 step 3's six-target sentence).
-- **Closure proof:** a green CI run in which the job log shows the parity tests **executed** (no
-  `skipped` for `TestRequiredVarsAreSupplied`, `TestTheCorpusActuallyHasTheseTemplates`), plus a
-  negative run: add a fake required name to one schema → the job fails naming the missing var.
-
 ### R-04 — Display-manager host apply skipped after the template move
 
 - **Priority / status:** P2 · OPEN-BLOCKED (this host has no passwordless sudo: `sudo -n true` →
@@ -223,38 +175,6 @@ belong here, and an entry is not closed because the code "looks right".
   disabled; then run `dotfiles-provision verify`.
 - **Closure proof:** playbook recap `failed=0`; `cmp` of the rendered file; `systemctl is-enabled
   sddm` → `enabled`; `verify` exit 0.
-
-### R-03 — CI is red on `pillow==11.3.0` under CPython 3.15 (pre-existing)
-
-- **Priority / status:** P2 · OPEN-BLOCKED (fix landed, awaiting a green CI run) · **Owner:**
-  dedicated CI cleanup.
-- **Fix landed (2026-10-22):** every `astral-sh/setup-uv@v5` step in
-  `.github/workflows/gates.yml` now carries `with: python-version: "3.14"`, so uv selects a
-  CPython with a `cp314` Pillow wheel instead of building `11.3.0` from sdist on 3.15. The file
-  parses as YAML (`yaml.safe_load` → ok); the closure observation is the pushed run's
-  `Using CPython 3.14.x` line and six green jobs, which this local sweep cannot produce.
-- **Evidence:**
-  - `gh run view 39810366803` (`2f5ee95e`): jobs `contracts-check` **failure**, `runtime-architecture`
-    **failure**; the other four success. Log:
-    `Using CPython 3.15.1` … `error: Failed to build \`pillow==11.3.0\`` (also
-    `cause: Call to backend.build_wheel failed`).
-  - Same failure at `0a33a1da` (run 39804642349, CPython 3.15.1) and `6ab95767` (run 39698753273,
-    CPython 3.15.0) — so it predates this ledger and reproduces on multiple master runs.
-  - `gh run list --workflow=gates --limit 40` → 40 failures, 0 successes (measured 2026-10-22). The
-    count is a run-level observation, not proof that every run failed for this reason; the three
-    sampled runs above are.
-  - Cause chain: `src/runtime/pyproject.toml:5` (`requires-python = ">=3.14"`) lets `uv` select the
-    newest CPython; `:12` caps Pillow at `<12`; `src/runtime/uv.lock:329-332` pins `11.3.0`, whose
-    release has no `cp315` wheel, so `uv` builds from the sdist and the build fails. The workflow sets
-    no `python-version` (`gates.yml:64,81,94,113,131` are bare `astral-sh/setup-uv@v5`).
-- **Impact:** no recent master push has a green CI; the two failing jobs are the contract-source gate
-  and the runtime architecture guard, so a real regression in either is invisible behind the install
-  failure. "`make gates-ci` is green in CI" is false today.
-- **Planned resolution:** pin `python-version: "3.14"` on each `setup-uv` step (or commit a
-  `.python-version`) so `uv` selects a CPython with a `cp314` Pillow wheel; alternatively raise the
-  Pillow cap only when a `cp315` wheel exists. Then re-run the workflow.
-- **Closure proof:** a green run on master where `gh run view <id> --json jobs` shows all six jobs
-  `success`, and the log shows `Using CPython 3.14.x` (no `Failed to build`).
 
 ---
 
@@ -419,6 +339,25 @@ pre-populated cache still gates offline. Executed: empty cache + offline → `FA
 pinned engine checkout is missing at …` rc=1 (no git error); pre-populated cache + offline
 `make deploy-coverage` → PASS rc=0. Status: **CLOSED**.
 
+
+### R-01 — AD-8.4 parity is not run in CI — **CLOSED** (engine `v0.1.2`, run `39947299368`)
+
+The engine CI `assets-parity` job runs `make assets-parity`, which clones the pinned corpus and
+fails on any skip. The pushed `v0.1.2` run is green and its log shows
+`PASS assets-parity: 7 tests executed, 0 skipped`; `test`/`hermetic` report `937 passed, 38
+skipped` (the 38 are the documented non-parity skips). Negative run: cloned assets `v0.5.0`,
+appended `fake_required_var_for_negative` to `templates/btop/btop.conf.vars.schema.json`, ran the
+parity module with `DOTFILES_ASSETS_REPO`/`DOTFILES_ASSETS_TEMPLATES_DIR` → exit 1 naming
+`btop_config … does not supply its required variable(s) ['fake_required_var_for_negative']`.
+Status: **CLOSED**.
+
+### R-03 — CI is red on `pillow==11.3.0` under CPython 3.15 — **CLOSED** (run `39947309809`)
+
+All five `setup-uv` steps pin `python-version: "3.14"`. The pushed composition run is green:
+`contracts-check`, `runtime-architecture`, `ansible-embedded-template-lint`, `deploy-coverage`,
+`ci-gates-parity`, `per-app-drift-symbol-suites` all `success`; the logs show
+`Using CPython 3.14.9` and no `Failed to build pillow`. Status: **CLOSED**.
+
 ## Corrections made while writing this ledger
 
 These are the places where the handover text and the executed evidence disagreed. They are recorded
@@ -465,8 +404,11 @@ here so a later reader does not "fix" the ledger back to the unverified wording.
 | R-16 | empty cache + unreachable proxy (command in R-16) | exit 1, `FAIL cannot fetch the pinned installer engine v0.1.0 … Offline is a hard failure, never a silent pass` |
 | R-17 | `rg -n 'dotfiles-provision\|installer\.pin\|provisioning_version\|engine tag' .dev/…/ansible/roles/verify` | 2 matches, both comments (`tasks/main.yml:62,70`); no task |
 | R-01 fix | engine `v0.1.1`: `make assets-parity` | `PASS assets-parity: 7 tests executed, 0 skipped` |
+| R-01 close | engine CI run `39947299368` (tag `v0.1.2`): `assets-parity` job log | job success; `PASS assets-parity: 7 tests executed, 0 skipped`; `test`/`hermetic` 937 passed |
+| R-01 negative | cloned assets `v0.5.0` + fake required name; parity module | exit 1 naming `['fake_required_var_for_negative']` |
 | R-02 update | engine `v0.1.1`: `timeout 290 uv run pytest …::TestVerifyRuntime -q`; single green-path test | `rc=124` (two tests in); single test `rc=124` after 250 s — not closed |
-| R-03 fix | `.github/workflows/gates.yml`: `python3 -c 'yaml.safe_load(...)'` | YAML ok; five `setup-uv` steps carry `python-version: "3.14"`; CI run not executed |
+| R-03 fix | `.github/workflows/gates.yml`: `python3 -c 'yaml.safe_load(...)'` | YAML ok; five `setup-uv` steps carry `python-version: "3.14"` |
+| R-03 close | composition CI run `39947309809`: all six jobs | `success`; logs `Using CPython 3.14.9`; no `Failed to build pillow` |
 | R-14 fix | engine `v0.1.1`: `test_start_limit_is_cleared_before_enable_start` | passed in the 286-test targeted run; stale-env preflight still absent |
 | R-15 fix | `uv build --wheel`; `unzip -l … \| awk '/provisioning\\/_ansible\\//'` | `dotfiles_provision-0.1.1-py3-none-any.whl`; **87** `_ansible/` entries |
 | R-15 fix | isolated `UV_TOOL_DIR` install `git+file://…@v0.1.1` from `/tmp`; `version`; `manifests` | installed; `0.1.1`; `success: true`, `count: 5`, exit 0 |
