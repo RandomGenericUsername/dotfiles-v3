@@ -19,7 +19,7 @@ cited file wins and this document is the bug.
 ```bash
 make gates-ci          # the four executable gates (section 9)
 make deploy-coverage   # provisioning shape only; prints the pinned manifests it read
-openspec validate --all # legacy set has 27 pre-existing failures; see section 9
+openspec validate --all # 2026-10-23: 53 passed, 1 failed (pre-existing active change); see section 9
 ```
 
 Anything else is prose drift. The two places that change most often are
@@ -537,13 +537,14 @@ re-added here.
 |---|---|---|
 | `dotfiles-runtime` suite | moved with the runtime repo; its own CI owns the suite, including the recording-indicator bar check | tracked in `dotfiles-runtime` |
 | `dotfiles-runtime` integration | `test_weg_adapter_integration_real_binary` passes on a provisioned host and skips when the CLI binary is unavailable | environment-dependent by design; tracked in `dotfiles-runtime` |
-| `openspec validate --all` | `108 passed, 27 failed (135 items)`, exit 1; identical failing set at base `6e0633ba` (19 legacy change-level + 8 legacy spec-shape defects) | pre-existing, none of them `cli-tools-repos` or `assets-repo-split` |
+| `openspec validate --all` | `53 passed, 1 failed (54 items)` on 2026-10-23 — the pre-existing active change `redesign-ags-audio-panel`; `--strict` reports 30 warnings (24 passed) from the legacy spec-shape class | pre-existing; the REQ-002 change validates strictly |
+| REQ-002 fresh-machine proof | `dev/vm` bootstrap + `verify` was **not run** on this host (`incus` absent); recorded as `Evidence: MISSING` in the archived change | run on a VM-capable host before release |
 
-Re-measured 2026-10-21 in the worktree for this document: `make gates-ci` exit 0 (six gates),
-`openspec validate --all` → `Totals: 104 passed, 27 failed (131 items)`. Re-measured
-2026-10-22 in the S7 worktree after archiving `assets-repo-split`:
-`make gates-ci` exit 0, `openspec validate --all` → `Totals: 108 passed, 27 failed (135 items)`
-(the four new specs pass; the 27 legacy failures are unchanged).
+Re-measured 2026-10-23 after the runtime slice: `make gates-ci` exit 0 (four gates),
+`openspec validate --all` → `Totals: 53 passed, 1 failed (54 items)`; `make deploy-coverage`
+exit 0 with engine `v0.1.7` and runtime `v0.1.0`; `make hermetic` PASS. The 2026-10-22 baseline
+was `108 passed, 27 failed (135 items)` after the assets split; the active-change/spec-shape
+failures are unchanged in class.
 
 ## 10. Operating discipline
 
