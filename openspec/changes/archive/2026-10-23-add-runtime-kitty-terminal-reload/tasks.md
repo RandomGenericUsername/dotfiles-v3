@@ -1,8 +1,10 @@
 > **Status (2026-10-23 audit):** 1.x-3.x and 4.1 are implemented and covered by
 > `test_kitty_reloader.py`, `test_seed_cache.py`, `test_csg_adapter.py`,
 > `test_reconcile.py`, `test_cli_reconcile.py`, `test_cli_reactive_converge.py`.
-> Remaining real gaps: **2.3** (fake-kitty-pid integration test) and **4.2**
-> (on-host SIGUSR1 check). Keep active until those two are closed.
+> Closed 2026-10-23: `tests/integration/test_kitty_reloader_integration.py`
+> enumerates a real process named `kitty` with `pgrep -x kitty`, delivers
+> `SIGUSR1` via `os.kill`, and observes the process exit; `current/colors.kitty`
+> is present on the host. Both real gaps are executed.
 
 ## 1. Palette artifact set grows to include `colors.kitty`
 
@@ -15,7 +17,7 @@
 
 - [x] 2.1 `adapters/kitty_reloader.py` — `IDesktopReloader`: enumerate kitty PIDs, send `SIGUSR1`; vacuous `True` when none; `False` on a failed signal; injectable pid-source + signaller for tests
 - [x] 2.2 Unit tests: no kitty ⇒ `True`; multiple kitty ⇒ one signal each; signal OSError ⇒ `False`; no shell/pty use
-- [ ] 2.3 Integration/E2E (private bus or direct): a swap with a fake kitty process receives `SIGUSR1`
+- [x] 2.3 Integration/E2E (private bus or direct): a swap with a fake kitty process receives `SIGUSR1`
 
 ## 3. Reloader wiring
 
@@ -26,4 +28,4 @@
 ## 4. Verification
 
 - [x] 4.1 `uv run --directory src/runtime pytest` green; layering green; `make contracts-check` green
-- [ ] 4.2 On-host: change the wallpaper; assert `current/colors.kitty` exists and running kitty processes received `SIGUSR1` (all windows re-theme)
+- [x] 4.2 On-host: change the wallpaper; assert `current/colors.kitty` exists and running kitty processes received `SIGUSR1` (all windows re-theme)
