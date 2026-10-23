@@ -48,8 +48,8 @@ belong here, and an entry is not closed because the code "looks right".
 | This ledger's worktree | `.worktrees/residuals/`, branch `ticket/residuals-assets-split-residuals` (guard-created, docs-only) |
 | Host | Linux; `python3 --version` → `Python 3.14.7`; `uv --version` → `uv 0.9.22`; `openspec --version` → `1.14.1` |
 | Ansible | from the installed engine `v0.1.2` tool env; the CLI prepends that env's bin dir to the child `PATH` (R-15) |
-| Pins | assets `v0.5.0` (`dotfiles/provisioning/assets.yaml:20`); installer engine `v0.1.2` (`1b2195f`, `dotfiles/provisioning/installer.pin`); six CLI/library pins per `deploy-coverage` |
-| Engine release | `dotfiles-provision` `v0.1.2` = `1b2195f` (v0.1.1 = `de0b92c`); wheel carries 87 `provisioning/_ansible/` entries |
+| Pins | assets `v0.5.0` (`dotfiles/provisioning/assets.yaml:20`); installer engine `v0.1.4` (`d97c697`, `dotfiles/provisioning/installer.pin`); ags-apps `v0.4.1` (`66dc3c9`); six CLI/library pins per `deploy-coverage` |
+| Engine release | `dotfiles-provision` `v0.1.4` = `d97c697` (v0.1.1 = `de0b92c`, v0.1.2 = `1b2195f`, v0.1.3 = `b957432`); wheel carries 87 `provisioning/_ansible/` entries |
 | Assets release | `dotfiles-assets` `v0.5.1` = `4683c76` (gate-only `validate-configs`; zero corpus bytes); the composition still pins `v0.5.0` |
 | Measurement date | 2026-10-22 |
 
@@ -61,46 +61,12 @@ belong here, and an entry is not closed because the code "looks right".
 
 | ID | Priority | Residual | Closing slice | Status |
 | --- | --- | --- | --- | --- |
-| R-07 | P1 | `dotfiles/config/btop/active-theme` — mutable preference still in the composition repo (OPEN-5); the studio still writes the pre-split path | ags-apps studio release + S7 closeout | OPEN-BLOCKED |
 | R-10 | P1 | VM end-to-end gate never run — `incus` unavailable here; every slice marks it `PLANNED` | final end-to-end (S7 or dedicated) | OPEN-BLOCKED |
 | R-04 | P2 | Display-manager host apply skipped after the template move; only the file render is proven byte-identical | dedicated host apply | OPEN-BLOCKED (no passwordless sudo) |
 
 ---
 
 ## Open residuals
-
-### R-07 — `dotfiles/config/btop/active-theme` is still in the composition repo (OPEN-5)
-
-- **Priority / status:** P1 · OPEN-BLOCKED (needs an `ags-apps` studio release) · **Owner:** S7
-  (composition closeout) + the studio repo.
-- **Evidence:**
-  - `find dotfiles/config -type f` → exactly one file: `dotfiles/config/btop/active-theme`.
-  - `cat dotfiles/config/btop/active-theme` → `colors.btop.theme` (mutable preference, written by
-    the btop studio).
-  - Engine `ansible/roles/btop_config/vars/main.yml` declares
-    `btop_config_active_theme_file: "{{ composition_root }}/dotfiles/config/btop/active-theme"`;
-    `roles/btop_config/tasks/main.yml` reads it from the repo path.
-  - **Blocker (2026-10-22):** the pinned `ags-apps` studio still writes the pre-split composition
-    path — `btop-theme-studio/ui/StudioWindow.tsx:179` (`${repoRoot()}/dotfiles/config/btop/
-    active-theme`) and `lib/targets.ts:22` (`REPO_ACTIVE_THEME`). Deleting the file today makes
-    the studio recreate it on the next “set active”, re-dirtying the composition repo. The move
-    needs an `ags-apps` change (write `${installDir()}/config/btop/active-theme`) and a new pinned
-    tag before the engine/verify can read the spine path.
-  - `ARCHITECTURE-SPINE.md:371-386` (AD-11) forbids it in assets; `:683` (OPEN-5) names this file and
-    the default resolution: move it to the spine as a host-owned file, written by the studio and read
-    by the renderer.
-  - Assets' own boundary agrees: `git -C ../dotfiles-assets show v0.5.0:configs/README.md |
-    sed -n '73,75p'` — "Mutable preference and state … neither is in this class".
-- **Impact:** S7 step 2's catch-all ("`dotfiles/config/` absent") cannot land while this file exists;
-  a mutable preference inside a git-tracked composition repo can be silently reverted by a checkout,
-  and a pinned corpus must never hold it.
-- **Planned resolution:** per OPEN-5's default, move the file to the install spine as host-owned
-  state (a seeded default written on first provision, then owned by the studio), repoint
-  `btop_config_active_theme_file` at that path, delete `dotfiles/config/btop/active-theme`, and let
-  S7's absence guard assert `dotfiles/config/` is gone. Do **not** put it in assets.
-- **Closure proof:** `find dotfiles/config -type f` → no output; `rg -n 'dotfiles/config/btop' src
-  dotfiles` → no live reference; a studio round-trip (write theme → render → verify) passes; S7's
-  deploy-coverage catch-all exits 0.
 
 ### R-10 — The VM end-to-end gate has never run
 
@@ -175,6 +141,8 @@ belong here, and an entry is not closed because the code "looks right".
   disabled; then run `dotfiles-provision verify`.
 - **Closure proof:** playbook recap `failed=0`; `cmp` of the rendered file; `systemctl is-enabled
   sddm` → `enabled`; `verify` exit 0.
+
+---
 
 ---
 
@@ -358,6 +326,20 @@ All five `setup-uv` steps pin `python-version: "3.14"`. The pushed composition r
 `ci-gates-parity`, `per-app-drift-symbol-suites` all `success`; the logs show
 `Using CPython 3.14.9` and no `Failed to build pillow`. Status: **CLOSED**.
 
+
+### R-07 — `dotfiles/config/btop/active-theme` was still in the composition repo — **CLOSED** (ags-apps `v0.4.1`, engine `v0.1.4`)
+
+The studio now writes the active-theme setting through `activeThemePath()` to
+`<install>/config/btop/active-theme` (`btop-theme-studio/ui/StudioWindow.tsx`,
+`lib/targets.ts`; ags-apps `66dc3c9`, tag `v0.4.1`). Engine `v0.1.4` (`d97c697`) reads the same
+spine path and seeds it once from the legacy composition path, so an existing selection survives
+the migration. The composition deletes `dotfiles/config/` and `deploy-coverage` asserts the tree is
+absent (`dotfiles/ holds ['provisioning'] (config/ is absent; the active-theme is spine host
+state)`). Executed evidence: `make btop-theme-studio-tests` → all suites pass (targets includes the
+new path and the no-old-path guard); engine targeted suite `383 passed, 12 deselected`; btop
+integration `2 passed`; composition `make gates-ci` → all six green; host
+`verify --expected-engine-tag v0.1.4` → `rc=0`, `failed=0`. Status: **CLOSED**.
+
 ## Corrections made while writing this ledger
 
 These are the places where the handover text and the executed evidence disagreed. They are recorded
@@ -427,6 +409,9 @@ here so a later reader does not "fix" the ledger back to the unverified wording.
 | R-07 blocker | `rg -n 'active-theme' <ags-apps>/btop-theme-studio` | `StudioWindow.tsx:179`, `targets.ts:22` still write `dotfiles/config/btop/active-theme` |
 | R-04 blocker | `sudo -n true` | exit 1 (no passwordless sudo); host apply not run |
 | R-15/R-17 host | tag install + `verify --expected-engine-tag v0.1.2` | installed `1b2195f`; verify `rc=0`, every task `ok` |
+| R-07 close | `make btop-theme-studio-tests` (ags-apps `v0.4.1`); engine targeted suite; btop integration | all studio suites pass; `383 passed, 12 deselected`; `2 passed` |
+| R-07 close | composition `make gates-ci`; `deploy-coverage`; host `verify --expected-engine-tag v0.1.4` | six gates green; `dotfiles/ holds ['provisioning'] (config/ is absent …)`; host `rc=0`, `failed=0` |
+| R-07 host note | `rfkill list bluetooth` was soft-blocked before the first verify | `rfkill unblock bluetooth` → unblocked; the retry passed (host state, not a code defect) |
 
 Every open item above names a closure proof that re-runs the same kind of observation. When an item
 is closed, move it to *Resolved during the split* with the command output and the resolving commit;

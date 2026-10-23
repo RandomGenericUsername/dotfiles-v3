@@ -92,8 +92,10 @@ pinned checkout under `templates/` (`<install>/assets/<tag>/templates/`), one `*
 beside each. The five rendering roles (`zsh_config`, `kitty_config`, `btop_config`,
 `wlogout_config`, `display_manager`) supply the VALUES and keep every `dest`, `mode`, `become` and
 task-supplied var unchanged; they no longer carry a `templates/` dir. Nothing in this repository is
-a template source any more: `dotfiles/config/` holds only `btop/active-theme`, the mutable theme
-preference. The required-var parity test (`tests/unit/test_template_vars_parity.py`) asserts that
+a template source any more, and since R-07 it authors no config tree either: the btop
+`active-theme` preference is host state in the install spine
+(`<install>/config/btop/active-theme`, written by the studio). The required-var parity test
+(`tests/unit/test_template_vars_parity.py`) asserts that
 every schema `required[]` name is supplied by its render task, and `deploy-coverage` asserts each
 render reads the pinned checkout. `wlogout_config` also prunes the pre-S3
 `<spine>/config/wlogout/style.css.tpl`, and `verify` asserts it is absent.
