@@ -11,7 +11,7 @@ set -euo pipefail
 #
 # Stage order (CAP-4 flow, plan §3; installer engine S6b):
 #   1. uv preseed     — pinned release tarball, sha256-verified, if absent
-#   2. engine install — pinned dotfiles-provision checkout + editable uv tool
+#   2. engine install — pinned dotfiles-provision tag as a self-contained tool
 #   3. collections    — ansible-galaxy collection install -r (loud abort)
 #   4. bootstrap      — dotfiles-provision bootstrap (aggregate, Story 2.12)
 #   5. verify         — dotfiles-provision verify (hard gate, all ten criteria)
@@ -330,16 +330,14 @@ echo "uv: $(command -v uv) — uv will manage the Python interpreter as needed."
 # The engine is consumed as an immutable TAG, never a path pin. The checkout is
 # cached at `.dev/dotfiles-provision-<tag>/` (gitignored; override with
 # DOTFILES_PROVISION_CACHE_DIR when the composition checkout is read-only).
+# The cache is still needed for `ansible-galaxy -r` and the explicit inventory
+# path; the tool install itself is the portable artifact.
 #
-# WHY `--editable` AND NOT A `git+…@tag` TOOL INSTALL. The engine's wheel
-# packages only `src/provisioning`; its CLI resolves `ansible/` BESIDE the
-# installed package, and the README states the wheel is not a self-contained
-# provisioner. A plain `uv tool install git+…@tag` therefore installs a console
-# script whose `_ANSIBLE_ROOT` is inside the tool venv, where no `ansible/`
-# tree exists — bootstrap would fail before the first playbook. Installing the
-# PINNED CHECKOUT editable keeps `_ANSIBLE_ROOT` at the checkout (the tag is
-# still the single source of truth) and gives the CLI its playbooks, roles,
-# inventory and ansible.cfg.
+# WHY `git+…@tag` AND NOT `--editable`. The engine wheel now packages its
+# Ansible tree as `provisioning/_ansible` and resolves it through
+# `importlib.resources` (R-15), so a tag install is self-contained. The old
+# editable install is the engine-development path only; bootstrap must prove
+# the artifact a fresh machine receives, not the checkout beside it.
 install_engine() {
   if [ ! -d "$ENGINE_DIR/ansible" ]; then
     rm -rf "$ENGINE_DIR"
@@ -354,7 +352,7 @@ install_engine() {
       return 1
     fi
   fi
-  uv tool install --force --editable "$ENGINE_DIR" || return $?
+  uv tool install --force "git+${ENGINE_REPO_URL}@${ENGINE_PIN}" || return $?
   if [ ! -x "$PROVISION_BIN" ]; then
     red "ERROR: uv tool install completed but ${PROVISION_BIN} is missing."
     red "Set UV_TOOL_BIN_DIR to a writable dir and re-run $0."
@@ -498,7 +496,8 @@ run_stage "bootstrap" "$PROVISION_BIN" "${ENGINE_ARGS[@]}" bootstrap "${BOOTSTRA
 # The aggregate's internal verify import is plan-gated (check mode); this
 # explicit trailing verify is a REAL check (VerifyCapabilityUseCase runs with
 # check=False) asserting all fourteen done-criteria — the CAP-4 success signal.
-run_stage "verify" "$PROVISION_BIN" "${ENGINE_ARGS[@]}" verify
+run_stage "verify" "$PROVISION_BIN" "${ENGINE_ARGS[@]}" verify \
+  --expected-engine-tag "$ENGINE_PIN"
 
 # ── Post-verify GloView session signal: green vs green-but-degraded ────────
 # Verify asserts the plugin artifact is installed but cannot assert it is

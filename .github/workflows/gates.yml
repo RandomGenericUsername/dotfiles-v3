@@ -62,6 +62,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
+        with:
+          # Runtime requires >=3.14; pin the interpreter so uv selects a
+          # CPython with a cp314 Pillow wheel instead of building 11.3.0 from
+          # sdist on 3.15 (R-03).
+          python-version: "3.14"
       - name: Run the event-contract drift gate
         run: make contracts-check
 
@@ -79,6 +84,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
+        with:
+          # Runtime requires >=3.14; pin the interpreter so uv selects a
+          # CPython with a cp314 Pillow wheel instead of building 11.3.0 from
+          # sdist on 3.15 (R-03).
+          python-version: "3.14"
       - name: Runtime layering + no retired-source references
         run: make runtime-architecture
 
@@ -92,6 +102,11 @@ jobs:
       # see them) and PyYAML ships with the provisioning project. Needs no
       # desktop stack.
       - uses: astral-sh/setup-uv@v5
+        with:
+          # Runtime requires >=3.14; pin the interpreter so uv selects a
+          # CPython with a cp314 Pillow wheel instead of building 11.3.0 from
+          # sdist on 3.15 (R-03).
+          python-version: "3.14"
       - name: Ansible tree has no template nested in a Jinja string literal
         run: make ansible-embedded-template-lint
 
@@ -111,6 +126,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
+        with:
+          # Runtime requires >=3.14; pin the interpreter so uv selects a
+          # CPython with a cp314 Pillow wheel instead of building 11.3.0 from
+          # sdist on 3.15 (R-03).
+          python-version: "3.14"
       - name: The external bar + platform units are provisioned (bridge retired)
         run: make deploy-coverage
 
@@ -129,6 +149,11 @@ jobs:
       # unmatched in either direction. It is itself a gate in that set, so the
       # check that proves the list is complete runs in the list it proves.
       - uses: astral-sh/setup-uv@v5
+        with:
+          # Runtime requires >=3.14; pin the interpreter so uv selects a
+          # CPython with a cp314 Pillow wheel instead of building 11.3.0 from
+          # sdist on 3.15 (R-03).
+          python-version: "3.14"
       - name: Workflow jobs match `make gates-ci`
         run: make ci-gates-parity
 
