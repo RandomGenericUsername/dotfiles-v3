@@ -49,8 +49,8 @@ recorded).
 | This ledger's worktree | `.worktrees/residuals/`, branch `ticket/residuals-assets-split-residuals` (guard-created, docs-only) |
 | Host | Linux; `python3 --version` → `Python 3.14.7`; `uv --version` → `uv 0.9.22`; `openspec --version` → `1.14.1` |
 | Ansible | from the installed engine `v0.1.2` tool env; the CLI prepends that env's bin dir to the child `PATH` (R-15) |
-| Pins | assets `v0.5.0` (`dotfiles/provisioning/assets.yaml:20`); installer engine `v0.1.5` (`9a9ec2b`, `dotfiles/provisioning/installer.pin`); ags-apps `v0.4.1` (`66dc3c9`); six CLI/library pins per `deploy-coverage` |
-| Engine release | `dotfiles-provision` `v0.1.5` = `9a9ec2b` (v0.1.1 = `de0b92c`, v0.1.2 = `1b2195f`, v0.1.3 = `b957432`, v0.1.4 = `d97c697`); wheel carries 87 `provisioning/_ansible/` entries |
+| Pins | assets `v0.5.0` (`dotfiles/provisioning/assets.yaml:20`); installer engine `v0.1.6` (`a809293`, `dotfiles/provisioning/installer.pin`); ags-apps `v0.4.1` (`66dc3c9`); six CLI/library pins per `deploy-coverage` |
+| Engine release | `dotfiles-provision` `v0.1.6` = `a809293` (v0.1.1 = `de0b92c`, v0.1.2 = `1b2195f`, v0.1.3 = `b957432`, v0.1.4 = `d97c697`, v0.1.5 = `9a9ec2b`); wheel carries 87 `provisioning/_ansible/` entries |
 | Assets release | `dotfiles-assets` `v0.5.1` = `4683c76` (gate-only `validate-configs`; zero corpus bytes); the composition still pins `v0.5.0` |
 | Measurement date | 2026-10-22 |
 
@@ -302,7 +302,10 @@ absent (`dotfiles/ holds ['provisioning'] (config/ is absent; the active-theme i
 state)`). Executed evidence: `make btop-theme-studio-tests` → all suites pass (targets includes the
 new path and the no-old-path guard); engine targeted suite `383 passed, 12 deselected`; btop
 integration `2 passed`; composition `make gates-ci` → all six green; host
-`verify --expected-engine-tag v0.1.4` → `rc=0`, `failed=0`. Status: **CLOSED**.
+`verify --expected-engine-tag v0.1.4` → `rc=0`, `failed=0`. Post-close integration: v0.1.6
+(`a809293`) bumps the `verify` role's ags-apps mirror to `v0.4.1` and adds
+`TestVerifyAgsAppsPinMirror`, after v0.1.5 shipped the role pin ahead of the verify mirror.
+Status: **CLOSED**.
 
 
 ### R-04 — Display-manager host apply skipped after the template move — **CLOSED** (2026-10-23)
