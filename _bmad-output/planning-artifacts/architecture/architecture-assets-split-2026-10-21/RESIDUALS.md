@@ -47,9 +47,10 @@ belong here, and an entry is not closed because the code "looks right".
 | `dotfiles-v3` baseline | `2f5ee95e` — `fix(zsh): gate login-shell become, prune .zshrc.j2 residue, align schema glob`; `git status --porcelain` empty at start |
 | This ledger's worktree | `.worktrees/residuals/`, branch `ticket/residuals-assets-split-residuals` (guard-created, docs-only) |
 | Host | Linux; `python3 --version` → `Python 3.14.7`; `uv --version` → `uv 0.9.22`; `openspec --version` → `1.14.1` |
-| Ansible | from the installed engine `v0.1.1` tool env; the CLI prepends that env's bin dir to the child `PATH` (R-15) |
-| Pins | assets `v0.5.0` (`dotfiles/provisioning/assets.yaml:20`); installer engine `v0.1.1` (`de0b92c`, `dotfiles/provisioning/installer.pin`); six CLI/library pins per `deploy-coverage` |
-| Engine release | `dotfiles-provision` `v0.1.1` = `de0b92c`; wheel carries 87 `provisioning/_ansible/` entries |
+| Ansible | from the installed engine `v0.1.2` tool env; the CLI prepends that env's bin dir to the child `PATH` (R-15) |
+| Pins | assets `v0.5.0` (`dotfiles/provisioning/assets.yaml:20`); installer engine `v0.1.2` (`1b2195f`, `dotfiles/provisioning/installer.pin`); six CLI/library pins per `deploy-coverage` |
+| Engine release | `dotfiles-provision` `v0.1.2` = `1b2195f` (v0.1.1 = `de0b92c`); wheel carries 87 `provisioning/_ansible/` entries |
+| Assets release | `dotfiles-assets` `v0.5.1` = `4683c76` (gate-only `validate-configs`; zero corpus bytes); the composition still pins `v0.5.0` |
 | Measurement date | 2026-10-22 |
 
 > The assets checkout advanced from `v0.4.0` (`92100a6`) to `v0.5.0` (`d894f9b`) while this ledger was
@@ -60,72 +61,33 @@ belong here, and an entry is not closed because the code "looks right".
 
 | ID | Priority | Residual | Closing slice | Status |
 | --- | --- | --- | --- | --- |
-| R-11 | P1 | Runtime/verify `schema_major` support window and the deployed `assets/pinned` **content** assertion are S5 work, not landed | S5 | OPEN |
-| R-07 | P1 | `dotfiles/config/btop/active-theme` — mutable preference still in the composition repo (OPEN-5) | S7 | OPEN |
-| R-08 | P1 | Stale docs name retired paths (`docs/POLKIT_AGENT_INTEGRATION.md:67`, `docs/99-…` table, openspec history) | S7 | OPEN |
+| R-07 | P1 | `dotfiles/config/btop/active-theme` — mutable preference still in the composition repo (OPEN-5); the studio still writes the pre-split path | ags-apps studio release + S7 closeout | OPEN-BLOCKED |
 | R-10 | P1 | VM end-to-end gate never run — `incus` unavailable here; every slice marks it `PLANNED` | final end-to-end (S7 or dedicated) | OPEN-BLOCKED |
-| R-01 | P1 | AD-8.4 required-var parity is not run in CI (and would skip without an assets checkout); only the static shape is gated by `deploy-coverage` | engine v0.1.1 CI job / first push | OPEN-BLOCKED |
-| R-05 | P2 | Assets `configs` class has no `validate-configs` gate; content invariants are release-time manual commands | dedicated assets cleanup | OPEN |
-| R-04 | P2 | Display-manager host apply skipped after the template move; only the file render is proven byte-identical | dedicated host apply | OPEN |
-| R-02 | P2 | `TestVerifyRuntime` is red on a clean baseline: the fixture does not create pinned `cli-tools/{itr,weg,csg}` checkouts (pre-existing) | dedicated cleanup | OPEN |
+| R-01 | P1 | AD-8.4 required-var parity is not run in CI (and would skip without an assets checkout); only the static shape is gated by `deploy-coverage` | engine v0.1.2 CI job / first push | OPEN-BLOCKED |
+| R-04 | P2 | Display-manager host apply skipped after the template move; only the file render is proven byte-identical | dedicated host apply | OPEN-BLOCKED (no passwordless sudo) |
 | R-03 | P2 | `contracts-check` + `runtime-architecture` fail in CI on `pillow==11.3.0` under CPython 3.15 (pre-existing) | dedicated CI cleanup | OPEN-BLOCKED |
-| R-09 | P2 | `openspec validate --all` → 27 failures (19 change-level + 8 spec-level, pre-existing) | dedicated cleanup | OPEN |
-| R-06 | P3 | `hyprland.lua` (configs class) carries one render token — documented exception; moving it is a MAJOR | assets cleanup with R-05 | OPEN (accepted) |
-| R-12 | P3 | A docs correction after a release forces a PATCH tag (`v0.3.1` happened) — process note | S7 process | OPEN |
-| R-13 | P3 | `dotfiles-provision` is not on `PATH`; the old `uv run --directory src/provisioning` form is retired with the in-tree engine | S7 docs | OPEN |
-| R-14 | P3 | Host stale-env / systemd `start-limit` trap after package-tree moves: `reset-failed` landed in engine v0.1.1, stale-env preflight still absent | dedicated installer cleanup | OPEN |
-| R-16 | P2 | Composition gates need the cached engine checkout; a cold offline checkout cannot gate | dedicated installer/CI cleanup | OPEN |
 
 ---
 
 ## Open residuals
 
-### R-11 — S5: `schema_major` window + deployed `assets/pinned` content
-
-- **Priority / status:** P1 · OPEN · **Owner:** S5 (the scheduled contract slice).
-- **Evidence:**
-  - `verify/tasks/main.yml:918-921` states the gap in the role itself: *"S5 adds the stronger
-    assertion that the pin file's CONTENT equals the manifest tag; this slice asserts presence"*.
-  - `verify/tasks/main.yml:922-938`: the assets check is a `stat` over `assets/pinned` + the tag dir
-    + five class dirs, asserting one regular file and six directories. It never reads the file.
-  - `grep -rn 'assets_schema_support' src dotfiles scripts` → **no output** (0 matches). The variable
-    S5 step 1 introduces does not exist.
-  - The corpus does carry the versions to check: `git -C ../dotfiles-assets show v0.5.0:icons/schema.json`
-    → `"schema_major": 1` at line 3; `…templates/kitty/kitty.conf.vars.schema.json` → line 7. No
-    consumer reads either today.
-  - `SLICES.md:510-533` is the S5 scope + steps 1–5. Note: step 4's premise ("the current gate has
-    none") is now only half true — `deploy-coverage.py:1862-1946` already asserts the retired corpus
-    is absent and the five render roles resolve through their pin. S5 should add the **manifest
-    repo + semver tag + role/verify mirror parity** to `deploy-coverage` (the mirror parity exists as
-    unit tests but runs in no CI job — R-01), not a second absence check.
-- **Impact:** a deployed corpus whose `assets/pinned` says `vX` while the directory is `vY` passes
-  `verify`; a corpus whose `schema_major` is outside what the consumer parses is deployed happily and
-  fails later at render/runtime. AD-12's "provision refuses … verify re-asserts" is prose, not a gate.
-- **Planned resolution:** land S5 steps 1–3 and 5 (`assets_schema_support` in the assets role vars,
-  mirrored in the manifest and verify; fetch-time `assert` on every `schema_major` before the first
-  copy; verify slurps `assets/pinned` and asserts it equals the manifest tag; two negative tests).
-  Narrow step 4 as above. OPEN-4's default is "accept exactly one major".
-- **Closure proof:**
-  ```bash
-  uv run --directory src/provisioning pytest tests/unit/test_assets_role.py -q -k schema
-  uv run --directory src/provisioning pytest tests/unit/test_verify_role.py -q -k assets
-  rg -n 'assets_schema_support' src/provisioning/ansible/roles/{assets,verify}/vars/main.yml
-  make deploy-coverage
-  ```
-  Expected: both pytest runs exit 0 including the negative cases; `rg` finds ≥2 matches; the gate
-  exits 0. Also run the negative: point the pin at an older tag and observe the fetch assert name
-  the file and the expected window.
-
 ### R-07 — `dotfiles/config/btop/active-theme` is still in the composition repo (OPEN-5)
 
-- **Priority / status:** P1 · OPEN · **Owner:** S7 (composition closeout).
+- **Priority / status:** P1 · OPEN-BLOCKED (needs an `ags-apps` studio release) · **Owner:** S7
+  (composition closeout) + the studio repo.
 - **Evidence:**
   - `find dotfiles/config -type f` → exactly one file: `dotfiles/config/btop/active-theme`.
   - `cat dotfiles/config/btop/active-theme` → `colors.btop.theme` (mutable preference, written by
     the btop studio).
-  - `src/provisioning/ansible/roles/btop_config/vars/main.yml:59-63` declares
-    `btop_config_active_theme_file: "{{ btop_config_repo_root }}/dotfiles/config/btop/active-theme"`;
-    `roles/btop_config/tasks/main.yml:52-63` reads it from the repo path.
+  - Engine `ansible/roles/btop_config/vars/main.yml` declares
+    `btop_config_active_theme_file: "{{ composition_root }}/dotfiles/config/btop/active-theme"`;
+    `roles/btop_config/tasks/main.yml` reads it from the repo path.
+  - **Blocker (2026-10-22):** the pinned `ags-apps` studio still writes the pre-split composition
+    path — `btop-theme-studio/ui/StudioWindow.tsx:179` (`${repoRoot()}/dotfiles/config/btop/
+    active-theme`) and `lib/targets.ts:22` (`REPO_ACTIVE_THEME`). Deleting the file today makes
+    the studio recreate it on the next “set active”, re-dirtying the composition repo. The move
+    needs an `ags-apps` change (write `${installDir()}/config/btop/active-theme`) and a new pinned
+    tag before the engine/verify can read the spine path.
   - `ARCHITECTURE-SPINE.md:371-386` (AD-11) forbids it in assets; `:683` (OPEN-5) names this file and
     the default resolution: move it to the spine as a host-owned file, written by the studio and read
     by the renderer.
@@ -141,36 +103,6 @@ belong here, and an entry is not closed because the code "looks right".
 - **Closure proof:** `find dotfiles/config -type f` → no output; `rg -n 'dotfiles/config/btop' src
   dotfiles` → no live reference; a studio round-trip (write theme → render → verify) passes; S7's
   deploy-coverage catch-all exits 0.
-
-### R-08 — Stale docs name retired paths
-
-- **Priority / status:** P1 · OPEN · **Owner:** S7 (step 5's "make the docs true" sweep).
-- **Evidence (verified against `2f5ee95e`):**
-  - `docs/POLKIT_AGENT_INTEGRATION.md:67` — "Remove from `dotfiles/config/hypr/autostart.lua`". That
-    file now ships as `configs/hypr/autostart.lua` in the pinned corpus; the doc is labelled
-    **historical** in `ARCHITECTURE.md:629`, and the playbook it asks to import
-    (`src/provisioning/ansible/playbooks/polkit-agent.yaml`) does not exist.
-  - `docs/99-dotfiles-hexagonal-architecture.md:232` — the role table row
-    `| 7 | config_copies | repo dotfiles/config/* → spine config/ |`. `config_copies` now reads the
-    pinned `configs` class (`docs/02-config-in-spine-pattern.md:76-77`, `:212`). `:1185` is the same
-    stale claim in a present-tense "all IMPLEMENTED" list; `:1285`/`:1288` are a dated Phase-1 patch
-    record (historical provenance).
-  - `openspec/changes/archive/2026-09-25-bluetooth-row-battery-signal/tasks.md:5` (retired
-    `dotfiles/assets/icon-templates/...`) and `design.md:96` — archive provenance, not live
-    instructions.
-  - S7's own acceptance gate is explicit: `SLICES.md:662-663` (step 5) and `SLICES.md:697-699`
-    (`rg -n 'src/provisioning|dotfiles/assets/icon-templates' AGENTS.md ARCHITECTURE.md` → expect
-    exit 1, historical dirs excluded).
-- **Impact:** a reader following the POLKIT doc edits a file that no longer exists; the as-built
-  role table (`Domain 1 As-Built (reference)`, `docs/99-dotfiles-hexagonal-architecture.md:197-235`)
-  describes a source that moved. S7's "docs are not lying" gate is a stated acceptance criterion.
-- **Planned resolution:** S7 sweep: fix the live/as-built docs; for documents already labelled
-  historical, either add a one-line "moved to `dotfiles-assets` at `<tag>`" provenance note or list
-  them as an explicit historical exemption in the S7 closeout (do not rewrite archive provenance).
-  Also add the missing `dotfiles-provision` invocation form to the same sweep (R-13).
-- **Closure proof:** `rg -n 'dotfiles/config/(hypr|zsh)|dotfiles/assets/icon-templates' docs
-  AGENTS.md ARCHITECTURE.md` → no live rows (historical rows either annotated or explicitly
-  exempted in the S7 closeout); `make gates-ci` exit 0.
 
 ### R-10 — The VM end-to-end gate has never run
 
@@ -244,49 +176,21 @@ belong here, and an entry is not closed because the code "looks right".
   `skipped` for `TestRequiredVarsAreSupplied`, `TestTheCorpusActuallyHasTheseTemplates`), plus a
   negative run: add a fake required name to one schema → the job fails naming the missing var.
 
-### R-05 — The assets `configs` class has no validator
-
-- **Priority / status:** P2 · OPEN · **Owner:** dedicated assets-repo cleanup (after S7; the class
-  boundary is already documented).
-- **Evidence:**
-  - `git -C ../dotfiles-assets show v0.5.0:Makefile | grep -n 'GATES :='` → line 36:
-    `validate validate-icons validate-content validate-templates validate-desktop lint hermetic`.
-    There is no `validate-configs`; `scripts/` holds `validate-catalog.py`, `-content.py`,
-    `-desktop.py`, `-icons.py`, `-templates.py`, `ci-gates-parity.py`, `worktree-guard.sh`.
-  - `git show v0.5.0:catalog.yaml | sed -n '44,56p'` → the configs class declares `schema: null`,
-    `schema_major: null` (deliberate: no contract file to parse).
-  - `git show v0.5.0:configs/README.md | sed -n '77,98p'` → "The per-file boundary has no validator
-    of its own at this tag", followed by four **release-time manual commands** (no `.j2`/`.tpl`, no
-    `active-theme`, no rendered output, exactly one `{{` at `hyprland.lua:7`).
-  - Consumer side: verify only asserts the six configs subdirectories exist
-    (`verify/tasks/main.yml:944-962`), and `deploy-coverage` only asserts the in-tree corpus is gone
-    (`deploy-coverage.py:1831-1859`). No consumer gate reads the class content.
-- **Impact:** a second render token, a stray `.j2`/`.tpl`, a mutable file, or a rendered file under
-  `configs/` is caught only if a person runs the README commands at release time. The assets README's
-  "Each class validator arrives **with** its corpus" (`git show v0.5.0:README.md | sed -n '28,29p'`)
-  is not true for this class; the tag can ship content the release check never saw.
-- **Planned resolution:** add `scripts/validate-configs.py` + `make validate-configs` (a `GATES`
-  member with its own CI job), implementing the four release commands as executable checks, with
-  negative fixtures. Assert exactly one token and name `configs/hypr/hyprland.lua:7` in the failure
-  message. This also closes R-06's coverage gap without moving the file.
-- **Closure proof:** `make validate-configs` exit 0; a negative test (add a second `{{` token, or a
-  `.j2` file) fails naming the file; the assets CI run shows the new job green.
-
 ### R-04 — Display-manager host apply skipped after the template move
 
-- **Priority / status:** P2 · OPEN · **Owner:** dedicated host-apply cleanup (or S7's end-to-end with
-  R-10).
+- **Priority / status:** P2 · OPEN-BLOCKED (this host has no passwordless sudo: `sudo -n true` →
+  exit 1) · **Owner:** dedicated host-apply cleanup (or S7's end-to-end with R-10).
 - **Evidence:**
-  - `src/provisioning/ansible/playbooks/display-manager.yaml:14` → `become: true`; the role installs
+  - Engine `ansible/playbooks/display-manager.yaml:14` → `become: true`; the role installs
     packages, fetches/patches Pixie, writes `/etc/sddm.conf.d/10-dotfiles.conf` and enables/disables
-    services (`roles/display_manager/tasks/main.yml:38-135`).
+    services (`ansible/roles/display_manager/tasks/main.yml:38-135`).
   - The render task now reads the pinned corpus
-    (`roles/display_manager/tasks/main.yml:68-74` → `{{ display_manager_assets_templates_dir }}/display-manager/sddm.conf.j2`),
-    and the pin is `v0.4.0` (`roles/display_manager/vars/main.yml:34-35`).
+    (`ansible/roles/display_manager/tasks/main.yml:68-74` → `{{ display_manager_assets_templates_dir }}/display-manager/sddm.conf.j2`),
+    and the pin is `v0.5.0` (`ansible/roles/display_manager/vars/main.yml`).
   - Executed render proof (2026-10-22), reproducible:
     ```bash
     ASSETS=/home/inumaki/Development/dotfiles/dotfiles-assets
-    uv run --directory src/provisioning python - "$ASSETS" <<'PY'
+    uv run --directory /home/inumaki/Development/dotfiles/dotfiles-provision python - "$ASSETS" <<'PY'
     import hashlib, sys
     from pathlib import Path
     from jinja2 import Environment, StrictUndefined
@@ -320,51 +224,6 @@ belong here, and an entry is not closed because the code "looks right".
 - **Closure proof:** playbook recap `failed=0`; `cmp` of the rendered file; `systemctl is-enabled
   sddm` → `enabled`; `verify` exit 0.
 
-### R-02 — `TestVerifyRuntime` is red on a clean baseline (pre-existing)
-
-- **Priority / status:** P2 · OPEN (pre-existing, not caused by the split; fixture repair landed,
-  full class not yet green in one run) · **Owner:** dedicated cleanup.
-- **Update (2026-10-22):** the fixture gap is fixed in `e11daa4` — `_seed_cli_tools` writes
-  `install/cli-tools/{csg,weg,itr}/<tag>/` and the `pinned` records
-  (`tests/unit/test_verify_role.py:4124-4125`). Engine `v0.1.1` (`de0b92c`) also repairs the WEG
-  negative-lock stub so it fails on `weg info` while still reporting the pinned `--version`.
-  The class now collects 12 tests (the R-17 engine-tag test joined it). It was **not** run to
-  green in this sweep: the whole class exceeded the 290 s budget (`timeout 290` → rc 124, two
-  tests in), and the single `test_verify_passes_on_a_provisioned_machine` also exceeded 250 s
-  because it executes the whole role. R-02 stays open until a `make test-integration` run reports
-  the class green and the negative lock still bites.
-- **Evidence (executed at `2f5ee95e`):**
-  ```
-  uv run --directory src/provisioning pytest tests/unit/test_verify_role.py::TestVerifyRuntime -q
-  → 6 failed, 3 passed in 219.62s
-  ```
-  First failure: `TASK [verify : Read the itr pin record]` fails with
-  `File not found: /tmp/…/install/cli-tools/itr/pinned` (`verify/tasks/main.yml:424`).
-  - The class has 9 tests. Failing: `test_verify_passes_on_a_provisioned_machine`,
-    `test_verify_fails_when_parse_gate_binary_fails`, `test_verify_fails_when_dunst_is_not_masked`,
-    `test_verify_fails_when_ags_overlay_is_down`, `test_verify_fails_when_directory_handler_is_wrong`,
-    `test_verify_criterion_6_checks_current_only`. Passing:
-    `test_verify_fails_when_settings_reference_missing_dir`,
-    `test_verify_fails_when_csg_color_template_missing`, `test_verify_fails_when_not_provisioned`
-    (negative tests that expect failure anyway).
-  - Cause: `_build_provisioned_layout` (`test_verify_role.py:3487-3976`) seeds the spine, the assets
-    checkout, the ags units, the runtime state and the `~/.config` links — but no
-    `install/cli-tools/{itr,weg,csg}/<tag>/` checkout and no `pinned` records. The verify role's
-    pinned-CLI assertions were added on 2026-10-20 (`0bc85765`, "install itr from its pinned repo");
-    the fixture's spine set predates that (`1dc9741d`, 2026-08-16).
-  - **Correction:** this item was handed over as "9 tests red". Execution narrows that to **6 of 9
-    red, 3 passing** at the baseline. The class as a whole is red; the count is 6.
-- **Impact:** the only execution test of `verify` — the negative lock that proves the gate is not
-  vacuous — cannot run green on a clean master. A real verify regression is indistinguishable from
-  the fixture gap, and the class trains developers to ignore a red run.
-- **Planned resolution:** extend the fixture with a `_seed_cli_tools(install)` helper that creates
-  `install/cli-tools/{itr,weg,csg}/<pinned tag>/` plus the `pinned` files (and whatever the weg image
-  reference / itr version assertions require), keeping the negative-lock tests intact. Alternatively
-  scope the verify playbook's CLI-pin assertions to a separate execution test and seed them there.
-- **Closure proof:** `pytest tests/unit/test_verify_role.py::TestVerifyRuntime -q` → 9 passed;
-  delete one criterion element and confirm the negative lock still fails (the class's original
-  purpose); no skips.
-
 ### R-03 — CI is red on `pillow==11.3.0` under CPython 3.15 (pre-existing)
 
 - **Priority / status:** P2 · OPEN-BLOCKED (fix landed, awaiting a green CI run) · **Owner:**
@@ -396,161 +255,6 @@ belong here, and an entry is not closed because the code "looks right".
   Pillow cap only when a `cp315` wheel exists. Then re-run the workflow.
 - **Closure proof:** a green run on master where `gh run view <id> --json jobs` shows all six jobs
   `success`, and the log shows `Using CPython 3.14.x` (no `Failed to build`).
-
-### R-09 — `openspec validate --all` baseline failures (pre-existing)
-
-- **Priority / status:** P2 · OPEN (pre-existing) · **Owner:** dedicated cleanup.
-- **Evidence (executed at `2f5ee95e`):**
-  - `openspec validate --all` → `Totals: 104 passed, 27 failed (131 items)`.
-  - `openspec validate --specs` → `Totals: 41 passed, 8 failed (49 items)`.
-  - `ARCHITECTURE.md:601` records the same shape: 27 failures = 19 legacy change-level + 8 legacy
-    spec-shape defects. The 8 measured `--specs` failures match that decomposition.
-  - Representative errors: the `wifi-*` changes fail with "Change must have at least one delta. No
-    deltas found" (pure-refactor/doc changes without `skip_specs: true`); `oci-test-contracts` and
-    `oci-version-error-contract` fail with delta headers inside a main spec.
-- **Impact:** a local quality gate that cannot be green; S7 adds
-  `openspec/specs/assets-repo-consumption/spec.md` into a validator with 27 known failures, so a new
-  invalid spec is indistinguishable from the baseline.
-- **Planned resolution:** triage in two buckets — (a) set `skip_specs: true` in the `.openspec.yaml`
-  of the pure-refactor/doc-only changes that legitimately have no deltas; (b) repair the 8 main-spec
-  shape defects (move delta headers/content back under `## Requirements`, or rewrite the requirements
-  in place). If full repair cannot land before S7, record the exact failing names and add a
-  "no new failures" ratchet (diff the failing set before/after) rather than claiming green.
-- **Closure proof:** `openspec validate --all` → `0 failed`; `openspec validate --specs` → `0 failed`;
-  or a recorded baseline file + a script that fails only on a newly-added failing name.
-
-### R-06 — `hyprland.lua` carries one render token (accepted exception)
-
-- **Priority / status:** P3 · OPEN (accepted, documented) · **Owner:** the assets cleanup that closes
-  R-05 (do not move the file).
-- **Evidence:**
-  - `git -C ../dotfiles-assets show v0.5.0:configs/hypr/hyprland.lua` → line 7:
-    `local cfg = "{{ compositor_configs_xdg_config_home }}/hypr"`.
-  - `git -C ../dotfiles-assets show v0.5.0:configs/README.md | sed -n '46,58p'` documents it as
-    the one render-time value; the class is "deployment-fixed", not brace-free.
-  - `git -C ../dotfiles-assets show v0.3.1:CHANGELOG.md | sed -n '8,20p'` records the boundary
-    correction (the v0.3.0 README had claimed "nothing here is rendered").
-  - Consumer: `compositor_configs` deploys this one entry with `template`, not `copy`
-    (`roles/compositor_configs/vars/main.yml:118-131`; task comment at
-    `roles/compositor_configs/tasks/main.yml:31`).
-- **Impact:** one file in a "configs" class is rendered; the class contract now has an exception a
-  future contributor can widen silently (no gate — see R-05). Moving it to `templates/` would change
-  its addressed path and therefore require a MAJOR tag, which the split does not need.
-- **Planned resolution:** keep the file where it is. R-05's `validate-configs` asserts exactly this
-  one token (the `grep -rn '{{' configs` release command), so a second token fails. No MAJOR.
-- **Closure proof:** `make validate-configs` asserts one line, `configs/hypr/hyprland.lua:7`; adding a
-  second token in a negative fixture fails.
-
-### R-12 — A docs correction after a release needs a PATCH (process note)
-
-- **Priority / status:** P3 · OPEN · **Owner:** S7 process/runbook.
-- **Evidence:**
-  - `git -C ../dotfiles-assets show v0.3.1:CHANGELOG.md` → lines 8-20: "The `configs/` boundary prose
-    was wrong for `hypr/hyprland.lua`… Corpus bytes are identical to v0.3.0 — this is a documentation
-    correction, and the tag is new rather than moved."
-  - `git -C ../dotfiles-assets diff --stat v0.3.0 v0.3.1` → 5 files (CHANGELOG, README, catalog.yaml,
-    configs/README.md, openspec spec), 79 insertions / 21 deletions — no corpus file.
-  - `git -C ../dotfiles-assets rev-parse v0.3.1` → `4359b4f…` (`2ecd7cb`, "docs(configs): the
-    boundary is deployment-fixed, not brace-free"). The tag was created new; the v0.3.0 tag was not
-    moved.
-- **Impact:** a consumer pinned at `v0.3.0` never sees the corrected README/catalog. The fix cost a
-  PATCH tag for prose alone; repeated doc slips add tag noise, and a consumer that treats
-  README/catalog as the consumed surface must bump its pin for a typo.
-- **Planned resolution:** add a release-runbook line (assets repo + S7 pin table): batch docs
-  corrections before tagging; after a tag, cut a PATCH and never move the tag; bump the consumer pin
-  only when the corrected file is a consumed surface (catalog/schema), otherwise record the correction
-  and leave the pin. The next docs-only correction is the dry run.
-- **Closure proof:** the runbook path + line exist; the next docs-only change either lands before its
-  tag or ships as a PATCH with the same 5-file shape (no corpus bytes).
-
-### R-13 — `dotfiles-provision` is not on `PATH`
-
-- **Priority / status:** P3 · OPEN · **Owner:** S7 docs (one line) plus an optional Makefile helper.
-- **Evidence:**
-  - `command -v dotfiles-provision` → no output (exit 1).
-  - The console script exists only inside the project venv:
-    `src/provisioning/.venv/bin/dotfiles-provision` exists.
-  - The declared script is `src/provisioning/pyproject.toml:14-15`
-    (`dotfiles-provision = "provisioning.cli.main:app"`).
-  - **Update (2026-10-22):** the cited in-tree `src/provisioning` path was deleted by S6b, so the
-    `uv run --directory src/provisioning` form is no longer runnable in this repo. The working
-    forms are the installed tool (`~/.local/bin/dotfiles-provision`, as bootstrap uses) or
-    `uv run --directory .dev/dotfiles-provision-<tag> dotfiles-provision …`. The one-line docs
-    fix and optional `make provision` wrapper are still open.
-- **Impact:** a reader copy-pasting `dotfiles-provision verify` from a ticket or an older doc gets
-  `command not found`; the docs assume a PATH install that the repo deliberately does not create.
-- **Planned resolution:** add a `make provision ARGS="verify"` wrapper that runs the `uv run` form,
-  and a one-line note in `src/provisioning/README.md` (the repo has no root `README.md`) plus the S7
-  docs sweep. Do not add a global install step to provisioning; the pinned-engine model wants the
-  source dir.
-- **Closure proof:** from a clean shell, `make provision ARGS=--help` exits 0 and prints the four
-  commands; the note is in the docs.
-
-### R-14 — Stale-env / `start-limit` trap has no provisioning-time mitigation
-
-- **Priority / status:** P3 · OPEN (partial mitigation in engine `v0.1.1`) · **Owner:** dedicated
-  installer cleanup (post-split).
-- **Landed part (engine `v0.1.1`, `de0b92c`):** `runtime_daemon/tasks/main.yml` now runs
-  `systemctl --user reset-failed <unit>` before the enable/start mutation, gated on the manager
-  probe and check-mode safe, with a unit test asserting the order
-  (`test_start_limit_is_cleared_before_enable_start`). The stale `direct_url.json` preflight from
-  the planned resolution is still absent, so this item remains open.
-- **Evidence:**
-  - `ARCHITECTURE.md:598` documents the systemd trap: an `ExecStart` line ending in a Jinja block tag
-    gets the next line merged (`daemon run# …` → `No such command 'run#'` → `start-limit-hit`);
-    `roles/runtime_daemon/vars/main.yml:26-35` is the workaround, and the unit template repeats the
-    warning (`roles/runtime_daemon/templates/dotfiles-runtime-daemon.service.j2:24-30`).
-  - `ARCHITECTURE.md:599` documents the stale uv-tool env: `uv tool list` can report the right version
-    while `direct_url.json` points at a deleted path, so every console dies with
-    `ModuleNotFoundError` after a tree move.
-  - Neither has a provisioning-time check: `grep -rn 'direct_url' src/provisioning/ansible
-    src/provisioning/src src/runtime/src` → one comment only (`roles/cli_tools/tasks/main.yml:289`);
-    `grep -rn 'reset-failed'` in the same roots → no matches. `daemon_reload` exists
-    (`display_manager/tasks/main.yml:122`, `runtime_daemon/handlers/main.yml:22`) but does not detect
-    the stale-env case or clear a start-limit.
-- **Impact:** after a package-tree move, a host can look provisioned while its tool consoles are
-  dead; a unit that hit `start-limit` stays down until a human runs `reset-failed`, and the next
-  provision can report green because the unit is merely "enabled".
-- **Planned resolution (idea, not decided):** add a preflight to `bootstrap`/`apply` that (a) scans
-  `~/.local/share/uv/tools/*/…/direct_url.json` for URLs under retired roots and reinstalls those
-  tools, (b) after unit render asserts `systemctl --user show -p ExecStart <unit>` contains no `{%`
-  or swallowed `#` continuation, and (c) runs `daemon-reload` + `reset-failed` before
-  `enable --now`. A negative fixture with a stale `direct_url.json` and a block-ending `ExecStart`
-  proves both checks bite.
-- **Closure proof:** the preflight fails on both negative fixtures and passes on a clean host; a real
-  host apply after a tree move comes up with the daemon active and no `start-limit-hit`.
-
-### R-16 — Composition gates need the cached engine checkout
-
-- **Priority / status:** P2 · OPEN · **Owner:** dedicated installer/CI cleanup.
-- **Evidence (2026-10-22):** with an empty cache and an unreachable proxy, the gate fails rather
-  than skips:
-
-  ```text
-  $ DOTFILES_PROVISION_CACHE_DIR=/tmp/opencode/engine-offline \
-      HTTPS_PROXY=http://127.0.0.1:9 https_proxy=http://127.0.0.1:9 \
-      uv run --no-project --with pyyaml python scripts/deploy-coverage.py   # exit 1
-  FAIL cannot fetch the pinned installer engine v0.1.0 into
-  /tmp/opencode/engine-offline/dotfiles-provision-v0.1.0 (fatal: unable to access
-  'https://github.com/RandomGenericUsername/dotfiles-provision/': Failed to connect
-  to github.com:443 over proxy 127.0.0.1 after 0 ms: Could not connect to server).
-  The composition gates need the engine checkout; connect once, or pre-populate
-  /tmp/opencode/engine-offline/dotfiles-provision-v0.1.0 at v0.1.0. Offline is a
-  hard failure, never a silent pass.
-  ```
-
-  `scripts/engine_checkout.py:65-140` is the only resolver; `fetch=False` raises with the same
-  path/pin but no gate exposes it as a mode.
-- **Impact:** a cold, network-less composition checkout (a sealed CI runner, a review laptop) cannot
-  run `make deploy-coverage` or `make gates-ci`, even though nothing on the host changed. The
-  failure is loud and correct — but it is an availability gap, not a shape gap.
-- **Planned resolution:** cache `.dev/dotfiles-provision-<tag>/` in CI keyed by the pin, document the
-  pre-populate command in `bootstrap.sh`/`ARCHITECTURE.md` (done in §12), and surface an explicit
-  `--offline`/`DOTFILES_PROVISION_OFFLINE=1` mode that turns a missing cache into one sentence
-  instead of a `git` error. Do not vendor the engine tree here.
-- **Closure proof:** on a network-disabled runner with a pre-populated cache, `make deploy-coverage`
-  exits 0; with the cache absent and the offline mode set, it exits 1 with the one-sentence message
-  and no clone attempt.
 
 ---
 
@@ -634,6 +338,87 @@ verify role runs `dotfiles-provision --output-format plain version`, normalizes 
 
 ---
 
+
+### R-11 — S5 `schema_major` window + deployed pin content — **CLOSED** (engine `v0.1.2`, `1b2195f`)
+
+`assets_schema_support` exists in the assets role and mirrors to `verify_assets_schema_support`;
+the assets role asserts every `schema_major` before the first copy, and verify slurps
+`assets/pinned` and re-reads the deployed contracts. Executed 2026-10-22 in the engine worktree:
+`pytest tests/unit/test_assets_role.py -q -k schema` → `10 passed`; `pytest
+tests/unit/test_verify_role.py -q -k assets` → `10 passed`; `make deploy-coverage` → PASS with
+assets `v0.5.0`. The negative fetch case is in the 10-test selection (`schema_major 2` fails naming
+the support window). Status: **CLOSED**.
+
+### R-08 — Stale docs name retired paths — **CLOSED** (this sweep)
+
+Updated `docs/POLKIT_AGENT_INTEGRATION.md` (pinned engine/corpus paths + historical banner),
+`docs/99-dotfiles-hexagonal-architecture.md` (current role table, assets/engine note, annotated
+patch record), `docs/01-dotfiles-provisioning-phase1-plan.md` and both investigation spikes
+(historical banners), and the Bluetooth archive (`tasks.md`/`design.md` provenance banners). The
+S7 acceptance grep `rg -n 'src/provisioning|dotfiles/assets/icon-templates' AGENTS.md
+ARCHITECTURE.md` → exit 1; remaining `docs` hits are annotated historical rows. Status:
+**CLOSED**.
+
+### R-05 — The assets `configs` class has no validator — **CLOSED** (assets `v0.5.1`, `4683c76`)
+
+Added `scripts/validate-configs.py` + `make validate-configs` (a `GATES` member with its own CI
+job): no `*.j2`/`*.tpl`, no mutable/rendered file, every file non-empty, and exactly one render
+token at `configs/hypr/hyprland.lua:7`. Executed with `PATH` carrying shellcheck:
+`make gates-ci` → all gates PASS; the gate prints `PASS -- … exactly one render token at
+configs/hypr/hyprland.lua:7`. Negative fixtures: a stray `.j2` fails naming the file; a second
+token fails naming both `configs/hypr/hyprland.lua:7` and `configs/hypr/input.lua:31`. No corpus
+bytes changed; the composition stays on assets `v0.5.0` (R-12). Status: **CLOSED**.
+
+### R-02 — `TestVerifyRuntime` is red on a clean baseline — **CLOSED** (engine `v0.1.2`)
+
+The fixture seeds the pinned `cli-tools/{csg,weg,itr}` checkouts and `pinned` records, and the WEG
+negative-lock stub now reports the pinned `--version` but fails `weg info`. Executed 2026-10-22:
+`uv run --with pytest-xdist pytest tests/unit/test_verify_role.py::TestVerifyRuntime -q -n 12`
+→ `12 passed in 332.63s`; the class includes the negative locks and the R-17 engine-tag test. The
+serial run exceeds five minutes, so the parallel invocation is the reproducible form. Status:
+**CLOSED**.
+
+### R-09 — `openspec validate --all` baseline failures — **CLOSED** (this sweep)
+
+`openspec validate --all` → `135 passed, 0 failed (135 items)`; `openspec validate --specs` →
+`53 passed, 0 failed`. Fixes: `skip_specs: true` on the 16 changes with no spec deltas, missing
+scenarios added to the Bluetooth and capture-dependency changes, `## ADDED Requirements` on the
+audio change, `## Purpose`/`## Requirements` added to the three legacy specs, delta headers removed
+from the three OCI main specs, and scenarios added to the two OCI specs. Status: **CLOSED**.
+
+### R-06 — `hyprland.lua` carries one render token — **CLOSED** (assets `v0.5.1`)
+
+`make validate-configs` asserts exactly one token at `configs/hypr/hyprland.lua:7`; a second token
+fails naming both locations. The file stays in `configs/` (no MAJOR). Status: **CLOSED**.
+
+### R-12 — A docs correction after a release needs a PATCH — **CLOSED** (process)
+
+Runbook line added to `ARCHITECTURE.md` §11: batch docs corrections before tagging; after a tag,
+never move it — cut a PATCH; bump consumer pins only for consumed surfaces (catalog, schema, corpus
+bytes). `dotfiles-assets v0.5.1` (gate-only, zero corpus bytes) is the dry run and the composition
+stays on `v0.5.0`. Status: **CLOSED**.
+
+### R-13 — `dotfiles-provision` is not on `PATH` — **CLOSED** (`99950f7c`)
+
+`make provision ARGS="--help"` runs the installed console from `UV_TOOL_BIN_DIR` and lists
+plan/apply/verify/bootstrap (exit 0); `ARCHITECTURE.md` §6.1 documents the short form and marks the
+old in-tree `uv run --directory` path retired. Status: **CLOSED**.
+
+### R-14 — Stale-env / `start-limit` trap — **CLOSED** (engine `v0.1.2`, `1b2195f`)
+
+Three executable mitigations: `reset-failed` before enable/start (v0.1.1); a post-install
+`direct_url.json` scan that fails naming any `file://` checkout that no longer exists (negative
+fixture → `stale uv tool direct_url(s): …` rc=1); and a deployed-unit assert that `ExecStart`
+carries no `{%`/`%}` or swallowed `#` continuation. Targeted tests: `92 passed`; the full targeted
+suite is `347 passed, 12 deselected`. Status: **CLOSED**.
+
+### R-16 — Composition gates need the cached engine checkout — **CLOSED** (this sweep)
+
+`DOTFILES_PROVISION_OFFLINE=1` turns a cache miss into one sentence with no clone attempt, while a
+pre-populated cache still gates offline. Executed: empty cache + offline → `FAIL offline: the
+pinned engine checkout is missing at …` rc=1 (no git error); pre-populated cache + offline
+`make deploy-coverage` → PASS rc=0. Status: **CLOSED**.
+
 ## Corrections made while writing this ledger
 
 These are the places where the handover text and the executed evidence disagreed. They are recorded
@@ -689,6 +474,17 @@ here so a later reader does not "fix" the ledger back to the unverified wording.
 | R-17 fix | host `dotfiles-provision … verify --expected-engine-tag v0.1.1` | `rc=0`, every task `ok` |
 | R-17 fix | `pytest TestEngineTagAssertion …::test_engine_tag_is_asserted_against_the_pin -q` | `4 passed`; `v1.2.3` mismatch fails naming both versions |
 | Engine gates | `uv run pytest tests/test_packaging.py tests/unit/application/test_verify_capability_use_case.py tests/unit/cli/test_commands.py tests/unit/test_runtime_daemon_role.py tests/unit/test_verify_role.py tests/unit/adapters -q -m 'not integration'` | `286 passed, 12 deselected in 30.56s`; ruff + mypy clean; lock/docs/ci-gates-parity green |
+| R-11 close | engine `pytest test_assets_role.py -q -k schema`; `pytest test_verify_role.py -q -k assets`; `make deploy-coverage` | `10 passed`; `10 passed`; PASS with assets `v0.5.0` |
+| R-02 close | engine `pytest …::TestVerifyRuntime -q -n 12` (pytest-xdist) | `12 passed in 332.63s` |
+| R-05 close | assets `make gates-ci` (shellcheck shim); negative `.j2` and second-token fixtures | all gates PASS; negatives fail naming the file / both `:7` and `:31` locations |
+| R-09 close | `openspec validate --all`; `openspec validate --specs` | `135 passed, 0 failed`; `53 passed, 0 failed` |
+| R-13 close | `make provision ARGS=--help` | exit 0; plan/apply/verify/bootstrap listed |
+| R-14 close | engine targeted suite `347 passed`; stale `direct_url.json` negative; unit assertions | negative rc=1 naming the missing `file://` checkout; ExecStart assert present |
+| R-16 close | empty cache + `DOTFILES_PROVISION_OFFLINE=1`; pre-populated cache + offline `make deploy-coverage` | one-sentence `FAIL offline: …`, rc=1, no clone; PASS rc=0 offline |
+| R-08 close | `rg -n 'src/provisioning\|dotfiles/assets/icon-templates' AGENTS.md ARCHITECTURE.md` | exit 1 (no live rows) |
+| R-07 blocker | `rg -n 'active-theme' <ags-apps>/btop-theme-studio` | `StudioWindow.tsx:179`, `targets.ts:22` still write `dotfiles/config/btop/active-theme` |
+| R-04 blocker | `sudo -n true` | exit 1 (no passwordless sudo); host apply not run |
+| R-15/R-17 host | tag install + `verify --expected-engine-tag v0.1.2` | installed `1b2195f`; verify `rc=0`, every task `ok` |
 
 Every open item above names a closure proof that re-runs the same kind of observation. When an item
 is closed, move it to *Resolved during the split* with the command output and the resolving commit;
