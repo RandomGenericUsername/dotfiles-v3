@@ -62,7 +62,6 @@ belong here, and an entry is not closed because the code "looks right".
 | ID | Priority | Residual | Closing slice | Status |
 | --- | --- | --- | --- | --- |
 | R-10 | P1 | VM end-to-end gate never run — `incus` unavailable here; every slice marks it `PLANNED` | final end-to-end (S7 or dedicated) | OPEN-BLOCKED |
-| R-04 | P2 | Display-manager host apply skipped after the template move; only the file render is proven byte-identical | dedicated host apply | OPEN-BLOCKED (no passwordless sudo) |
 
 ---
 
@@ -93,60 +92,6 @@ belong here, and an entry is not closed because the code "looks right".
   (`make vm-fresh && make vm-verify`) and fix the `ARCHITECTURE.md:597` citation.
 - **Closure proof:** `make vm-verify` exit 0 inside the freshly provisioned guest; `dev/vm-assert.sh`
   reports no failure; the `dotfiles-provision verify` log in the guest ends `failed=0`.
-
-### R-04 — Display-manager host apply skipped after the template move
-
-- **Priority / status:** P2 · OPEN-BLOCKED (this host has no passwordless sudo: `sudo -n true` →
-  exit 1) · **Owner:** dedicated host-apply cleanup (or S7's end-to-end with R-10).
-- **Evidence:**
-  - Engine `ansible/playbooks/display-manager.yaml:14` → `become: true`; the role installs
-    packages, fetches/patches Pixie, writes `/etc/sddm.conf.d/10-dotfiles.conf` and enables/disables
-    services (`ansible/roles/display_manager/tasks/main.yml:38-135`).
-  - The render task now reads the pinned corpus
-    (`ansible/roles/display_manager/tasks/main.yml:68-74` → `{{ display_manager_assets_templates_dir }}/display-manager/sddm.conf.j2`),
-    and the pin is `v0.5.0` (`ansible/roles/display_manager/vars/main.yml`).
-  - Executed render proof (2026-10-22), reproducible:
-    ```bash
-    ASSETS=/home/inumaki/Development/dotfiles/dotfiles-assets
-    uv run --directory /home/inumaki/Development/dotfiles/dotfiles-provision python - "$ASSETS" <<'PY'
-    import hashlib, sys
-    from pathlib import Path
-    from jinja2 import Environment, StrictUndefined
-
-    assets = Path(sys.argv[1])
-    template = (assets / "templates/display-manager/sddm.conf.j2").read_text()
-    out = Environment(undefined=StrictUndefined, keep_trailing_newline=True).from_string(template).render(
-        display_manager_sddm_display_server="wayland"
-    )
-    live = Path("/etc/sddm.conf.d/10-dotfiles.conf").read_text()
-    print("rendered", hashlib.sha256(out.encode()).hexdigest())
-    print("live    ", hashlib.sha256(live.encode()).hexdigest())
-    print("byte_identical", out == live)
-    PY
-    ```
-    → `rendered f2899e15068ff804ec6ae29ee2364f6cf533f83af6f644d413d25848e1b0d483`;
-    `live f2899e15068ff804ec6ae29ee2364f6cf533f83af6f644d413d25848e1b0d483`;
-    `byte_identical True`.
-  - The schema declares exactly the one required name
-    (`git show v0.4.0:templates/display-manager/sddm.conf.vars.schema.json` → `required:
-    ["display_manager_sddm_display_server"]`).
-- **Impact:** the file body is proven equal, but the post-move host apply was skipped (handover
-  context; this ledger re-ran only the render), so the privileged path (package convergence, Pixie
-  fetch/patch, service enable/disable) has not been exercised against the pinned template. A broken
-  `install_dir` seam or a changed `become` task would not be caught by the render proof.
-- **Planned resolution (current engine path):** apply the role alone with become:
-  ```bash
-  cd dotfiles-v3
-  ENGINE=.dev/dotfiles-provision-v0.1.4
-  ANSIBLE_CONFIG="$ENGINE/ansible/ansible.cfg" \
-    uv run --directory "$ENGINE" ansible-playbook \
-    ansible/playbooks/display-manager.yaml \
-    -e install_dir="$HOME/.local/share/dotfiles" --ask-become-pass
-  ```
-  expect the template task `ok` (not `changed`), `sddm` enabled, the other DMs disabled; then run
-  `dotfiles-provision verify --expected-engine-tag v0.1.4`.
-- **Closure proof:** playbook recap `failed=0`; `cmp` of the rendered file; `systemctl is-enabled
-  sddm` → `enabled`; `verify` exit 0.
 
 ---
 
@@ -344,6 +289,19 @@ new path and the no-old-path guard); engine targeted suite `383 passed, 12 desel
 integration `2 passed`; composition `make gates-ci` → all six green; host
 `verify --expected-engine-tag v0.1.4` → `rc=0`, `failed=0`. Status: **CLOSED**.
 
+
+### R-04 — Display-manager host apply skipped after the template move — **CLOSED** (2026-10-23)
+
+The role was applied alone with become against the pinned `v0.1.4` engine (user run, no error).
+Post-apply checks executed here:
+- `systemctl is-enabled sddm` → `enabled`; `systemctl is-active sddm` → `active`.
+- Jinja render of `templates/display-manager/sddm.conf.j2` with
+  `display_manager_sddm_display_server=wayland` vs the live file: both
+  `f2899e15068ff804ec6ae29ee2364f6cf533f83af6f644d413d25848e1b0d483`, `byte_identical True`.
+- `dotfiles-provision … verify --expected-engine-tag v0.1.4` → `rc=0`,
+  `localhost ok=179 changed=0 failed=0 skipped=2`.
+Status: **CLOSED**.
+
 ## Corrections made while writing this ledger
 
 These are the places where the handover text and the executed evidence disagreed. They are recorded
@@ -411,7 +369,7 @@ here so a later reader does not "fix" the ledger back to the unverified wording.
 | R-16 close | empty cache + `DOTFILES_PROVISION_OFFLINE=1`; pre-populated cache + offline `make deploy-coverage` | one-sentence `FAIL offline: …`, rc=1, no clone; PASS rc=0 offline |
 | R-08 close | `rg -n 'src/provisioning\|dotfiles/assets/icon-templates' AGENTS.md ARCHITECTURE.md` | exit 1 (no live rows) |
 | R-07 blocker | `rg -n 'active-theme' <ags-apps>/btop-theme-studio` | `StudioWindow.tsx:179`, `targets.ts:22` still write `dotfiles/config/btop/active-theme` |
-| R-04 blocker | `sudo -n true` | exit 1 (no passwordless sudo); host apply not run |
+| R-04 close | user ran the display-manager playbook with become; `systemctl is-enabled sddm`; `systemctl is-active sddm`; render sha256 vs live; `verify --expected-engine-tag v0.1.4` | playbook no error; `enabled`; `active`; both `f2899e15…`, `byte_identical True`; verify `rc=0`, `failed=0` |
 | R-15/R-17 host | tag install + `verify --expected-engine-tag v0.1.2` | installed `1b2195f`; verify `rc=0`, every task `ok` |
 | R-07 close | `make btop-theme-studio-tests` (ags-apps `v0.4.1`); engine targeted suite; btop integration | all studio suites pass; `383 passed, 12 deselected`; `2 passed` |
 | R-07 close | composition `make gates-ci`; `deploy-coverage`; host `verify --expected-engine-tag v0.1.4` | six gates green; `dotfiles/ holds ['provisioning'] (config/ is absent …)`; host `rc=0`, `failed=0` |
