@@ -1,3 +1,9 @@
+> **Status (2026-10-23 audit):** implemented in `dotfiles-assets` + `ags-apps`
+> (seven `system-*` variants, pins, consumer prefixing, verify samples, tests).
+> 6.3 is covered by the dark-wallpaper regression tests. The microphone selector
+> fallback bug found by the audit is fixed in `ags-apps` (`bfff01b`). Only the
+> owner-green task 6.4 remains.
+
 ## 1. Manifest — 7 `system-*` variants (same templates, pinned color)
 
 - [x] 1.1 `dotfiles/config/icon-template-color-scheme-mappings/icons.yaml`
@@ -92,6 +98,6 @@
   `meta.json contrast.decisions` lists ONLY bare `volume`/`microphone`
   (never `system-*`); `volume-low.svg` carries the dark picked hex,
   `volume-system-low.svg` carries the bright `foreground` hex, no `{{` remains.
-- [ ] 6.3 Dark-wallpaper proof: bare variants keep authored tokens (no churn);
+- [x] 6.3 Dark-wallpaper proof: bare variants keep authored tokens (no churn);
   system outputs byte-identical across both wallpapers.
 - [ ] 6.4 Owner gives green. Fast suites alone do NOT close this change.

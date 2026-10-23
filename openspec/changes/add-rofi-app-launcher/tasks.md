@@ -1,3 +1,12 @@
+> **Status (2026-10-23 audit):** the launcher is LIVE in the split layout:
+> `dotfiles-assets/configs/rofi/launcher/config.rasi`, the `rofi-ui` binding in
+> `configs/hypr/keybindings.lua:32-35`, and the runtime `colors.rasi` artifact
+> (`csg_adapter.py`, `consumer_path_spec.py`). The task list and spec below are
+> the pre-split plan: they cite `src/provisioning`, `dotfiles/config`, literal
+> `rofi ... -show drun`, 4px/12px and six artifacts; the live implementation uses
+> the engine/assets repos, `rofi-ui`, 2px/16px and eight artifacts. Remaining
+> real work is a task/spec rewrite plus the manual G3-G5 checks. Keep active.
+
 ## 1. Runtime: `colors.rasi` becomes the sixth palette artifact
 
 - [ ] 1.1 `src/runtime/src/runtime/adapters/csg_adapter.py` — add `--format rasi` to the args list (after `sequences`, ~L292); add `"colors.rasi"` to the post-run artifact verify set (~L348); hash it: `colors_rasi=hash_file(output_dir / "colors.rasi")` (~L363)
