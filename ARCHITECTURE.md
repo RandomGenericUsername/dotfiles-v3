@@ -676,7 +676,10 @@ only when the corrected file is a consumed surface (`catalog.yaml`, a schema, or
   passes `--expected-engine-tag <pin>`; the role compares the installed console version and fails
   naming both tags. `engine_checkout.py` still validates the cached checkout for the gates.
 - **Builds happen on the host, at provision time**, so `verify` needs a working container engine; `bootstrap.sh` refuses to start without one.
-- **No VM in CI.** `dev/` drives an incus VM, but `incus` is absent on this host and no workflow references it; the disposable-VM half of the closure is still open (`POST-MIGRATION.md` §A3 gap (a); `RESIDUALS.md` R-10).
+- **No VM in CI.** `dev/` drives an incus VM, but `incus` is absent on this host and no workflow
+  references it; the fresh-machine VM run is **deferred/accepted** (2026-10-23), not scheduled
+  (`POST-MIGRATION.md` §A3 gap (a); `RESIDUALS.md` R-10). Host apply, host `verify`, and the CI
+  gates are the executed evidence; do not claim VM evidence until `make vm-verify` runs in a guest.
 - **Host-specific systemd pitfall.** A unit `ExecStart` line ending in a Jinja *block* tag (e.g. `{% endif %}`) swallows the next line (Ansible `trim_blocks`) → systemd runs `daemon run# …` → `No such command 'run#'` → `start-limit-hit`. Keep `runtime_daemon_run_flags` single-line (`roles/runtime_daemon/vars/main.yml:26-35`).
 - **Stale uv-tool envs after moving/deleting a tree.** `uv tool list` can report the right version while the env's `direct_url.json` points at a deleted path, so every console dies with `ModuleNotFoundError`. After a tree-deletion merge: `rm -rf <retired root>` in the checkout you are about to gate, then `make deploy-coverage` *there* — absence guards read the filesystem, not `git ls-files` (`POST-MIGRATION.md` §1 note, §A1.2).
 - **`csg install` has no `--image-tag`** (the tag travels via `COLORSCHEME__CONTAINER__IMAGE_TAG`); `csg install --image-tag …` exits 2. The tag gate is clone + `verify`, not option parsing (`POST-MIGRATION.md` gap (c)).

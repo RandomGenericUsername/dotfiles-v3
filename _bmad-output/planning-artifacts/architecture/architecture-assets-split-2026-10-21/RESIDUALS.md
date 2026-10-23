@@ -38,7 +38,8 @@ belong here, and an entry is not closed because the code "looks right".
    the sibling checkout moves; `dotfiles-v3` evidence is against the baseline commit named below.
 
 **Status vocabulary:** `OPEN` · `OPEN-BLOCKED` (waiting on an environment or an upstream decision) ·
-`CLOSED` (closure proof executed and recorded).
+`DEFERRED` (accepted by the owner; visible but not scheduled) · `CLOSED` (closure proof executed and
+recorded).
 
 ## Measurement environment
 
@@ -59,18 +60,26 @@ belong here, and an entry is not closed because the code "looks right".
 
 ## Summary — open residuals, in address-at-end order
 
-| ID | Priority | Residual | Closing slice | Status |
+**No open residuals.** Every item is either closed with executed evidence or explicitly deferred
+below.
+
+| ID | Priority | Residual | Owner | Status |
 | --- | --- | --- | --- | --- |
-| R-10 | P1 | VM end-to-end gate never run — `incus` unavailable here; every slice marks it `PLANNED` | final end-to-end (S7 or dedicated) | OPEN-BLOCKED |
+| R-10 | P1 | VM end-to-end gate never run — `incus` unavailable here; every slice marks it `PLANNED` | final end-to-end (S7 or a dedicated host/VM run) | DEFERRED |
 
 ---
 
-## Open residuals
+## Deferred / accepted (visible, not scheduled)
 
 ### R-10 — The VM end-to-end gate has never run
 
-- **Priority / status:** P1 · OPEN-BLOCKED (no incus) · **Owner:** final end-to-end (S7 or a dedicated
-  host/VM run).
+- **Priority / status:** P1 · DEFERRED (accepted 2026-10-23; no incus) · **Owner:** final end-to-end
+  (S7 or a dedicated host/VM run).
+- **Decision (2026-10-23):** accepted as a deferred verification gap, not scheduled. The component
+  evidence is green: host apply (`R-04`), host `verify` (`rc=0`, `failed=0`), CI gates, and the
+  pushed tag/install path. The only unexecuted proof is a fresh-machine VM run, and `incus` is absent
+  on this host. Re-open this item if a VM host becomes available; do not claim VM evidence until
+  `make vm-verify` has run in the guest.
 - **Evidence:**
   - `command -v incus` → no output (not installed); `bash dev/check-prereqs.sh < /dev/null` →
     `ERROR: 'incus' is not installed on this host.` (exit 1, executed 2026-10-22).
@@ -374,7 +383,8 @@ here so a later reader does not "fix" the ledger back to the unverified wording.
 | R-07 close | `make btop-theme-studio-tests` (ags-apps `v0.4.1`); engine targeted suite; btop integration | all studio suites pass; `383 passed, 12 deselected`; `2 passed` |
 | R-07 close | composition `make gates-ci`; `deploy-coverage`; host `verify --expected-engine-tag v0.1.4` | six gates green; `dotfiles/ holds ['provisioning'] (config/ is absent …)`; host `rc=0`, `failed=0` |
 | R-07 host note | `rfkill list bluetooth` was soft-blocked before the first verify | `rfkill unblock bluetooth` → unblocked; the retry passed (host state, not a code defect) |
+| R-10 decision | owner call, 2026-10-23: `incus` absent; host apply + host verify + CI green | deferred/accepted; the fresh-machine VM proof is the only unexecuted observation and is not scheduled |
 
-Every open item above names a closure proof that re-runs the same kind of observation. When an item
-is closed, move it to *Resolved during the split* with the command output and the resolving commit;
-that move is the only thing that makes this ledger shorter.
+Every closed item above names the closure proof that was executed. The one deferred item (R-10)
+keeps its proof so it can be re-opened without re-deriving the gap; deferral is not a closure and
+must never be reported as VM evidence.
