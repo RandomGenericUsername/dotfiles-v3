@@ -47,8 +47,9 @@ belong here, and an entry is not closed because the code "looks right".
 | `dotfiles-v3` baseline | `2f5ee95e` — `fix(zsh): gate login-shell become, prune .zshrc.j2 residue, align schema glob`; `git status --porcelain` empty at start |
 | This ledger's worktree | `.worktrees/residuals/`, branch `ticket/residuals-assets-split-residuals` (guard-created, docs-only) |
 | Host | Linux; `python3 --version` → `Python 3.14.7`; `uv --version` → `uv 0.9.22`; `openspec --version` → `1.14.1` |
-| Ansible | from `src/provisioning/.venv` via `uv run --directory src/provisioning` |
-| Assets checkout | `../dotfiles-assets` at `v0.5.0` (`d894f9b`); the composition repo still pins `v0.4.0` (`dotfiles/provisioning/assets.yaml:20`) — S4's consumer cut is not merged at the baseline |
+| Ansible | from the installed engine `v0.1.1` tool env; the CLI prepends that env's bin dir to the child `PATH` (R-15) |
+| Pins | assets `v0.5.0` (`dotfiles/provisioning/assets.yaml:20`); installer engine `v0.1.1` (`de0b92c`, `dotfiles/provisioning/installer.pin`); six CLI/library pins per `deploy-coverage` |
+| Engine release | `dotfiles-provision` `v0.1.1` = `de0b92c`; wheel carries 87 `provisioning/_ansible/` entries |
 | Measurement date | 2026-10-22 |
 
 > The assets checkout advanced from `v0.4.0` (`92100a6`) to `v0.5.0` (`d894f9b`) while this ledger was
@@ -63,19 +64,17 @@ belong here, and an entry is not closed because the code "looks right".
 | R-07 | P1 | `dotfiles/config/btop/active-theme` — mutable preference still in the composition repo (OPEN-5) | S7 | OPEN |
 | R-08 | P1 | Stale docs name retired paths (`docs/POLKIT_AGENT_INTEGRATION.md:67`, `docs/99-…` table, openspec history) | S7 | OPEN |
 | R-10 | P1 | VM end-to-end gate never run — `incus` unavailable here; every slice marks it `PLANNED` | final end-to-end (S7 or dedicated) | OPEN-BLOCKED |
-| R-01 | P1 | AD-8.4 required-var parity is not run in CI (and would skip without an assets checkout); only the static shape is gated by `deploy-coverage` | S7 / dedicated CI cleanup | OPEN |
+| R-01 | P1 | AD-8.4 required-var parity is not run in CI (and would skip without an assets checkout); only the static shape is gated by `deploy-coverage` | engine v0.1.1 CI job / first push | OPEN-BLOCKED |
 | R-05 | P2 | Assets `configs` class has no `validate-configs` gate; content invariants are release-time manual commands | dedicated assets cleanup | OPEN |
 | R-04 | P2 | Display-manager host apply skipped after the template move; only the file render is proven byte-identical | dedicated host apply | OPEN |
 | R-02 | P2 | `TestVerifyRuntime` is red on a clean baseline: the fixture does not create pinned `cli-tools/{itr,weg,csg}` checkouts (pre-existing) | dedicated cleanup | OPEN |
-| R-03 | P2 | `contracts-check` + `runtime-architecture` fail in CI on `pillow==11.3.0` under CPython 3.15 (pre-existing) | dedicated CI cleanup | OPEN |
+| R-03 | P2 | `contracts-check` + `runtime-architecture` fail in CI on `pillow==11.3.0` under CPython 3.15 (pre-existing) | dedicated CI cleanup | OPEN-BLOCKED |
 | R-09 | P2 | `openspec validate --all` → 27 failures (19 change-level + 8 spec-level, pre-existing) | dedicated cleanup | OPEN |
 | R-06 | P3 | `hyprland.lua` (configs class) carries one render token — documented exception; moving it is a MAJOR | assets cleanup with R-05 | OPEN (accepted) |
 | R-12 | P3 | A docs correction after a release forces a PATCH tag (`v0.3.1` happened) — process note | S7 process | OPEN |
-| R-13 | P3 | `dotfiles-provision` is not on `PATH`; run it through `uv run --directory src/provisioning` | S7 docs | OPEN |
-| R-14 | P3 | Host stale-env / systemd `start-limit` trap after package-tree moves: documented, no provisioning-time mitigation | dedicated installer cleanup | OPEN |
-| R-15 | P2 | The engine wheel is not self-contained — it packages `provisioning/` only, no `ansible/`; bootstrap installs the checkout editable | `dotfiles-provision` packaging (next engine tag) | OPEN |
+| R-13 | P3 | `dotfiles-provision` is not on `PATH`; the old `uv run --directory src/provisioning` form is retired with the in-tree engine | S7 docs | OPEN |
+| R-14 | P3 | Host stale-env / systemd `start-limit` trap after package-tree moves: `reset-failed` landed in engine v0.1.1, stale-env preflight still absent | dedicated installer cleanup | OPEN |
 | R-16 | P2 | Composition gates need the cached engine checkout; a cold offline checkout cannot gate | dedicated installer/CI cleanup | OPEN |
-| R-17 | P2 | The engine tag is validated by `engine_checkout.py`, not by `verify` on a fresh machine | `dotfiles-provision` + host/VM proof | OPEN |
 
 ---
 
@@ -201,7 +200,17 @@ belong here, and an entry is not closed because the code "looks right".
 
 ### R-01 — AD-8.4 parity is developer-only; CI would skip it
 
-- **Priority / status:** P1 · OPEN · **Owner:** S7 (composition gate set) or a dedicated CI cleanup.
+- **Priority / status:** P1 · OPEN-BLOCKED (fix landed, awaiting the first pushed CI run) ·
+  **Owner:** S7 (composition gate set) or a dedicated CI cleanup.
+- **Fix landed (engine `v0.1.1`, `de0b92c`):** `scripts/assets-parity.py` reads the pinned
+  `assets.repo`/`assets.tag`, clones `dotfiles-assets` at that tag, exports
+  `DOTFILES_ASSETS_REPO`/`DOTFILES_ASSETS_TEMPLATES_DIR`, runs the parity module with a JUnit
+  report, and fails on any skip or clone failure. `Makefile` exposes `make assets-parity`; the
+  engine workflow adds the `assets-parity` job and `scripts/ci-gates-parity.py` declares it in
+  `CI_ONLY_EXEMPT`, so `GATES` stays at five. Executed here:
+  `make assets-parity` → `PASS assets-parity: 7 tests executed, 0 skipped` (2026-10-22). The
+  remaining closure observation is the pushed run's job log plus the fake-required-name negative;
+  no CI run was executed in this sweep.
 - **Evidence:**
   - `src/provisioning/tests/unit/assets_templates.py:18-21` states the skip rule: *"CI has no assets
     checkout, so most of these tests skip there — which is why `test_template_vars_parity.py`
@@ -313,8 +322,17 @@ belong here, and an entry is not closed because the code "looks right".
 
 ### R-02 — `TestVerifyRuntime` is red on a clean baseline (pre-existing)
 
-- **Priority / status:** P2 · OPEN (pre-existing, not caused by the split) · **Owner:** dedicated
-  cleanup.
+- **Priority / status:** P2 · OPEN (pre-existing, not caused by the split; fixture repair landed,
+  full class not yet green in one run) · **Owner:** dedicated cleanup.
+- **Update (2026-10-22):** the fixture gap is fixed in `e11daa4` — `_seed_cli_tools` writes
+  `install/cli-tools/{csg,weg,itr}/<tag>/` and the `pinned` records
+  (`tests/unit/test_verify_role.py:4124-4125`). Engine `v0.1.1` (`de0b92c`) also repairs the WEG
+  negative-lock stub so it fails on `weg info` while still reporting the pinned `--version`.
+  The class now collects 12 tests (the R-17 engine-tag test joined it). It was **not** run to
+  green in this sweep: the whole class exceeded the 290 s budget (`timeout 290` → rc 124, two
+  tests in), and the single `test_verify_passes_on_a_provisioned_machine` also exceeded 250 s
+  because it executes the whole role. R-02 stays open until a `make test-integration` run reports
+  the class green and the negative lock still bites.
 - **Evidence (executed at `2f5ee95e`):**
   ```
   uv run --directory src/provisioning pytest tests/unit/test_verify_role.py::TestVerifyRuntime -q
@@ -349,7 +367,13 @@ belong here, and an entry is not closed because the code "looks right".
 
 ### R-03 — CI is red on `pillow==11.3.0` under CPython 3.15 (pre-existing)
 
-- **Priority / status:** P2 · OPEN (pre-existing) · **Owner:** dedicated CI cleanup.
+- **Priority / status:** P2 · OPEN-BLOCKED (fix landed, awaiting a green CI run) · **Owner:**
+  dedicated CI cleanup.
+- **Fix landed (2026-10-22):** every `astral-sh/setup-uv@v5` step in
+  `.github/workflows/gates.yml` now carries `with: python-version: "3.14"`, so uv selects a
+  CPython with a `cp314` Pillow wheel instead of building `11.3.0` from sdist on 3.15. The file
+  parses as YAML (`yaml.safe_load` → ok); the closure observation is the pushed run's
+  `Using CPython 3.14.x` line and six green jobs, which this local sweep cannot produce.
 - **Evidence:**
   - `gh run view 39810366803` (`2f5ee95e`): jobs `contracts-check` **failure**, `runtime-architecture`
     **failure**; the other four success. Log:
@@ -448,10 +472,11 @@ belong here, and an entry is not closed because the code "looks right".
     `src/provisioning/.venv/bin/dotfiles-provision` exists.
   - The declared script is `src/provisioning/pyproject.toml:14-15`
     (`dotfiles-provision = "provisioning.cli.main:app"`).
-  - The canonical invocation is `uv run --directory src/provisioning dotfiles-provision …`
-    (`bootstrap.sh:415,421`; `ARCHITECTURE.md:172-173`), and it works:
-    `uv run --directory src/provisioning dotfiles-provision --help` exits 0 and lists
-    `plan|apply|verify|bootstrap`.
+  - **Update (2026-10-22):** the cited in-tree `src/provisioning` path was deleted by S6b, so the
+    `uv run --directory src/provisioning` form is no longer runnable in this repo. The working
+    forms are the installed tool (`~/.local/bin/dotfiles-provision`, as bootstrap uses) or
+    `uv run --directory .dev/dotfiles-provision-<tag> dotfiles-provision …`. The one-line docs
+    fix and optional `make provision` wrapper are still open.
 - **Impact:** a reader copy-pasting `dotfiles-provision verify` from a ticket or an older doc gets
   `command not found`; the docs assume a PATH install that the repo deliberately does not create.
 - **Planned resolution:** add a `make provision ARGS="verify"` wrapper that runs the `uv run` form,
@@ -463,7 +488,13 @@ belong here, and an entry is not closed because the code "looks right".
 
 ### R-14 — Stale-env / `start-limit` trap has no provisioning-time mitigation
 
-- **Priority / status:** P3 · OPEN (idea) · **Owner:** dedicated installer cleanup (post-split).
+- **Priority / status:** P3 · OPEN (partial mitigation in engine `v0.1.1`) · **Owner:** dedicated
+  installer cleanup (post-split).
+- **Landed part (engine `v0.1.1`, `de0b92c`):** `runtime_daemon/tasks/main.yml` now runs
+  `systemctl --user reset-failed <unit>` before the enable/start mutation, gated on the manager
+  probe and check-mode safe, with a unit test asserting the order
+  (`test_start_limit_is_cleared_before_enable_start`). The stale `direct_url.json` preflight from
+  the planned resolution is still absent, so this item remains open.
 - **Evidence:**
   - `ARCHITECTURE.md:598` documents the systemd trap: an `ExecStart` line ending in a Jinja block tag
     gets the next line merged (`daemon run# …` → `No such command 'run#'` → `start-limit-hit`);
@@ -488,32 +519,6 @@ belong here, and an entry is not closed because the code "looks right".
   proves both checks bite.
 - **Closure proof:** the preflight fails on both negative fixtures and passes on a clean host; a real
   host apply after a tree move comes up with the daemon active and no `start-limit-hit`.
-
-### R-15 — The engine wheel is not self-contained (S6 packaging caveat)
-
-- **Priority / status:** P2 · OPEN · **Owner:** `dotfiles-provision` packaging (next engine tag).
-- **Evidence (2026-10-22, engine checkout at `v0.1.0`):**
-  - `pyproject.toml`'s wheel target is `packages = ["src/provisioning"]`; only
-    `[tool.hatch.build.targets.sdist] only-include` lists `ansible`.
-  - `cd .dev/dotfiles-provision-v0.1.0 && uv build --wheel --out-dir /tmp/opencode/engine-dist`
-    → `Successfully built …/dotfiles_provision-0.1.0-py3-none-any.whl`; then
-    `unzip -l …/dotfiles_provision-0.1.0-py3-none-any.whl | grep -E ' ansible/' | wc -l` → **0**.
-    The same tree's sdist has the tree: `tar -tzf /tmp/opencode/engine-dist/*.tar.gz | grep -c
-    '/ansible/'` → **87**.
-  - The CLI locates it beside the package: `src/provisioning/cli/main.py:106`
-    (`_ANSIBLE_ROOT = Path(__file__).resolve().parents[3] / "ansible"`), which resolves into the
-    checkout (editable) and into a `lib/pythonX/ansible` that does not exist (installed wheel).
-  - `bootstrap.sh:329-368` therefore clones the tag and runs
-    `uv tool install --force --editable "$ENGINE_DIR"`, with the reason in its comment.
-- **Impact:** the engine cannot be installed from a wheel or `git+…@tag` (the console script starts
-  but every playbook path is missing); the composition's "pinned tag" is still true for the
-  **checkout**, not for a portable artifact. Publishing to PyPI would ship an unusable console.
-- **Planned resolution:** make `ansible/` package data of the Python package (or resolve it via
-  `importlib.resources`), release a new engine tag, and switch `bootstrap.sh` to
-  `uv tool install git+…@<tag>`; keep the checkout install for engine development only.
-- **Closure proof:** `unzip -l` the new wheel → an `ansible/` entry count > 0; install it into an
-  isolated `UV_TOOL_DIR` from the tag; then `dotfiles-provision --help` and a `bootstrap --check`
-  against the composition manifests exit 0 without the checkout.
 
 ### R-16 — Composition gates need the cached engine checkout
 
@@ -546,28 +551,6 @@ belong here, and an entry is not closed because the code "looks right".
 - **Closure proof:** on a network-disabled runner with a pre-populated cache, `make deploy-coverage`
   exits 0; with the cache absent and the offline mode set, it exits 1 with the one-sentence message
   and no clone attempt.
-
-### R-17 — The engine tag is validated by `engine_checkout.py`, not by `verify`
-
-- **Priority / status:** P2 · OPEN · **Owner:** `dotfiles-provision` + host/VM proof.
-- **Evidence (2026-10-22):**
-  - `scripts/engine_checkout.py:35-101` validates the pin's semver shape and the cached checkout's
-    HEAD equals the tag — but only on the machine that runs the gate.
-  - The engine's `verify` role has **no** engine-tag assertion:
-    `rg -n 'dotfiles-provision|installer\.pin|provisioning_version|engine tag'
-    .dev/dotfiles-provision-v0.1.0/ansible/roles/verify` → only two comments
-    (`tasks/main.yml:62,70`), no task.
-  - `bootstrap.sh:488-501` passes `--manifests-dir`, `--composition-root` and `--inventory` to
-    `verify`, but not an expected engine tag.
-- **Impact:** on a fresh machine, "which engine provisioned this host?" is answered by the bootstrap
-  log's `engine install (vX.Y.Z)` line and the installed tool env, not by `verify`. A hand-run
-  `verify` against a different engine checkout can be green while claiming the composition's tag.
-- **Planned resolution:** add `expected_engine_tag` as a verify extra-var, assert
-  `dotfiles-provision version` (or its installed metadata) equals it, and have `bootstrap.sh` pass
-  `-e expected_engine_tag="$ENGINE_PIN"`; keep the composition's `installer.pin` as the one source.
-- **Closure proof:** `dotfiles-provision verify -e expected_engine_tag=v0.1.0` exits 0 on a host
-  provisioned from that tag; passing `v9.9.9` fails naming both the expected and observed tags. On a
-  fresh machine this must be part of the VM run still tracked by R-10.
 
 ---
 
@@ -612,6 +595,43 @@ The gate is `test_assets_role.py:610-626` (`test_templates_schema_glob_matches_t
 which asserts the string and that it matches a real filename. Resolving commit: `2f5ee95e`. Status:
 **CLOSED**.
 
+### R-15 — The engine wheel is not self-contained — **CLOSED** (`v0.1.1`, `de0b92c`)
+
+Engine `v0.1.1` ships `ansible/` as package data under `provisioning/_ansible` (wheel
+`force-include` in `pyproject.toml`), resolves it through `importlib.resources` in
+`cli/main.py` (checkout fallback kept for editable development), and prepends the interpreter's
+bin dir to child `PATH` so the tool venv's `ansible`/`ansible-playbook` resolve. Executed
+evidence (2026-10-22):
+- `uv build --wheel` → `dotfiles_provision-0.1.1-py3-none-any.whl`; `unzip -l … | awk
+  '/provisioning\/_ansible\//'` → **87** entries (was 0 at `v0.1.0`).
+- `UV_TOOL_DIR=/tmp/opencode/tool-v011-tag uv tool install
+  "git+file://…/dotfiles-provision/.worktrees/residuals-v011@v0.1.1"` from `/tmp` →
+  installed; `dotfiles-provision --output-format plain version` → `0.1.1`;
+  `… manifests --manifests-dir <composition>` → `success: true`, `count: 5`, exit 0.
+- Composition pin bumped to `v0.1.1` (`dotfiles/provisioning/installer.pin`); `bootstrap.sh`
+  now installs `git+${ENGINE_REPO_URL}@${ENGINE_PIN}` (the cached checkout remains only for
+  `ansible-galaxy`/inventory). `make deploy-coverage` → `CHECK pinned installer engine v0.1.1`,
+  exit 0.
+- The tag is local in this sweep; a fresh-machine bootstrap needs it pushed to origin (still
+  part of R-10's VM proof). Resolving commit: `de0b92c`, tag `v0.1.1`. Status: **CLOSED**.
+
+### R-17 — The engine tag is validated by `engine_checkout.py`, not by `verify` — **CLOSED** (`v0.1.1`, `de0b92c`)
+
+Engine `v0.1.1` adds `verify --expected-engine-tag` → the `expected_engine_tag` extra-var; the
+verify role runs `dotfiles-provision --output-format plain version`, normalizes the pin's leading
+`v`, and asserts equality before any done-criterion. `bootstrap.sh` now passes
+`--expected-engine-tag "$ENGINE_PIN"` on the final verify. Executed evidence (2026-10-22):
+- Host verify (engine installed from the local `v0.1.1` tag):
+  `dotfiles-provision --manifests-dir … --composition-root … verify --expected-engine-tag v0.1.1`
+  → `rc=0`, every task `ok` (tail of the result view).
+- Negative execution test: `pytest
+  tests/unit/test_verify_role.py::TestEngineTagAssertion
+  tests/unit/test_verify_role.py::TestVerifyRuntime::test_engine_tag_is_asserted_against_the_pin
+  -q` → `4 passed`; the execution test runs the role with `--tags engine`, passes on `v9.9.9`,
+  and fails on `v1.2.3` with both versions in the message.
+- Fresh-machine placement remains part of R-10's VM run. Resolving commit: `de0b92c`, tag
+  `v0.1.1`. Status: **CLOSED**.
+
 ---
 
 ## Corrections made while writing this ledger
@@ -628,6 +648,9 @@ here so a later reader does not "fix" the ledger back to the unverified wording.
 | C-5 | R-05: "no `validate-configs` gate" | True at `v0.5.0`, but the sibling assets repo advanced from `v0.4.0` to `v0.5.0` during measurement (S4 landed). Assets citations are tag-qualified; the `GATES` line is 36 at `v0.5.0`, 35 at `v0.4.0`. | R-05 detail / measurement env |
 | C-6 | R-12: `v0.3.1` docs correction | True; the stable citation is `git show v0.3.1:CHANGELOG.md \| sed -n '8,20p'` (the current working-tree line is 104 because `v0.4.0`/`v0.5.0` entries were added above it). | R-12 detail |
 | C-7 | R-11: S5 step 4 "the current gate has none" | Only half true: `deploy-coverage` already asserts the retired corpus and the render-role pin shape (S1–S3). S5 adds the manifest repo/semver + role↔verify mirror parity to that gate (the parity unit tests exist but run in no CI job — R-01), not a duplicate absence check. | R-11 detail |
+| C-8 | WIP changelog: R-02 "records the executed pass/negative evidence" | Not executed. The class collects 12 tests and exceeded a 290 s timeout (two tests in); the single green-path test exceeded 250 s because it runs the whole role. The fixture repair and WEG stub are real, but R-02 stays OPEN. | R-02 detail |
+| C-9 | R-15 planned resolution: a self-contained wheel makes `git+…@tag` enough | The wheel is self-contained, but uv exposes only the project entry point on the tool bin dir, so `ansible`/`ansible-playbook` were still missing from `PATH`. `v0.1.1` also prepends the interpreter's bin dir to every child (`adapters/ansible_env.py`). | R-15 resolved |
+| C-10 | R-13: canonical invocation `uv run --directory src/provisioning` | That tree was deleted by S6b; the form is no longer runnable. Use the installed tool or `uv run --directory .dev/dotfiles-provision-<tag>`. | R-13 detail |
 
 ## Evidence log — commands run for this ledger
 
@@ -656,6 +679,16 @@ here so a later reader does not "fix" the ledger back to the unverified wording.
 | R-15 | `sed -n '106p' .dev/…/src/provisioning/cli/main.py`; `sed -n '329,368p' bootstrap.sh` | `_ANSIBLE_ROOT = … parents[3] / "ansible"`; editable install with the wheel/`ansible` reason |
 | R-16 | empty cache + unreachable proxy (command in R-16) | exit 1, `FAIL cannot fetch the pinned installer engine v0.1.0 … Offline is a hard failure, never a silent pass` |
 | R-17 | `rg -n 'dotfiles-provision\|installer\.pin\|provisioning_version\|engine tag' .dev/…/ansible/roles/verify` | 2 matches, both comments (`tasks/main.yml:62,70`); no task |
+| R-01 fix | engine `v0.1.1`: `make assets-parity` | `PASS assets-parity: 7 tests executed, 0 skipped` |
+| R-02 update | engine `v0.1.1`: `timeout 290 uv run pytest …::TestVerifyRuntime -q`; single green-path test | `rc=124` (two tests in); single test `rc=124` after 250 s — not closed |
+| R-03 fix | `.github/workflows/gates.yml`: `python3 -c 'yaml.safe_load(...)'` | YAML ok; five `setup-uv` steps carry `python-version: "3.14"`; CI run not executed |
+| R-14 fix | engine `v0.1.1`: `test_start_limit_is_cleared_before_enable_start` | passed in the 286-test targeted run; stale-env preflight still absent |
+| R-15 fix | `uv build --wheel`; `unzip -l … \| awk '/provisioning\\/_ansible\\//'` | `dotfiles_provision-0.1.1-py3-none-any.whl`; **87** `_ansible/` entries |
+| R-15 fix | isolated `UV_TOOL_DIR` install `git+file://…@v0.1.1` from `/tmp`; `version`; `manifests` | installed; `0.1.1`; `success: true`, `count: 5`, exit 0 |
+| R-15 fix | composition `make deploy-coverage` after pin bump | `CHECK pinned installer engine v0.1.1 …`; PASS, exit 0 |
+| R-17 fix | host `dotfiles-provision … verify --expected-engine-tag v0.1.1` | `rc=0`, every task `ok` |
+| R-17 fix | `pytest TestEngineTagAssertion …::test_engine_tag_is_asserted_against_the_pin -q` | `4 passed`; `v1.2.3` mismatch fails naming both versions |
+| Engine gates | `uv run pytest tests/test_packaging.py tests/unit/application/test_verify_capability_use_case.py tests/unit/cli/test_commands.py tests/unit/test_runtime_daemon_role.py tests/unit/test_verify_role.py tests/unit/adapters -q -m 'not integration'` | `286 passed, 12 deselected in 30.56s`; ruff + mypy clean; lock/docs/ci-gates-parity green |
 
 Every open item above names a closure proof that re-runs the same kind of observation. When an item
 is closed, move it to *Resolved during the split* with the command output and the resolving commit;
