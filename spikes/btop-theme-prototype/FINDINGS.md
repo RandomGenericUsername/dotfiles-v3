@@ -127,7 +127,7 @@ spec, not to be promoted.
   from current/colors.conf at dofile time. Same "consumers read current/
   directly, no spine pointer" shape.
 - Kitty full end-to-end precedent:
-  openspec/changes/HANDOFF-kitty-terminal-colors.md:70-108
+  docs/handoffs/HANDOFF-kitty-terminal-colors.md:70-108
   (3 changes: CSG -> runtime -> provisioning, in that order).
 - Also precedent for a config-carrying color format: ITR reads
   current/colors.yaml (roles/settings/templates/itr-settings.toml.j2:17).
