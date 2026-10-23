@@ -1,8 +1,8 @@
 # dotfiles-v3 — the composition repo
 
 `dotfiles-v3` is the **composition** of the dotfiles system. It owns the declarative manifests,
-the Python runtime, the composition gates, and the fresh-machine entry point. It does **not** own
-the installer engine, the asset corpus, the AGS unit, or the CLI sources — those are pinned
+the composition gates, and the fresh-machine entry point. It does **not** own the installer
+engine, the asset corpus, the AGS unit, the runtime, or the CLI sources — those are pinned
 siblings (see [`docs/WORKSPACE.md`](docs/WORKSPACE.md)).
 
 ## Workspace
@@ -10,8 +10,9 @@ siblings (see [`docs/WORKSPACE.md`](docs/WORKSPACE.md)).
 The sibling repos are expected under `~/Development/dotfiles/`:
 
 ```text
-dotfiles-v3          this repo: manifests, runtime, gates, bootstrap
+dotfiles-v3          this repo: manifests, gates, bootstrap
 dotfiles-provision   installer engine: Ansible tree + Python orchestrator
+dotfiles-runtime     host runtime: wallpaper/state/cache, daemon, clipboard
 dotfiles-assets      pinned corpus: icons, templates, configs, content, desktop
 ags-apps             pinned AGS unit: bar + the sibling apps
 ags-platform         pinned AGS platform: ports, adapters, event client
@@ -29,32 +30,30 @@ set is `ARCHITECTURE.md` §4.1 and `make deploy-coverage`.
 ```bash
 ./bootstrap.sh                 # fresh machine: uv → engine → collections → bootstrap → verify
 make bootstrap ARGS="--ask-become-pass"   # same, through make
-make provision ARGS="verify --expected-engine-tag v0.1.6"  # installed console
-make gates-ci                  # six composition gates
+make provision ARGS="verify --expected-engine-tag v0.1.7"  # installed console
+make gates-ci                  # four composition gates
 make deploy-coverage           # pin-set + composition-only shape
 openspec validate --all        # spec/change baseline
 ```
 
-`bootstrap.sh` reads `dotfiles/provisioning/installer.pin` (currently `v0.1.6`), installs the
+`bootstrap.sh` reads `dotfiles/provisioning/installer.pin` (currently `v0.1.7`), installs the
 engine from `git+…@tag`, fetches the pinned assets corpus (`v0.5.0`), and runs the aggregate.
-The engine is never edited here.
+The engine is never edited here; neither is the runtime (`dotfiles-runtime@v0.1.0`).
 
 ## What lives here
 
 | Path | What it is |
 | --- | --- |
 | `dotfiles/provisioning/` | Manifests (`assets.yaml`, `cli-tools.yaml`, `config-copies.yaml`, `filesystem.yaml`, `packages.yaml`) + `installer.pin` |
-| `src/runtime/` | `dotfiles-runtime`: hexagon, daemon, clipboard watcher, cache/state |
-| `scripts/` | Composition gates (`deploy-coverage.py`, `ci-gates-parity.py`, `contract-pin-check.py`, `ansible-embedded-template-lint.py`, `engine_checkout.py`) |
-| `contracts/` | Vendored event contract + schemas (conformance copies) |
+| `scripts/` | Composition gates (`deploy-coverage.py`, `ci-gates-parity.py`, `ansible-embedded-template-lint.py`, `engine_checkout.py`) |
 | `dev/` | Local-only incus VM harness |
 | `docs/` | Live design/runbook docs; historical documents are labelled |
 | `openspec/` | Specs + active changes; `openspec/changes/archive/` is immutable history |
 | `_bmad-output/`, `spikes/`, `prototypes/` | Historical planning/prototype record (not runtime input) |
 
-There is **no in-repo engine, corpus, bar, or CLI source**. `make deploy-coverage` asserts that
-shape; `dotfiles/config/` is absent since R-07 (the btop active-theme is host state in the
-install spine).
+There is **no in-repo engine, runtime, corpus, bar, or CLI source**. `make deploy-coverage`
+asserts that shape (`src/` is absent); `dotfiles/config/` is absent since R-07 (the btop
+active-theme is host state in the install spine).
 
 ## Docs map
 

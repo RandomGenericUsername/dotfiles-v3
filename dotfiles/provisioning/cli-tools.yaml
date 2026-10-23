@@ -1,24 +1,21 @@
 # CLI tools installed by the `cli_tools` role (plan §3).
 #
 # csg/weg/itr are the three compute-provider CLIs; dotfiles-runtime is the
-# desktop-state CLI (wallpaper set / reconcile / inspect) that the login
-# hook needs on PATH. The old nested CLI-tools OpenSpec root was never an
-# install target and is gone (its only change moved into the csg repo, AD-15).
+# desktop-state CLI (wallpaper set / reconcile / inspect) that the login hook
+# needs on PATH. All four are pinned external repos: every entry carries
+# `{name, repo, tag}` and no `source`.
 #
-# END STATE (spine AD-10/AD-11): every extracted CLI is addressed as
-#   `{name, repo, tag}` — a pinned external repo. The role shallow-clones
-#   `<repo>@<tag>` into `<install>/cli-tools/<name>/<tag>/`, removes `.git`,
-#   records the pin in `<install>/cli-tools/<name>/pinned`, and installs the
-#   tool FROM that checkout (never from a `git+…@tag` URL), so PEP 610 records
-#   a tag-bearing path.
+# The role shallow-clones `<repo>@<tag>` into `<install>/cli-tools/<name>/<tag>/`,
+# removes `.git`, records the pin in `<install>/cli-tools/<name>/pinned`, and
+# installs the tool FROM that checkout (never from a `git+…@tag` URL), so PEP 610
+# records a tag-bearing path. The source-path install branch remains as the
+# extension point for a future in-repo tool; its loop is empty today.
 #
-# `dotfiles-runtime` is the ONE remaining `{name, source}` entry: it is the
-# runtime this repo still authors (`src/runtime`), not an extracted CLI. It is
-# the only permitted local source — `deploy-coverage` asserts exactly this
-# (exactly one `source:`, every other entry repo+tag). The three shared
-# libraries (cli-output, config-assembler-engine, oci-runtime) are pinned the
-# same way, in each consumer's `[tool.uv.sources]`.
-# Exactly one shape per entry: `source` XOR (`repo` + `tag`).
+# The three shared libraries (cli-output, config-assembler-engine, oci-runtime)
+# are pinned the same way in each consumer's `[tool.uv.sources]`; the runtime's
+# own cli-output / cli-invocation-contract pins live in the dotfiles-runtime
+# repo. The installer engine is a separate pin (`installer.pin`), never a tool
+# entry.
 kind: cli-tools
 entries:
   - name: csg
@@ -31,4 +28,5 @@ entries:
     repo: https://github.com/RandomGenericUsername/icon-templates-renderer
     tag: v0.2.0
   - name: dotfiles-runtime
-    source: src/runtime
+    repo: https://github.com/RandomGenericUsername/dotfiles-runtime
+    tag: v0.1.0

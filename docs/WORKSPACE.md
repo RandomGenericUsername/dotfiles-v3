@@ -7,8 +7,9 @@ and **which tag each consumer pins**. It is the cross-project companion to each 
 
 ```text
 ~/Development/dotfiles/
-├── dotfiles-v3                 composition: manifests, runtime, gates, bootstrap
+├── dotfiles-v3                 composition: manifests, gates, bootstrap
 ├── dotfiles-provision          installer engine: Ansible tree + Python orchestrator
+├── dotfiles-runtime            host runtime: wallpaper/state/cache, daemon, clipboard
 ├── dotfiles-assets             pinned corpus: icons, templates, configs, content, desktop
 ├── ags-apps                    pinned AGS unit: bar + notifications/capture/hypr-pano/…
 ├── ags-platform                pinned AGS platform: ports, shared adapters, event client
@@ -25,8 +26,9 @@ and **which tag each consumer pins**. It is the cross-project companion to each 
 
 | Repo | Owns | Does **not** own |
 | --- | --- | --- |
-| `dotfiles-v3` | manifests, `dotfiles-runtime`, composition gates, `bootstrap.sh`, vendored contract copies | engine roles, corpus bytes, bar/apps source, CLI source |
-| `dotfiles-provision` | Ansible roles/playbooks/inventory, Python orchestrator, engine tests | composition manifests/runtime, corpus, app source |
+| `dotfiles-v3` | manifests, composition gates, `bootstrap.sh` | engine roles, runtime, corpus bytes, bar/apps source, CLI source |
+| `dotfiles-provision` | Ansible roles/playbooks/inventory, Python orchestrator, engine tests | composition manifests, runtime, corpus, app source |
+| `dotfiles-runtime` | host runtime: wallpaper/state/cache, daemon, clipboard, contract conformance | composition manifests, installer roles, corpus, app/CLI source |
 | `dotfiles-assets` | the five corpus classes and their validators | destinations, consumers, runtime state |
 | `ags-apps` | the AGS bar + sibling apps, their pure logic and tests | platform ports/adapters, dotfiles provisioning |
 | `ags-platform` | reusable ports, shared adapters, event-contract client | app policy, dotfiles paths |
@@ -38,11 +40,11 @@ and **which tag each consumer pins**. It is the cross-project companion to each 
 
 | Consumer | Pinned artifact | Tag | Declared in |
 | --- | --- | --- | --- |
-| `dotfiles-v3` | installer engine `dotfiles-provision` | `v0.1.6` | `dotfiles/provisioning/installer.pin` |
+| `dotfiles-v3` | installer engine `dotfiles-provision` | `v0.1.7` | `dotfiles/provisioning/installer.pin` |
 | `dotfiles-v3` | corpus `dotfiles-assets` | `v0.5.0` | `dotfiles/provisioning/assets.yaml` |
-| `dotfiles-v3` | CLIs `csg`/`weg`/`itr` | `v0.2.0` each | `dotfiles/provisioning/cli-tools.yaml` |
-| `dotfiles-v3` runtime | `cli-output` | `v0.1.0` | `src/runtime/pyproject.toml` |
-| `dotfiles-v3` runtime | `contracts` | `v0.2.0` | `src/runtime/pyproject.toml` |
+| `dotfiles-v3` | CLIs `csg`/`weg`/`itr` + runtime `dotfiles-runtime` | `v0.2.0` each / `v0.1.0` | `dotfiles/provisioning/cli-tools.yaml` |
+| `dotfiles-runtime` | `cli-output` | `v0.1.0` | runtime `pyproject.toml` |
+| `dotfiles-runtime` | `contracts` | `v0.2.0` | runtime `pyproject.toml` |
 | `dotfiles-provision` | `ags-apps` unit | `v0.4.1` | `ansible/roles/ags_apps/vars/main.yml` |
 | `dotfiles-provision` | `ags-platform` unit | `v0.2.0` | `ansible/roles/ags_apps/vars/main.yml` |
 | `ags-apps` | `ags-platform` | `v0.2.0` | `Makefile` (`AGS_PLATFORM_VERSION`) |

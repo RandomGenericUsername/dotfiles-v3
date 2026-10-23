@@ -27,8 +27,9 @@ both must be written down here rather than read past:
 
   * `RENAMES` -- a job key that differs from its `make` target. A rename is a
     claim, so it is an entry with a reason, the way `bluetooth-mock-parity.py`'s
-    `CLASS_MAP` declares a token's shipped equivalent. An undeclared rename fails
-    naming both the old and the new name.
+    `CLASS_MAP` declares a token's shipped equivalent. An undeclared rename
+    fails naming both the old and the new name. (Empty after REQ-002 retired
+    the `contracts-check -> contracts` rename with the runtime gates.)
   * `CI_ONLY_EXEMPT` -- a workflow job that is deliberately not a gate (a setup
     or lint job with no `make` target), also with a reason.
 
@@ -73,15 +74,7 @@ WORKFLOW = ".github/workflows/gates.yml"
 # is a failure, not an inferred correspondence: the two lists are compared by
 # name, and a rename is a claim someone must review, exactly as
 # `bluetooth-mock-parity.py`'s CLASS_MAP treats a token's shipped equivalent.
-RENAMES: dict[str, tuple[str, str]] = {
-    "contracts-check": (
-        "contracts",
-        "The job's `name:` already reads `contracts-check`; only the key is "
-        "shortened. The job runs `make contracts-check` and the two names refer "
-        "to the same target, so the correspondence is recorded rather than "
-        "renaming a job for cosmetics.",
-    ),
-}
+RENAMES: dict[str, tuple[str, str]] = {}
 
 # Workflow jobs that are deliberately not gates: a job with no `make` target,
 # with the reason it exists in CI only. None exist today -- this table is here so

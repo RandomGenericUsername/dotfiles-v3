@@ -1,8 +1,8 @@
 # Changelog
 
 Notable changes to `dotfiles-v3`, the **composition repo**: the provisioning
-manifests, the pinned installer-engine entry point (`bootstrap.sh`), the runtime
-(`src/runtime/`) and the gates. Format follows
+manifests, the pinned installer-engine entry point (`bootstrap.sh`), the pins and
+the gates. The runtime is its own pinned repo. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). This repo is not
 released (it has no tags); the 0.x sections group the assets-split slices by the
 commits that landed them, and the authoritative record is the planning set — not
@@ -14,6 +14,28 @@ this summary:
 - closure record: `openspec/changes/archive/2026-10-22-assets-repo-split/POST-MIGRATION.md`
 
 ## [Unreleased]
+
+## [0.6.0] - 2026-10-23 — runtime repo consumption (REQ-002)
+
+### Changed
+
+- `dotfiles-runtime` is consumed as `{name, repo, tag}` at `v0.1.0`; the
+  installer engine pin is `v0.1.7` (its role/verify mirrors carry the runtime
+  entry). The CLI manifest now has **zero** local `source:` entries.
+- `deploy-coverage` asserts the runtime's pinned shape, requires `src/` to be
+  absent, and no longer validates a composition-owned `[tool.uv.sources]` or a
+  vendored `contracts/` copy.
+- The runtime-only gates (`contracts-check`, `runtime-architecture`,
+  `contract-pin-check`) and their CI jobs moved to the runtime repo with the
+  code. The composition keeps `ansible-embedded-template-lint`,
+  `deploy-coverage`, `ci-gates-parity` and `per-app-drift-symbol-suites`.
+- `AGENTS.md`, `README.md`, `ARCHITECTURE.md` and `docs/WORKSPACE.md` state the
+  new boundary: the composition authors manifests and gates only.
+
+### Removed
+
+- `src/runtime/`, `contracts/` and `scripts/contract-pin-check.py` — the
+  runtime and its conformance material live in `dotfiles-runtime`.
 
 ## [0.5.0] - 2026-10-22 — composition closeout (S7)
 

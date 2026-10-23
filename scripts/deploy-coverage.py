@@ -86,12 +86,12 @@ required):
       constants) is absent.
   (o) asserts the composition PIN SET (S7): every pin is a semver tag and is
       mirrored — `installer.pin` ↔ `bootstrap.sh` (the file is read, the tag is
-      never repeated), the assets tag ↔ its role/verify mirrors, every CLI tag
-      ↔ manifest/role/verify, and every library/contract `[tool.uv.sources]`
-      entry a `git` + tag source (never `path`, `editable`, `rev` or `branch`).
-  (p) asserts the terminal COMPOSITION-ONLY shape (S7): `src/` holds `runtime/`
-      only, `dotfiles/` holds `config/` + `provisioning/` (`config/` is exactly
-      the one mutable preference), and `src/provisioning/`, `dotfiles/assets/`,
+      never repeated), the assets tag ↔ its role/verify mirrors, and every CLI
+      tag ↔ manifest/role/verify. The runtime's library/contract pins live in
+      `dotfiles-runtime` and are locked by its own gates.
+  (p) asserts the terminal COMPOSITION-ONLY shape (S7): `src/` is absent (the
+      runtime is a pinned repo), `dotfiles/` holds `provisioning/` (`config/` is
+      absent), and `src/runtime/`, `src/provisioning/`, `dotfiles/assets/`,
       `dotfiles/applications/` and `dotfiles/scripts/` are absent.
 
 The relative-import closure of `dotfiles/config/ags/app.tsx` is still computed
@@ -161,7 +161,7 @@ from engine_checkout import EngineCheckoutError, engine_checkout, read_engine_pi
 
 # The pinned engine checkout, resolved once in main(). Every role constant below
 # is relative to THAT root (the engine owns `ansible/`); composition-owned paths
-# (`dotfiles/...`, `src/runtime`, `src/cli-tools`) stay relative to `root`.
+# (`dotfiles/...`) stay relative to `root`.
 _ENGINE_ROOT: Path | None = None
 
 
@@ -344,19 +344,16 @@ CLI_TOOLS_MANIFEST = "dotfiles/provisioning/cli-tools.yaml"
 # The installer engine is a separate external pin (not a CLI tool): bootstrap
 # installs the tool from this tag and both composition gates read that checkout.
 INSTALLER_PIN = "dotfiles/provisioning/installer.pin"
-# S7 (AD-4/AD-17): the composition pin set, validated as ONE set. The runtime is
-# the only authored Python package left; its `[tool.uv.sources]` pins are the
-# composition's library/contract pins (the other libraries are pinned inside the
-# CLI repos, which this repo does not author). `bootstrap.sh` reads the installer
-# pin file rather than repeating the tag.
-RUNTIME_PYPROJECT = "src/runtime/pyproject.toml"
+# S7 (AD-4/AD-17): the composition pin set, validated as ONE set. The runtime
+# is now the pinned `dotfiles-runtime` repo; its `[tool.uv.sources]` pins live
+# there and are locked by its own gates. This repo authors no Python package,
+# so it carries no library/contract pin. `bootstrap.sh` reads the installer pin
+# file rather than repeating the tag.
 BOOTSTRAP = "bootstrap.sh"
-REQUIRED_RUNTIME_PINS = ("cli-output", "cli-invocation-contract")
 # S7 (AD-17 terminal): what a COMPOSITION repo may still author. `dotfiles/`
 # carries the manifests and the one mutable preference (OPEN-5 / R-07); `src/`
-# carries the runtime only. Everything else is a pin.
+# is absent (the runtime moved to its pinned repo). Everything else is a pin.
 COMPOSITION_DOTFILES_ENTRIES = ("provisioning",)
-COMPOSITION_SRC_ENTRIES = ("runtime",)
 RETIRED_ASSETS_DIR = "dotfiles/assets"
 # S6b: the engine's Python package and Ansible tree are the pinned external
 # `dotfiles-provision` repo; this root has no remaining purpose.
@@ -438,6 +435,8 @@ ASSET_CLASS_RETIRED_PATHS = {
     "desktop": RETIRED_DESKTOP_DIRS,
 }
 CLI_TOOLS_ROLE_VARS = "ansible/roles/cli_tools/vars/main.yml"
+RUNTIME_NAME = "dotfiles-runtime"
+RETIRED_RUNTIME_DIR = "src/runtime"
 ITR_NAME = "itr"
 RETIRED_ITR_DIR = "src/cli-tools/icon-templates-renderer"
 WEG_NAME = "weg"
@@ -1506,7 +1505,9 @@ def assert_no_in_tree_cli_output(root: Path) -> None:
 
     src = root / "src"
     if not src.is_dir():
-        raise ValueError(f"{src} is missing — cannot check {CLI_OUTPUT_PACKAGE!r} pins")
+        # No in-repo package remains; `assert_composition_only` owns the `src/`
+        # absence. Nothing can carry a path pin.
+        return
     for pyproject in sorted(src.rglob("pyproject.toml")):
         # Skip virtualenvs and any other hidden tree (e.g. .venv): only the
         # authored package manifests participate in the pin.
@@ -1546,10 +1547,9 @@ def assert_no_in_tree_config_assembler_engine(root: Path) -> None:
 
     src = root / "src"
     if not src.is_dir():
-        raise ValueError(
-            f"{src} is missing — cannot check "
-            f"{CONFIG_ASSEMBLER_ENGINE_PACKAGE!r} pins"
-        )
+        # No in-repo package remains; `assert_composition_only` owns the `src/`
+        # absence. Nothing can carry a path pin.
+        return
     for pyproject in sorted(src.rglob("pyproject.toml")):
         # Skip virtualenvs and any other hidden tree (e.g. .venv): only the
         # authored package manifests participate in the pin.
@@ -1605,7 +1605,9 @@ def assert_no_in_tree_oci_runtime(root: Path) -> None:
 
     src = root / "src"
     if not src.is_dir():
-        raise ValueError(f"{src} is missing — cannot check {OCI_RUNTIME_PACKAGE!r} pins")
+        # No in-repo package remains; `assert_composition_only` owns the `src/`
+        # absence. Nothing can carry a path pin.
+        return
     for pyproject in sorted(src.rglob("pyproject.toml")):
         # Skip virtualenvs and any other hidden tree (e.g. .venv): only the
         # authored package manifests participate in the pin.
@@ -2349,14 +2351,13 @@ def assert_assets_shape(root: Path) -> tuple[str, tuple[str, ...]]:
 
 
 def assert_manifest_source_scope(root: Path) -> None:
-    """The CLI manifest has exactly ONE local `source:` — `dotfiles-runtime`.
+    """The CLI manifest has ZERO local `source:` entries (REQ-002).
 
-    AD-11 (final, strict) / OPEN-7: every EXTRACTED entry is `{name, repo,
-    tag}`. `dotfiles-runtime` is not extracted — this repo still authors it at
-    `src/runtime` — so it is the single permitted in-repo source. Asserted so
-    the mixed-shape window cannot silently reopen: a stray `source:` on a CLI
-    entry is a local path one consumer would resolve while the others use the
-    tag.
+    Every entry — csg, weg, itr and dotfiles-runtime — is `{name, repo, tag}`.
+    The runtime moved to its own pinned repo, so a `source:` on any entry is a
+    local path one consumer would resolve while the others use the tag. The
+    source-path install branch remains in the engine as an extension point, but
+    its loop selects nothing.
 
     The installer engine is NOT a CLI-tool entry: it is a separate pin
     (`dotfiles/provisioning/installer.pin`) consumed by `bootstrap.sh` and the
@@ -2395,20 +2396,11 @@ def assert_manifest_source_scope(root: Path) -> None:
             )
 
     source_entries = [e for e in entries if isinstance(e, dict) and "source" in e]
-    if len(source_entries) != 1:
+    if source_entries:
         raise ValueError(
-            f"{CLI_TOOLS_MANIFEST} must carry exactly ONE `source:` entry "
-            f"(`dotfiles-runtime` -> src/runtime); found "
+            f"{CLI_TOOLS_MANIFEST} must carry ZERO `source:` entries — the "
+            f"runtime is the pinned dotfiles-runtime repo (REQ-002); found "
             f"{[(e.get('name'), e.get('source')) for e in source_entries]}"
-        )
-    only = source_entries[0]
-    if only.get("name") != "dotfiles-runtime" or str(
-        only.get("source")
-    ).strip() != "src/runtime":
-        raise ValueError(
-            f"{CLI_TOOLS_MANIFEST}'s only local source must be "
-            f"`dotfiles-runtime: src/runtime` (the runtime this repo still "
-            f"authors); got {only.get('name')!r}: {only.get('source')!r}"
         )
 
     for entry in entries:
@@ -2425,9 +2417,7 @@ def assert_manifest_source_scope(root: Path) -> None:
             )
 
 
-def assert_pin_set(root: Path, assets_tag: str) -> tuple[
-    str, dict[str, str], dict[str, str]
-]:
+def assert_pin_set(root: Path, assets_tag: str) -> tuple[str, dict[str, str]]:
     """S7 (AD-4/AD-17): every composition pin is a semver tag, and mirrored.
 
     The composition repo is the ONE place the pin set is declared, so it is the
@@ -2440,15 +2430,14 @@ def assert_pin_set(root: Path, assets_tag: str) -> tuple[
     * **assets corpus** — the tag returned by :func:`assert_assets_shape`, which
       has already locked the manifest against the role + verify + per-consumer
       mirrors;
-    * **CLIs** — every non-`source:` manifest entry is a semver tag mirrored by
-      the pinned engine's `cli_tools` role vars AND by `verify` (`version`,
-      tag-bearing checkout path, `pinned` record);
-    * **libraries + contract** — every `[tool.uv.sources]` entry in an authored
-      `src/` package is a `git` + semver `tag` (never `path`, `editable`,
-      `rev` or `branch`), and the runtime still carries the two pins it alone
-      consumes.
+    * **CLIs** — every manifest entry, including `dotfiles-runtime`, is a
+      semver tag mirrored by the pinned engine's `cli_tools` role vars AND by
+      `verify` (`version`, tag-bearing checkout path, `pinned` record).
 
-    Returns ``(installer_tag, cli_tags, lib_tags)`` for the caller to print.
+    This repo authors no `[tool.uv.sources]`; the runtime's library/contract
+    pins live in `dotfiles-runtime` and are locked by its own gates.
+
+    Returns ``(installer_tag, cli_tags)`` for the caller to print.
     """
     import yaml
 
@@ -2534,9 +2523,12 @@ def assert_pin_set(root: Path, assets_tag: str) -> tuple[
                 f"{role_vars_path} pins {name!r} at {role_tag!r} but "
                 f"{CLI_TOOLS_MANIFEST} pins {tag!r} — bump both or neither"
             )
-        version_key = f"verify_{name}_version"
-        checkout_key = f"verify_{name}_checkout"
-        pin_key = f"verify_{name}_pin_file"
+        # The engine's verify mirror names the runtime without the repo prefix
+        # (`verify_runtime_version`), while the checkout path keeps the repo name.
+        verify_name = "runtime" if name == RUNTIME_NAME else name
+        version_key = f"verify_{verify_name}_version"
+        checkout_key = f"verify_{verify_name}_checkout"
+        pin_key = f"verify_{verify_name}_pin_file"
         verify_tag = str(verify_vars.get(version_key) or "").strip()
         if verify_tag != tag:
             raise ValueError(
@@ -2560,56 +2552,17 @@ def assert_pin_set(root: Path, assets_tag: str) -> tuple[
             )
         cli_tags[name] = tag
 
-    # 4. Libraries + contract: a git tag, never a path or an editable install.
-    src = root / "src"
-    if not src.is_dir():
-        raise ValueError(f"{src} is missing — cannot validate the library pins")
-    lib_tags: dict[str, str] = {}
-    for pyproject in sorted(src.rglob("pyproject.toml")):
-        if any(part.startswith(".") for part in pyproject.relative_to(root).parts):
-            continue
-        data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
-        sources = data.get("tool", {}).get("uv", {}).get("sources") or {}
-        for dependency, source in sources.items():
-            where = f"{pyproject.relative_to(root)} [tool.uv.sources].{dependency}"
-            if not isinstance(source, dict):
-                raise ValueError(f"{where} is not a mapping: {source!r}")
-            for forbidden in ("path", "editable", "rev", "branch", "workspace"):
-                if forbidden in source:
-                    raise ValueError(
-                        f"{where} pins by {forbidden!r} — every library and "
-                        f"contract is consumed as a git tag (spine AD-3/AD-10)"
-                    )
-            if not str(source.get("git") or "").startswith("https://"):
-                raise ValueError(
-                    f"{where} must carry an https git remote; got {source.get('git')!r}"
-                )
-            lib_tags[dependency] = str(source.get("tag") or "").strip()
-            if not _SEMVER_TAG.fullmatch(lib_tags[dependency]):
-                raise ValueError(
-                    f"{where} must carry a semver tag (vX.Y.Z); got "
-                    f"{source.get('tag')!r}"
-                )
-    runtime_data = tomllib.loads((root / RUNTIME_PYPROJECT).read_text(encoding="utf-8"))
-    runtime_sources = (
-        runtime_data.get("tool", {}).get("uv", {}).get("sources") or {}
-    )
-    missing = [name for name in REQUIRED_RUNTIME_PINS if name not in runtime_sources]
-    if missing:
-        raise ValueError(
-            f"{RUNTIME_PYPROJECT} is missing the composition pins {missing} — the "
-            f"runtime consumes the library and the invocation contract by tag"
-        )
-    return installer_tag, cli_tags, lib_tags
+    return installer_tag, cli_tags
 
 
 def assert_composition_only(root: Path) -> None:
-    """S7 (AD-17 terminal): this repo authors the runtime and the manifests only.
+    """S7 (AD-17 terminal): this repo authors the manifests and gates only.
 
     The per-tree guards above catch a known corpus returning; this catch-all
     catches ANY new authored tree, which is the failure mode that does not yet
-    have a name. `src/` may hold `runtime/`; `dotfiles/` may hold `provisioning/`
-    only. `dotfiles/config/` is absent since R-07: the btop active-theme is host
+    have a name. `src/` is absent: the runtime moved to the pinned
+    `dotfiles-runtime` repo. `dotfiles/` may hold `provisioning/` only.
+    `dotfiles/config/` is absent since R-07: the btop active-theme is host
     state in the install spine, and every static config is the pinned assets
     `configs` class. The retired corpus roots and the in-repo engine root are
     asserted absent here as the terminal sweep, so a fresh checkout that forgets
@@ -2626,9 +2579,9 @@ def assert_composition_only(root: Path) -> None:
     if authored_dotfiles:
         raise ValueError(
             f"dotfiles/ carries {authored_dotfiles} beyond "
-            f"{list(COMPOSITION_DOTFILES_ENTRIES)} — this repo authors manifests, "
-            f"the runtime and the gates; config/corpus data is the pinned "
-            f"dotfiles-assets repo (AD-17)"
+            f"{list(COMPOSITION_DOTFILES_ENTRIES)} — this repo authors manifests "
+            f"and gates; config/corpus data is the pinned dotfiles-assets repo "
+            f"(AD-17)"
         )
 
     config = dotfiles / "config"
@@ -2640,18 +2593,12 @@ def assert_composition_only(root: Path) -> None:
         )
 
     src = root / "src"
-    if not src.is_dir():
-        raise ValueError(f"{src} is missing — the runtime lives there")
-    authored_src = sorted(
-        child.name
-        for child in src.iterdir()
-        if not child.name.startswith(".") and child.name not in COMPOSITION_SRC_ENTRIES
-    )
-    if authored_src:
+    if src.exists():
         raise ValueError(
-            f"src/ carries {authored_src} beyond {list(COMPOSITION_SRC_ENTRIES)} — "
-            f"the only in-repo Python is the runtime; every library, CLI and the "
-            f"installer engine is a pinned repo (AD-17)"
+            f"src/ still exists — the runtime moved to the pinned "
+            f"`{RUNTIME_NAME}` repo (REQ-002); this repo authors no Python. "
+            f"Delete {src} and consume the runtime by `{{name, repo, tag}}` "
+            f"(AD-17)"
         )
 
     for retired in (RETIRED_PROVISIONING_ROOT, RETIRED_ASSETS_DIR, *RETIRED_DESKTOP_DIRS):
@@ -2790,10 +2737,15 @@ def main() -> int:
         # AD-7 assertion for its SETTINGS-ENV tag transport (its `install` build
         # verb has no --image-tag) and the tag-qualified build context.
         assert_csg_provisioned_from_pinned_manifest(root)
+        # REQ-002: the runtime is a pinned repo too. Same generic shape check;
+        # `src/runtime/` must be gone.
+        assert_cli_provisioned_from_pinned_manifest(
+            root, RUNTIME_NAME, RETIRED_RUNTIME_DIR, "REQ-002"
+        )
         # Terminal: both parent roots are retired (the last CLI left the repo).
         assert_no_cli_tools_dir(root)
-        # AD-11 (final, strict): exactly one local `source:` in the CLI
-        # manifest, and it is `dotfiles-runtime` -> src/runtime (OPEN-7).
+        # AD-11 (final, strict): ZERO local `source:` entries. Every tool,
+        # including the runtime, is `{name, repo, tag}` (REQ-002).
         assert_manifest_source_scope(root)
         # S1 (AD-16 catch-all): the icons/content corpus lives in the pinned
         # `dotfiles-assets` repo; the in-tree sources are retired.
@@ -2820,11 +2772,10 @@ def main() -> int:
         # library/contract source a git + semver tag. This is the executable
         # answer to "where is the pin list" — ARCHITECTURE section 4.1 documents
         # the same set for human readers.
-        installer_tag, cli_tags, lib_tags = assert_pin_set(root, assets_tag)
+        installer_tag, cli_tags = assert_pin_set(root, assets_tag)
         # S7 (AD-17 terminal): the catch-all. Anything authored under src/ or
-        # dotfiles/ beyond the runtime + manifests (or any retired corpus/engine
-        # root returning) fails here even if its named per-tree guard was
-        # forgotten.
+        # dotfiles/ beyond the manifests (or any retired corpus/engine root
+        # returning) fails here even if its named per-tree guard was forgotten.
         assert_composition_only(root)
     except (RuntimeError, ValueError, FileNotFoundError) as exc:
         print(f"FAIL: {exc}")
@@ -2920,6 +2871,11 @@ def main() -> int:
         f"retired"
     )
     print(
+        f"deploy-coverage: {RUNTIME_NAME!r} is provisioned from its pinned "
+        f"manifest entry (repo+tag, no source) and installed from the "
+        f"tag-bearing checkout; {RETIRED_RUNTIME_DIR}/ is retired"
+    )
+    print(
         "deploy-coverage: PASS -- the static config corpus (hypr, hyprpaper, "
         "nvim, rofi, starship + wlogout/layout) is the pinned dotfiles-assets "
         "configs class; every in-tree copy is retired, including the last two "
@@ -2950,15 +2906,15 @@ def main() -> int:
         "assets dotfiles-assets "
         f"{assets_tag}, CLIs "
         + ", ".join(f"{name} {tag}" for name, tag in sorted(cli_tags.items()))
-        + ", runtime pins "
-        + ", ".join(f"{name} {tag}" for name, tag in sorted(lib_tags.items()))
-        + " — every pin semver and gate-mirrored"
+        + " — every pin semver and gate-mirrored; the runtime's library/contract "
+        "pins live in dotfiles-runtime"
     )
     print(
-        "deploy-coverage: COMPOSITION-ONLY — src/ holds runtime/ only, dotfiles/ "
-        f"holds {list(COMPOSITION_DOTFILES_ENTRIES)} (config/ is absent; the "
+        "deploy-coverage: COMPOSITION-ONLY — src/ is absent (the runtime is the "
+        f"pinned {RUNTIME_NAME} repo), dotfiles/ holds "
+        f"{list(COMPOSITION_DOTFILES_ENTRIES)} (config/ is absent; the "
         "active-theme is spine host state), and "
-        f"{RETIRED_PROVISIONING_ROOT}/, {RETIRED_ASSETS_DIR}/, "
+        f"src/runtime/, {RETIRED_PROVISIONING_ROOT}/, {RETIRED_ASSETS_DIR}/, "
         + ", ".join(f"{path}/" for path in RETIRED_DESKTOP_DIRS)
         + " are absent"
     )
@@ -2970,10 +2926,11 @@ def main() -> int:
     print(
         f"deploy-coverage: PASS -- six packages are consumed from their pinned "
         f"repos ({CLI_OUTPUT_PACKAGE}, {CONFIG_ASSEMBLER_ENGINE_PACKAGE}, "
-        f"{OCI_RUNTIME_PACKAGE}, {ITR_NAME}, {WEG_NAME}, {CSG_NAME}); "
-        f"{RETIRED_CLI_TOOLS_DIR}/ and {RETIRED_SHARED_LIBS_DIR}/ are retired, "
-        f"and the CLI manifest carries exactly ONE in-repo source "
-        f"(dotfiles-runtime -> src/runtime)"
+        f"{OCI_RUNTIME_PACKAGE}, {ITR_NAME}, {WEG_NAME}, {CSG_NAME}) and "
+        f"{RUNTIME_NAME} is consumed from its pinned repo; "
+        f"{RETIRED_RUNTIME_DIR}/, {RETIRED_CLI_TOOLS_DIR}/ and "
+        f"{RETIRED_SHARED_LIBS_DIR}/ are retired, and the CLI manifest carries "
+        f"ZERO in-repo sources"
     )
     return 0
 

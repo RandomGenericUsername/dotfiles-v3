@@ -48,20 +48,20 @@ unit (the `ags_apps` role symlinks the unit's `bar/` subdir as the live
 live-bar link and diverge the live bar from the pinned tag) plus a missing unit /
 live-bar link / resolution shortcut. It is not optional.
 
-**CLI tools, the installer engine and shared libraries deploy from pinned repos —
-this repo authors NO in-repo package sources.** `csg`, `weg` and `itr` are consumed
-as `{name, repo, tag}` entries in `dotfiles/provisioning/cli-tools.yaml`
-(+ its `roles/cli_tools/vars/main.yml` mirror in the pinned engine); `cli-output`,
-`config-assembler-engine`, `oci-runtime` and `cli-invocation-contract` are consumed
-as git-tag pins in each `pyproject.toml`; `dotfiles-provision` (the engine, its
-Python package and its Ansible tree) is consumed as the tag in
-`dotfiles/provisioning/installer.pin`. The in-repo `cli-tools/`, `shared/` and
-provisioning package roots are retired and their absence is gated. The only
-in-repo Python is `src/runtime/`; `dotfiles-runtime -> src/runtime` is the ONE
-permitted local `source:` in that manifest — the installer pin is a separate pin,
+**CLI tools, the runtime, the installer engine and shared libraries deploy from
+pinned repos — this repo authors NO in-repo package sources.** `csg`, `weg`, `itr`
+and `dotfiles-runtime` are consumed as `{name, repo, tag}` entries in
+`dotfiles/provisioning/cli-tools.yaml` (+ its `roles/cli_tools/vars/main.yml`
+mirror in the pinned engine); `cli-output`, `config-assembler-engine`,
+`oci-runtime` and `cli-invocation-contract` are git-tag pins inside those repos;
+`dotfiles-provision` (the engine, its Python package and its Ansible tree) is
+consumed as the tag in `dotfiles/provisioning/installer.pin`. The in-repo
+`cli-tools/`, `shared/`, `runtime/` and provisioning package roots are retired
+and their absence is gated. There is **no in-repo Python** and **zero local
+`source:` entries** in the CLI manifest — the installer pin is a separate pin,
 never a tool entry. Do NOT re-add a per-file GUI/CLI source list or a
 `path`/`editable` pin — extend the pinned unit/repo and bump the tag. Because
-`HERMETIC_PACKAGES` is empty, `make hermetic` prints an explicit PASS (the six
+`HERMETIC_PACKAGES` is empty, `make hermetic` prints an explicit PASS (the seven
 extracted packages run `make hermetic` in their own repos).
 
 ## 3. Evidence rule

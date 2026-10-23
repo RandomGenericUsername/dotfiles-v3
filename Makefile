@@ -1,4 +1,4 @@
-.PHONY: bootstrap provision contracts-check runtime-architecture contract-pin-check gates gates-ci ci-gates-parity hermetic ags-platform-dev dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-verify vm-help per-app-drift-symbol-suites
+.PHONY: bootstrap provision gates gates-ci ci-gates-parity hermetic ags-platform-dev dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-verify vm-help per-app-drift-symbol-suites
 
 # Bootstrap the host machine (full provisioning).
 # Pass become/check flags through, e.g. `make bootstrap ARGS="--ask-become-pass"`.
@@ -13,61 +13,25 @@ provision:
 		echo "dotfiles-provision is not on PATH; run ./bootstrap.sh first"; exit 1; }
 	dotfiles-provision $(ARGS)
 
-# Contract conformance (AD-44): embedded schemas equal their canonical
-# definitions, the D-Bus wire XML agrees with the event contract JSON, and
-# every baked code constant (hub adapter tables + bar consumer binding)
-# matches the machine definitions — the per-language drift gate.
-# Runs by execution, never by reading prose.
-contracts-check:
-	uv run --directory src/runtime pytest tests/unit/test_contract_schema_conformance.py tests/unit/test_event_contract_conformance.py tests/unit/test_event_contract_drift.py tests/unit/test_history_trigger_enum.py tests/unit/test_contract_pin_check.py -q
-
-# Runtime architecture guard: the mechanical hexagonal-layering rules
-# (`tests/architecture/test_layering.py`) and the no-retired-source guard
-# (`tests/architecture/test_no_retired_sources.py`) — a runtime source may not
-# reference the retired `cli-tools`/`shared`/`gui-tools` trees; resolve inputs
-# from the spine or the pinned repo instead. Pure pytest over `src/runtime`
-# (stdlib + pytest only, no desktop stack, no sibling checkout, no network), so
-# it is stock-runner capable and lives in `gates-ci`. This is the structural
-# counterpart to `contracts-check`: that gate proves the contract data agrees,
-# this one proves the code still obeys the hexagon and carries no stale paths.
-runtime-architecture:
-	uv run --directory src/runtime pytest tests/architecture -q
-
-# Cross-repo pin gate (REQ-004, spine AD-6). The generated bindings are
-# VENDORED into this repo (committed copies) so the runtime needs no cross-repo
-# build step; `scripts/contract-pin-check.py` diffs each vendored copy against
-# the `contracts` repo's `generated/` and FAILS on a hand-edit. It is NOT in
-# `GATES`/`gates-ci` on purpose: the contracts repo is a SIBLING checkout, not a
-# submodule, so a CI runner for this repo has no `generated/` to diff against —
-# the gate would only ever skip there. It runs on a developer machine (or a CI
-# job that checks out `contracts`) via:
+# Every executable gate, in the order a reviewer should read them: the Ansible
+# embedded-template lint, then the provisioning-shape coverage gate, then the
+# per-app contract drift/symbol suites, then the check that keeps the CI
+# workflow's job set equal to this list.
 #
-#   CONTRACTS_REPO=/path/to/contracts make contract-pin-check
+# The runtime's gates (test, lint, contracts-check, hermetic, lock-check,
+# docs-check) moved to the `dotfiles-runtime` repo with the code (REQ-002).
+# This repo proves the runtime by PIN SHAPE and EXECUTION (deploy-coverage +
+# verify), not by running its test suite.
 #
-# The `CONTRACTS_REPO` env var defaults to /home/inumaki/Development/contracts;
-# when the directory is absent the gate skips with a clear message (exit 0). The
-# negative test that proves it fails on a hand-edited copy is hermetic and DOES
-# run in CI, via `contracts-check` (tests/unit/test_contract_pin_check.py).
-contract-pin-check:
-	python3 scripts/contract-pin-check.py
-
-# Every executable gate, in the order a reviewer should read them: contract
-# first (it is the source of truth), then the runtime architecture guard (the
-# structural counterpart: layering + no retired-source references), then the
-# Ansible embedded-template lint, then the provisioning-shape coverage gate,
-# then the per-app contract drift/symbol suites, then the check that keeps the
-# CI workflow's job set equal to this list.
-#
-# The capture-tool GUI gates (capture-test / capture-typecheck /
-# capture-hexagonal-gate) were RETIRED with the in-repo GUI (ags-apps-bar-first
-# slice 5): the GUI moved into the `ags-apps` unit and its own gates live there.
-# What remains in this repo for capture-tool is the Python backend (installed by
-# cli_tools) and the provisioning SHAPE, which `deploy-coverage` asserts.
+# The capture-tool GUI gates were RETIRED with the in-repo GUI (slice 5): the
+# GUI moved into the `ags-apps` unit and its own gates live there. What remains
+# here for capture-tool is the Python backend (installed by cli_tools) and the
+# provisioning SHAPE, which `deploy-coverage` asserts.
 #
 # `gates` is the DEVELOPER gate set and runs ALL of them. Nothing is dropped for
 # convenience: a gate that is not run here is a gate nobody runs.
-GATES := contracts-check runtime-architecture ansible-embedded-template-lint \
-         deploy-coverage ci-gates-parity per-app-drift-symbol-suites
+GATES := ansible-embedded-template-lint deploy-coverage ci-gates-parity \
+         per-app-drift-symbol-suites
 gates: $(GATES)
 
 # The CI gate set: every gate that can run on a stock `ubuntu-latest` runner.
@@ -117,14 +81,13 @@ ci-gates-parity:
 # reproduction command for "the suite is green because the code is green", not a
 # CI runner gate.
 #
-# EMPTY since cli-tools-repos S6: all six packages (cli-output,
-# config-assembler-engine, oci-runtime, itr, weg, csg) are consumed from their
-# pinned repos and run their own `make hermetic` there. This repo authors NO
-# in-repo package sources anymore — only `src/runtime`, which `make gates-ci`
-# covers; the installer engine and its Ansible tree are the pinned external
-# `dotfiles-provision` repo. The target stays (and PASSes explicitly) so a
-# future in-repo package can be added by listing it here; it must never be a
-# loop that silently does nothing.
+# EMPTY since REQ-002: all seven packages (cli-output,
+# config-assembler-engine, oci-runtime, itr, weg, csg and dotfiles-runtime) are
+# consumed from their pinned repos and run their own `make hermetic` there.
+# This repo authors NO in-repo package sources; the installer engine and its
+# Ansible tree are the pinned external `dotfiles-provision` repo. The target
+# stays (and PASSes explicitly) so a future in-repo package can be added by
+# listing it here; it must never be a loop that silently does nothing.
 HERMETIC_PACKAGES :=
 
 hermetic:
@@ -142,10 +105,10 @@ hermetic:
 	mkdir -p "$$root/home" "$$root/tmp"; \
 	packages="$(strip $(HERMETIC_PACKAGES))"; \
 	if [ -z "$$packages" ]; then \
-		echo "hermetic: PASS -- no in-repo package sources; the six extracted"; \
+		echo "hermetic: PASS -- no in-repo package sources; the seven extracted"; \
 		echo "  packages (cli-output, config-assembler-engine, oci-runtime,"; \
-		echo "  itr, weg, csg) run their own 'make hermetic' in their pinned"; \
-		echo "  repos; this repo's src/runtime is covered by 'make gates-ci'"; \
+		echo "  itr, weg, csg, dotfiles-runtime) run their own 'make hermetic'"; \
+		echo "  in their pinned repos"; \
 		exit 0; \
 	fi; \
 	for p in $$packages; do \
@@ -181,7 +144,7 @@ hermetic:
 # fails a gate rather than waiting for a reader to run an app-local target.
 #
 # SCOPE: the drift suites (`event-contract-drift.mjs`) execute the machine
-# contract (`contracts/event-contract.json` + `.xml`) against each app's baked
+# contract (the `contracts` repo's `event-contract.json` + `.xml`) against each app's baked
 # constants. This target runs exactly those suites, not the apps' other unit
 # tests, which each app's `make test` still owns. (The bar's own
 # `ags-symbol-check.mjs` scan was retired with the in-repo bar bridge and lives
