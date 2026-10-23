@@ -134,15 +134,19 @@ belong here, and an entry is not closed because the code "looks right".
   context; this ledger re-ran only the render), so the privileged path (package convergence, Pixie
   fetch/patch, service enable/disable) has not been exercised against the pinned template. A broken
   `install_dir` seam or a changed `become` task would not be caught by the render proof.
-- **Planned resolution:** apply the role alone with become:
-  `ANSIBLE_CONFIG=ansible/ansible.cfg uv run --directory src/provisioning ansible-playbook
-  ansible/playbooks/display-manager.yaml -e install_dir="$HOME/.local/share/dotfiles"
-  --ask-become-pass`; expect the template task `ok` (not `changed`), `sddm` enabled, the other DMs
-  disabled; then run `dotfiles-provision verify`.
+- **Planned resolution (current engine path):** apply the role alone with become:
+  ```bash
+  cd dotfiles-v3
+  ENGINE=.dev/dotfiles-provision-v0.1.4
+  ANSIBLE_CONFIG="$ENGINE/ansible/ansible.cfg" \
+    uv run --directory "$ENGINE" ansible-playbook \
+    ansible/playbooks/display-manager.yaml \
+    -e install_dir="$HOME/.local/share/dotfiles" --ask-become-pass
+  ```
+  expect the template task `ok` (not `changed`), `sddm` enabled, the other DMs disabled; then run
+  `dotfiles-provision verify --expected-engine-tag v0.1.4`.
 - **Closure proof:** playbook recap `failed=0`; `cmp` of the rendered file; `systemctl is-enabled
   sddm` → `enabled`; `verify` exit 0.
-
----
 
 ---
 
