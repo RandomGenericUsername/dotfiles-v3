@@ -30,3 +30,8 @@ ARCHITECTURE.md routing table (L188-197) reflects the actual four branches:
 | neither | `streaming.stream()` no callbacks | captured | `stdout.strip()` |
 
 Note: `detach=True` uses `streaming.stream()`, not batch `transport.execute()`. The doc now matches code.
+
+#### Scenario: the routing table matches the four branches
+
+- **WHEN** a reader compares the routing table with `CliContainerManager.run()`
+- **THEN** each of the four condition rows maps to the transport/output/return branch the code uses

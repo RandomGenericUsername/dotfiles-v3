@@ -1,6 +1,6 @@
 # AGS audio panel
 
-## Requirements
+## ADDED Requirements
 
 ### Requirement: Audio panel inherits the active desktop palette
 

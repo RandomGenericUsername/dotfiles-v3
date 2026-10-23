@@ -1,5 +1,10 @@
 # Dotfiles System — Phase 1: Provisioning Plan
 
+> **Historical path note (2026-10-22):** the provisioning tree is now the pinned
+> `dotfiles-provision` engine and the corpus is the pinned `dotfiles-assets` repo; the
+> `dotfiles/config/...` and `dotfiles/assets/icon-templates` paths below are pre-split locations,
+> not live instructions.
+
 > **Epic 4 amendment (2026-09-04, single source of truth):** this plan
 > describes Phase 1 as-built, including the `default_palette` / `icons`
 > generation roles and the `<install>/generated/` tree. Those are REMOVED

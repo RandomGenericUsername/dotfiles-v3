@@ -1,5 +1,8 @@
 # S1 — How `src/runtime` addresses and connects to `csg` / `weg` / `itr`
 
+> **Historical (2026-10-22):** evidence-only spike from before the assets/engine split; the
+> `dotfiles/assets/icon-templates` path it records is now the pinned `dotfiles-assets` corpus.
+
 **Type:** evidence-only spike (no recommendations).
 **Scope:** `src/runtime` in worktree `/home/inumaki/Development/dotfiles-v3/.worktrees/clirsplit`.
 **Branch:** `ticket/clirsplit-investigate-and-spine`.

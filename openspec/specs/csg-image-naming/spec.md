@@ -1,5 +1,29 @@
 # CSG Image Naming
 
+## Purpose
+
+Define one consistent, engine-qualified naming scheme for every CSG container image.
+
+## Requirements
+
+### Requirement: CSG image names SHALL use the hyphenated engine-qualified scheme
+
+CSG SHALL name backend images `{prefix}-{segment}-{engine}:{tag}` and the base image
+`{prefix}-base-{engine}:{tag}`, with the engine qualifier produced by the shared
+`engine_qualified_image` helper.
+
+#### Scenario: a backend image is fully hyphenated and qualified
+
+- **GIVEN** the custom backend built for docker
+- **WHEN** its image name is resolved
+- **THEN** the name is `csg-custom-docker:<tag>` (no missing separator or unqualified base)
+
+#### Scenario: the base image is qualified too
+
+- **GIVEN** the base image built for podman
+- **WHEN** its image name is resolved
+- **THEN** the name is `csg-base-podman:<tag>`
+
 ## Why
 
 CSG previously used an inconsistent naming scheme where backend images lacked a separator between prefix and segment (e.g. `csgcolor-scheme-custom`) and the base image had no prefix at all (`color-scheme-base`). This was normalized to a consistent hyphenated scheme.

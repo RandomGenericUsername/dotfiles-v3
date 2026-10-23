@@ -1,5 +1,11 @@
 # PolicyKit Agent Integration for Hyprland/UWSM
 
+> **Historical (pre assets/engine split).** The engine Ansible tree now lives in the pinned
+> `dotfiles-provision` repo (`ansible/…`), and compositor configs ship in the pinned
+> `dotfiles-assets` corpus at `v0.5.0` (`configs/hypr/autostart.lua`, deployed under
+> `<install>/assets/v0.5.0/`). Paths below are kept as the original proposal record; use the
+> pinned-corpus form when acting on it.
+
 ## Current Status: BLOCKED - Arch Package Dependency Issue
 
 ### The Problem
@@ -27,7 +33,7 @@ Existing examples in your dotfiles:
 ## Proposed Integration (When Packages Sync)
 
 ### 1. Package Mapping
-Add to `src/provisioning/ansible/group_vars/arch.yml`:
+Add to the pinned engine's `ansible/group_vars/arch.yml` (`dotfiles-provision`):
 ```yaml
 hyprpolkitagent: hyprpolkitagent
 ```
@@ -52,19 +58,20 @@ WantedBy=graphical-session.target
 ```
 
 ### 3. Ansible Role
-Create `src/provisioning/ansible/roles/polkit_agent/` with:
+Create `ansible/roles/polkit_agent/` in the pinned `dotfiles-provision` engine with:
 - `vars/main.yml` - unit name configuration
 - `tasks/main.yml` - enable the package's unit for graphical-session.target
 - `handlers/main.yml` - restart handler
 
 ### 4. Bootstrap Integration
-Add to `src/provisioning/ansible/playbooks/bootstrap.yaml`:
+Add to the pinned engine's `ansible/playbooks/bootstrap.yaml`:
 ```yaml
 - import_playbook: polkit-agent.yaml
 ```
 
 ### 5. Remove Manual Startup
-Remove from `dotfiles/config/hypr/autostart.lua`:
+Remove from the pinned corpus's `configs/hypr/autostart.lua` (installed at
+`<install>/assets/v0.5.0/configs/hypr/autostart.lua`):
 ```lua
 hl.exec_cmd("systemctl --user start hyprpolkitagent")
 ```

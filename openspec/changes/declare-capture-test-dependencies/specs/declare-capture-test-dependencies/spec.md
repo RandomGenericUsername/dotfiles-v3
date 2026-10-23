@@ -116,8 +116,7 @@ performing the check it exists to perform is the failure this requirement remove
 - **WHEN** `make capture-test` runs
 - **THEN** the gate exits non-zero, naming the error
 
-### Requirement: No test in the `capture-test` suite SHALL skip itself for a
-### declared dependency
+### Requirement: No test in the `capture-test` suite SHALL skip itself for a declared dependency
 
 `tests/ts/typecheck-config.test.ts` SHALL NOT skip, and SHALL NOT print a note in
 place of asserting, when `tsc` is unresolvable. It SHALL fail, with a message

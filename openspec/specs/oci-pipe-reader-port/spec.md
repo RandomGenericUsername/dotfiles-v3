@@ -29,6 +29,12 @@ class PipeReader(ABC):
     ) -> tuple[list[bytes], list[bytes]]: ...
 ```
 
+#### Scenario: a partial read does not block
+
+- **GIVEN** a subprocess pipe whose writer sends a partial chunk
+- **WHEN** `PipeReader.read()` is called on the port
+- **THEN** it returns the bytes read so far instead of waiting for a full buffer
+
 ### Requirement: ProcessPipeReader is the production adapter; strict mode rejects non-fd inputs
 
 `ProcessPipeReader` in `adapters/_process_reader.py` implements `PipeReader`. Its `from_process()` method **raises `TypeError`** if `process.stdout.fileno()` is unavailable (e.g. mocks using `BytesIO`). The `isinstance(fd, int)` check in `_read_fd` and the `fileobj.read()` fallback branch are deleted — only `os.read(fd, n)` is used.

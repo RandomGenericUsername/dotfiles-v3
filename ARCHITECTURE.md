@@ -122,7 +122,7 @@ anonymously over HTTPS by tag (`openspec/changes/archive/2026-10-21-cli-tools-re
 | `wallpaper-effects-generator` | console `weg` + `Dockerfile.imagemagick` + `image` verb | `v0.2.0` (reports `contract 0.2.0`) | same | same five + `image` |
 | `color-scheme-generator` | console `csg` + four Dockerfiles + template catalog + `image` verb | `v0.2.0` (reports `contract 0.2.0`) | same | same five + `image` |
 | `dotfiles-assets` | **data corpus** (no package, no console script): `icons/` (templates + one group map + vocabulary), `templates/` (9 Jinja sources + 9 vars schemas), `configs/`, `content/`, `desktop/` (6 entries + `toggle-touchpad` + `desktop.yaml` `requires`/`optional` contract) | `v0.5.0` — **all five classes populated**; `icons/schema.json`, every `templates/**/*.vars.schema.json` and `desktop/desktop.yaml` at `schema_major: 1` | `assets:` block in `dotfiles/provisioning/assets.yaml` + role/verify mirrors (+ a per-render-role pin mirror); fetched once into `<install>/assets/<tag>/` | `validate validate-icons validate-content validate-templates validate-desktop lint hermetic` |
-| `dotfiles-provision` | **installer engine** (console `dotfiles-provision`): the Python hexagon (`provisioning` package) + the Ansible tree (roles, playbooks, inventory, group_vars). The composition repo owns the manifests, runtime and gates; this repo owns nothing the engine also authors | `v0.1.0` — engine tag, annotated; peeled commit `e1a6f099` | `dotfiles/provisioning/installer.pin` (one semver tag, read by `bootstrap.sh` and the Python gates); installed from the pinned checkout **editable** via `uv tool` into `UV_TOOL_BIN_DIR` (the wheel lacks `ansible/` — R-15); gates read the cached `.dev/dotfiles-provision-<tag>/` | `gates` (`test lint hermetic lock-check docs-check`), plus its own CI |
+| `dotfiles-provision` | **installer engine** (console `dotfiles-provision`): the Python hexagon (`provisioning` package) + the Ansible tree (roles, playbooks, inventory, group_vars). The composition repo owns the manifests, runtime and gates; this repo owns nothing the engine also authors | `v0.1.2` — engine tag, annotated; commit `1b2195f` | `dotfiles/provisioning/installer.pin` (one semver tag, read by `bootstrap.sh` and the Python gates); installed self-contained from `git+…@tag` into `UV_TOOL_BIN_DIR` (the wheel carries `provisioning/_ansible`, R-15 closed); gates read the cached `.dev/dotfiles-provision-<tag>/` | `gates` (`test lint hermetic lock-check docs-check`) + CI-only `assets-parity`, plus its own CI |
 
 **Two consumption shapes only** (`POST-MIGRATION.md` §2):
 
@@ -153,7 +153,7 @@ half-edit, recipe (a) in section 11).
 
 | Pin | Declared in (one source) | Value (2026-10-22) | Mirrors / lock | Validated by |
 |---|---|---|---|---|
-| Installer engine `dotfiles-provision` | `dotfiles/provisioning/installer.pin` | `v0.1.0` | `bootstrap.sh` reads the file (never repeats the tag) and re-checks the semver shape; `scripts/engine_checkout.py` resolves the cached checkout for every gate | `deploy-coverage` (`assert_pin_set` + the engine checkout it reads); `ansible-embedded-template-lint` reads the same pin |
+| Installer engine `dotfiles-provision` | `dotfiles/provisioning/installer.pin` | `v0.1.2` | `bootstrap.sh` reads the file (never repeats the tag) and re-checks the semver shape; `scripts/engine_checkout.py` resolves the cached checkout for every gate | `deploy-coverage` (`assert_pin_set` + the engine checkout it reads); `ansible-embedded-template-lint` reads the same pin |
 | Assets corpus `dotfiles-assets` | `dotfiles/provisioning/assets.yaml` → `assets.tag` | `v0.5.0` | engine `roles/assets/vars/main.yml` (`assets_repo`, `assets_pinned_tag`, `assets_classes`, `assets_schema_support`); `roles/verify/vars/main.yml` (`verify_assets_pinned_tag`, class dirs, schema window); per-consumer `{compositor_configs,config_copies,zsh_config,kitty_config,btop_config,wlogout_config,display_manager}_assets_pinned_tag`, plus `assets_csg_pinned_tag` and `settings_weg_image_tag` | `deploy-coverage` (`assert_assets_shape`, `assert_pin_set`); engine parity tests |
 | CLIs `csg` · `weg` · `itr` | `dotfiles/provisioning/cli-tools.yaml` (`{name, repo, tag}`) | `v0.2.0` each | engine `roles/cli_tools/vars/main.yml` (`cli_tools:`); `roles/verify/vars/main.yml` (`verify_<name>_version`, tag-bearing checkout path, `pinned` record, `verify_<name>_contract_version: 0.2.0`) | `deploy-coverage` (`assert_cli_provisioned_from_pinned_manifest` + `assert_pin_set`) |
 | Runtime library `cli-output` | `src/runtime/pyproject.toml` `[tool.uv.sources]` | `v0.1.0` | `uv.lock` records the resolved commit | `assert_pin_set` (git + semver only, never `path`/`editable`); `uv lock --check` |
@@ -171,7 +171,7 @@ for the offline caveat (R-16).
 | Path | What it is | Status |
 |---|---|---|
 | `src/runtime/` | `dotfiles-runtime`: hexagon (domain/ports/adapters/application/cli), daemon, clipboard watcher, cache/state | **live, authored here** |
-| `dotfiles/provisioning/installer.pin` | The installer-engine tag (`v0.1.0`) — the ONE source read by `bootstrap.sh` and the Python gates. The engine's Python + `ansible/` tree is the pinned external `dotfiles-provision` repo, cached at `.dev/dotfiles-provision-<tag>/` (gitignored) | **live** (single source for the engine pin) |
+| `dotfiles/provisioning/installer.pin` | The installer-engine tag (`v0.1.2`) — the ONE source read by `bootstrap.sh` and the Python gates. The engine's Python + `ansible/` tree is the pinned external `dotfiles-provision` repo, installed from `git+…@tag` and cached at `.dev/dotfiles-provision-<tag>/` (gitignored) for the gates | **live** (single source for the engine pin) |
 | `dotfiles/config/` | `btop/active-theme` only — the mutable theme preference (OPEN-5, S7) | **shrunken to one file** — the static corpus moved to `dotfiles-assets` `configs/` (S2), and the last two template sources (`zsh/.zshrc.j2`, `wlogout/style.css.tpl`) moved to its `templates/` class (S3), so no `*.j2`/`*.tpl` is authored here; `assert_composition_only` asserts this exact allowlist |
 | `dotfiles/provisioning/assets.yaml` | The assets pin (`repo`, `tag`, `classes`) — the corpus itself is `dotfiles-assets` | **live** (single source for the corpus pin) |
 | `dotfiles/applications/`, `dotfiles/scripts/` | **retired at S4** — the six `.desktop` entries and `toggle-touchpad` ship in `dotfiles-assets` `desktop/` | **absent; `deploy-coverage` asserts it** (AD-10/AD-16) |
@@ -203,11 +203,15 @@ exist as sources. Their absence is a gate, not a memory
 |---|---|---|
 | preflight | `$HOME` set, non-root, **usable** container engine (`podman`/`docker` info, 15 s timeout) | abort before the long run (`bootstrap.sh:154-212`) |
 | 1. uv preseed | pinned uv `0.9.22`, sha256-verified tarball, version asserted | abort (`bootstrap.sh:224-293`) |
-| 2. engine install | fetch the pinned `dotfiles-provision` checkout (`.dev/dotfiles-provision-<tag>/`) and install it editable via `uv tool` into `UV_TOOL_BIN_DIR`; assert the console script runs (editable because the wheel packages only the Python package — R-15) | loud abort (`bootstrap.sh:329-368`) |
+| 2. engine install | fetch the pinned `dotfiles-provision` checkout (`.dev/dotfiles-provision-<tag>/`) for collections/inventory, then `uv tool install git+…@<tag>` into `UV_TOOL_BIN_DIR`; assert the console script runs (the wheel is self-contained — R-15 closed) | loud abort (`bootstrap.sh:329-368`) |
 | 3. collections | `ansible-galaxy collection install -r <engine>/ansible/requirements.yml`, then assert collections actually landed | loud abort (`bootstrap.sh:370-414`) |
 | 4. bootstrap | `dotfiles-provision --manifests-dir <repo>/dotfiles/provisioning --composition-root <repo> --inventory <engine>/ansible/inventory/localhost.yaml bootstrap` (+ forwarded become flags) | abort (`bootstrap.sh:495`) |
-| 5. verify | `dotfiles-provision ... verify` with `check=False` — a real gate | abort (`bootstrap.sh:501`) |
+| 5. verify | `dotfiles-provision ... verify --expected-engine-tag <pin>` with `check=False` — a real gate, including the R-17 engine assertion | abort (`bootstrap.sh:501`) |
 | post | if Hyprland IPC is reachable, warn `DEGRADED` when GloView is not loaded | exit stays 0 (`bootstrap.sh:513-532`) |
+
+After bootstrap, `make provision ARGS="verify"` (or `plan`/`apply`) is the short form: it runs the
+installed console from `UV_TOOL_BIN_DIR`. The retired in-tree `uv run --directory` form has no
+engine checkout to point at (R-13).
 
 ### 6.2 role order
 
@@ -650,13 +654,27 @@ Do **not** register a bar file: the bar deploys whole from `ags-apps`, and a per
 3. If it cannot run on a stock runner, declare it in `CI_EXCLUDED_GATES` / `CI_SELF_HOSTED_GATES` with a reason — never leave it silently absent.
 4. Prove: `make ci-gates-parity` and `make gates-ci` both exit 0.
 
+**Docs/gate-only corrections (R-12).** Batch documentation corrections before tagging. After a
+tag, never move it: cut a new PATCH. If the corrected file is not a consumed surface (README,
+CHANGELOG, gate script), record the correction and leave consumer pins unchanged; bump the pin
+only when the corrected file is a consumed surface (`catalog.yaml`, a schema, or corpus bytes).
+`dotfiles-assets v0.5.1` (the `validate-configs` gate, zero corpus bytes) is the dry run.
+
 ## 12. Known constraints and residuals
 
 - **No PyPI, no registry.** Consumers pin git tags; images build at provision time from the pinned checkout and are never published or digest-pinned (spine OPEN-2/OPEN-3; `POST-MIGRATION.md` §A1.3).
 - **Pins must be public and anonymously fetchable.** Provisioning clones over anonymous HTTPS with no credential helper; a private repo breaks `ansible.builtin.git` (`roles/ags_apps/vars/main.yml:88-90`; `openspec/specs/cli-repo-birth/spec.md:98-120`). Every pinned repo was verified public.
-- **The engine wheel is not self-contained** (R-15). `dotfiles-provision`'s wheel packages only the Python package; `ansible/` ships in the sdist, so `bootstrap.sh` clones the pinned tag and installs the checkout **editable** rather than `uv tool install git+…@tag`. A future wheel that embeds `ansible/` can simplify stage 2; until then, the checkout is the installable form of the engine.
-- **Composition gates need the cached engine checkout** (R-16). `deploy-coverage` and `ansible-embedded-template-lint` clone `.dev/dotfiles-provision-<tag>/` on demand; with no cache and no network they fail loudly naming the pin and cache path (they never fall back to an in-repo copy). Pre-populate the cache, or connect once, before gating an offline checkout.
-- **The engine tag is validated by `engine_checkout.py`, not by `verify`** (R-17). `read_engine_pin` asserts semver + checkout HEAD, but the engine's `verify` role asserts the provisioned CLIs/corpus and not its own tag; a fresh machine's proof of "which engine ran" is the bootstrap log's `engine install (vX.Y.Z)` line. Planned closure: pass the expected tag to `verify` as an extra-var and assert `dotfiles-provision version`.
+- **The engine install is a tag artifact** (R-15 closed in engine `v0.1.1`). The wheel carries
+  `ansible/` as `provisioning/_ansible`, so `bootstrap.sh` installs `git+…@<tag>`; the cached
+  `.dev/dotfiles-provision-<tag>/` checkout remains for `ansible-galaxy`/inventory and the gates.
+- **Composition gates need the cached engine checkout** (R-16). `deploy-coverage` and
+  `ansible-embedded-template-lint` resolve `.dev/dotfiles-provision-<tag>/` on demand; with no
+  cache and no network they fail loudly naming the pin and cache path (they never fall back to an
+  in-repo copy). Set `DOTFILES_PROVISION_OFFLINE=1` to turn a miss into one sentence with no clone
+  attempt; a pre-populated cache still gates offline.
+- **The engine tag is asserted by `verify`** (R-17 closed in engine `v0.1.1`). `bootstrap.sh`
+  passes `--expected-engine-tag <pin>`; the role compares the installed console version and fails
+  naming both tags. `engine_checkout.py` still validates the cached checkout for the gates.
 - **Builds happen on the host, at provision time**, so `verify` needs a working container engine; `bootstrap.sh` refuses to start without one.
 - **No VM in CI.** `dev/` drives an incus VM, but `incus` is absent on this host and no workflow references it; the disposable-VM half of the closure is still open (`POST-MIGRATION.md` §A3 gap (a); `RESIDUALS.md` R-10).
 - **Host-specific systemd pitfall.** A unit `ExecStart` line ending in a Jinja *block* tag (e.g. `{% endif %}`) swallows the next line (Ansible `trim_blocks`) → systemd runs `daemon run# …` → `No such command 'run#'` → `start-limit-hit`. Keep `runtime_daemon_run_flags` single-line (`roles/runtime_daemon/vars/main.yml:26-35`).

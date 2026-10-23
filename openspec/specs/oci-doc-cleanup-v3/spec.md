@@ -50,14 +50,10 @@ The `docs/ARCHITECTURE.md` file is updated to reflect v3 actual behavior. Specif
 - **WHEN** a reader looks for ResultChecker in ARCHITECTURE.md
 - **THEN** it is documented as a helper port in ports/ that replaces CliBaseManager._check_result, with wiring described
 
-## REMOVED Requirements
+## Removed requirements (history)
 
-### Requirement: Managers aggregate is a public port artifact
-
-**Reason**: It was never used — the factory constructs managers directly. The port layer now only exposes `Parsers` (actively used by the factory).
-
-**Migration**: Any external code importing `Managers` from `oci_runtime.ports.aggregates` must be updated to construct managers individually or removed. No known external consumers exist (module is internal).
-
-### Requirement: Shared adapter bases documented as architecture components
-
-**Reason**: `BaseCliParser`, `CliBaseManager`, and `BaseCliRuntimeProvider` are deleted in v3. Their responsibilities are distributed to domain helpers (`domain/`), helper ports (`ports/`), and direct ABC implementations.
+- **`Managers` aggregate public port artifact** — removed: it was never used; the factory
+  constructs managers directly and the port layer exposes only `Parsers`.
+- **Shared adapter bases as architecture components** — removed: `BaseCliParser`,
+  `CliBaseManager`, and `BaseCliRuntimeProvider` were deleted in v3; their responsibilities moved to
+  domain helpers, helper ports, and direct ABC implementations.

@@ -1,5 +1,8 @@
 # S2 — Provisioning addressing chain for the CLI tools
 
+> **Historical (2026-10-22):** evidence-only spike from before the assets/engine split; the
+> `dotfiles/config/zsh/...` path it records is now the pinned `dotfiles-assets` templates class.
+
 **Type:** evidence-only spike. **Worktree:** `/home/inumaki/Development/dotfiles-v3/.worktrees/clirsplit`
 (branch `ticket/clirsplit-investigate-and-spine`, HEAD `fb94b64e`, `master` = `fb94b64e`).
 **Question:** what is the complete provisioning addressing chain for `csg`, `weg`, `itr`, and

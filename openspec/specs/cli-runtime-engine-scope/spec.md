@@ -1,5 +1,29 @@
 # CLI Runtime & Engine Scope
 
+## Purpose
+
+Keep the CLI's `--runtime` and `--container-engine` flags scoped to exactly the commands that
+consume them, so a flag declaration cannot imply behavior on a command that ignores it.
+
+## Requirements
+
+### Requirement: Runtime and container-engine flags SHALL be scoped to their consumers
+
+`--runtime` and `--container-engine` SHALL be declared only on the command tree that consumes
+them, and SHALL default to `None` so TOML/ENV settings remain reachable when the flag is omitted.
+
+#### Scenario: an unrelated command rejects the flag
+
+- **GIVEN** a command that does not consume `--runtime`
+- **WHEN** the user passes `--runtime local`
+- **THEN** the CLI rejects the option instead of silently ignoring it
+
+#### Scenario: an omitted flag does not override settings
+
+- **GIVEN** a runtime mode set in TOML or the environment
+- **WHEN** the command is invoked without `--runtime`
+- **THEN** the TOML/ENV value is used unchanged
+
 ## Decision
 
 Scope `--runtime` and `--container-engine` to exactly the command tree that consumes them, following the principle: a flag's declaration scope must match its set of actual consumers.

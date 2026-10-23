@@ -1,3 +1,6 @@
+> **Archive provenance (2026-10-22):** the `dotfiles/config/...` paths in this historical design
+> record are pre-split; the AGS unit now deploys whole from the pinned `ags-apps` repo.
+
 ## Context
 
 `BluetoothRow` (`dotfiles/config/ags/components/bluetooth/BluetoothContent.tsx:107-151`)

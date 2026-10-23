@@ -359,6 +359,12 @@ The popup body SHALL use only `settings-*` classes already present in
 `style.css` or the mapped TSX files. Mock-only scaffolding (page chrome, zoom
 control, captions) is confined to the mock and never shipped.
 
+#### Scenario: the shipped popup carries no mock-only class
+
+- **GIVEN** the Bluetooth popup is rendered from the shipped TSX and `style.css`
+- **WHEN** its class tokens are compared with the allowlisted `settings-*` set
+- **THEN** no mock-only class (page chrome, zoom control, caption) appears
+
 ### Requirement: The pairing watchdog is surfaced without a timer in the view
 
 While an action is in flight the row SHALL show a spinner and a **static**
@@ -386,6 +392,12 @@ The failure line SHALL render `bluetoothFailure()` unmodified — including
 and `No Bluetooth adapter available`. It SHALL NOT be reworded or prefixed with
 `Error:`. An absent adapter SHALL additionally show the
 `settings-panel/info-caution` glyph and make the header switch insensitive.
+
+#### Scenario: a service failure is shown verbatim
+
+- **GIVEN** `bluetoothFailure()` returns `Pairing timed out`
+- **WHEN** the popup renders the failure line
+- **THEN** the text is exactly `Pairing timed out`, with no `Error:` prefix or rewording
 
 ### Requirement: Blueman is provisioned, mapped per distro, and not autostarted
 

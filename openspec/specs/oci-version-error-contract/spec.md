@@ -30,8 +30,6 @@ When a user passes a `RuntimePreference` with a `RuntimeKind` not present in the
 - **WHEN** `RuntimeFactory().create(RuntimePreference(kind=RuntimeKind("nerdctl"), binary="nerdctl"))` with no nerdctl provider registered
 - **THEN** `ProviderNotRegisteredError` is raised, message includes registered kinds `[DOCKER, PODMAN]`
 
-## ADDED Requirements
-
 ### Requirement: ProviderNotRegisteredError is an OciError subclass
 
 A new `ProviderNotRegisteredError` exception in `domain/exceptions.py` inherits from `OciError` and carries the unknown `RuntimeKind`. It is re-exported via `oci_runtime/__init__.py`.

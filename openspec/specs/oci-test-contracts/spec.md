@@ -88,14 +88,9 @@ When `make capture-fixtures` has not been run, the conformance test suite must e
 - **WHEN** the custom transport's `execute(["docker", "--version"])` is called
 - **THEN** the response dict with key `("docker", "--version")` is matched and returned
 
-## REMOVED Requirements
+## Removed requirements (history)
 
-### Requirement: _not_found_error required-class-attribute regression test
-
-**Reason**: `CliBaseManager` is deleted; managers no longer define `_not_found_error` as a class attribute. Each `CliResultChecker` instance receives `not_found_error` via constructor injection. The contract is enforced by `ResultChecker` ABC and `CliResultChecker.__init__`.
-
-### Requirement: Dead subprocess.run patches in factory wiring tests
-
-**Reason**: `CliTransport` uses `subprocess.Popen`, never `subprocess.run`. The `@patch("subprocess.run")` decorators in `test_factory_wiring.py` are dead code.
-
-**Migration**: Delete the decorators and the unused `mock_run` parameters.
+- **`_not_found_error` required-class-attribute regression test** — removed: `CliBaseManager` is
+  gone; each `CliResultChecker` receives `not_found_error` by constructor injection.
+- **Dead `subprocess.run` patches in factory wiring tests** — removed: `CliTransport` uses
+  `subprocess.Popen`; the decorators and unused `mock_run` parameters were deleted.

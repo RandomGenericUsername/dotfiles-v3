@@ -1,3 +1,7 @@
+> **Archive provenance (2026-10-22):** the `dotfiles/assets/icon-templates/...` path in this
+> historical task list is now the pinned `dotfiles-assets` corpus (`icons/templates/...` at
+> `v0.5.0`); it is not a live instruction.
+
 ## 1. Icons — signal templates + manifest variants (additive only)
 
 - [x] 1.1 Convert the four owner source files

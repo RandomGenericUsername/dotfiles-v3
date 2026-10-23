@@ -226,10 +226,10 @@ passwordless sudo.
 | 1 | `packages` | system packages via pacman/apt; AUR yay self-bootstrap (become) |
 | 2 | `cli_tools` | `uv tool install` csg/weg/itr + container-image builds (csg) |
 | 3 | `filesystem` | XDG config/state/cache dirs + the full install spine |
-| 4 | `assets` | wallpapers, icon-templates, icon-mappings, csg templates, weg effects |
+| 4 | `assets` | fetch the pinned `dotfiles-assets` corpus once into `<install>/assets/<tag>/`; icons/templates/configs/content/desktop are read from that checkout (wallpapers, icon templates/mappings, csg templates, weg effects) |
 | 5 | `runtime-seed` | `dotfiles-runtime wallpaper set <install>/wallpapers/default.png` → cache + `current/` (Epic 4: runtime is the single producer; no `default_palette` role) |
 | 6 | `compositor_configs` | hypr/ags/hyprpaper skeletons only (no palette fragments — Epic 4; runtime R2 symlinks own consumer paths) |
-| 7 | `config_copies` | repo `dotfiles/config/*` → spine `config/` |
+| 7 | `config_copies` | pinned `configs` class → spine `config/` (btop.conf itself is rendered by `btop_config`) |
 | 8 | `settings` | renders csg/weg/itr `settings.toml` (Jinja) |
 | 9 | `zsh_tools` | git-clones oh-my-zsh/pyenv/nvm (`~/.oh-my-zsh`, `~/.pyenv`, `~/.nvm`) |
 | 10 | `zsh_config` | renders `.zshrc.j2` → spine `config/zsh/.zshrc` (starship, plugins, colors) |
@@ -1178,16 +1178,22 @@ Provisioning is responsible for (all IMPLEMENTED):
 
 - package installation (Ansible `packages` role: pacman/apt + AUR yay bootstrap)
 - filesystem bootstrap (Ansible `filesystem` role: XDG dirs + install spine)
-- asset placement (Ansible `assets` role: wallpapers, icon-templates, icon-mappings, csg templates, weg effects)
-- CLI installation (Ansible `cli_tools` role: `uv tool install` csg/weg/itr + container image builds)
-- default palette generation (Ansible `default_palette` role: `csg generate` in container mode)
-- compositor configs (Ansible `compositor_configs`: skeletons + palette fragments)
-- config copies (Ansible `config_copies`: repo dotfiles/config → spine)
+- asset placement (Ansible `assets` role: fetch the pinned `dotfiles-assets` corpus and read
+  wallpapers, icon templates/mappings, csg templates, weg effects from `<install>/assets/<tag>/`)
+- CLI installation (Ansible `cli_tools` role: `uv tool install` csg/weg/itr from their pinned repos +
+  container image builds)
+- compositor configs (Ansible `compositor_configs`: skeletons + pinned configs class; the runtime
+  owns palette fragments and consumer symlinks)
+- config copies (Ansible `config_copies`: pinned `configs` class → spine `config/`)
+- btop render (Ansible `btop_config`: `btop.conf` from the pinned templates class)
 - per-tool settings (Ansible `settings`: renders csg/weg/itr settings.toml)
 - config-in-spine symlinks (Ansible `config_links`: `~/.config/<name>` → spine, with backup guard)
-- icon rendering (Ansible `icons`: `itr render` resolved SVGs)
+- display manager (Ansible `display_manager`: SDDM + Pixie, service enable/disable)
 - environment preparation
-- verification (Ansible `verify`: the fourteen done-criteria)
+- verification (Ansible `verify`: the done-criteria, including the R-17 engine tag assertion)
+
+The `default_palette` and `icons` roles named in older revisions were retired by the runtime
+reconciliation and assets split; they no longer exist in the pinned engine.
 
 ---
 
@@ -1272,6 +1278,12 @@ Establish operational environment.
 > Implemented as `src/provisioning` (hexagonal Python driving Ansible) +
 > `scripts/bootstrap.sh`; see `docs/01` and `docs/02`.
 
+> **Assets/engine split note (2026-10-22):** the provisioning tree is now the pinned external
+> `dotfiles-provision` engine (`v0.1.1`), and the compositor/config/template/desktop content is the
+> pinned `dotfiles-assets` corpus (`v0.5.0`). References below to `dotfiles/config/...` are the
+> pre-split locations; the live paths are the corpus's `configs/`, `templates/`, and `desktop/`
+> classes, deployed under `<install>/assets/<tag>/`. This document is retained as the design record.
+
 ## Phase 1 Patch — Hyprland Lua Migration & Must-Have Utilities (2026-08-22)
 
 **Context:** Hyprland 0.55+ deprecated hyprlang format (`hyprland.conf`) in favor
@@ -1282,10 +1294,10 @@ the Hyprland wiki recommends several must-have utilities that were missing.
 
 | Change | Files |
 |--------|-------|
-| Migrate `hyprland.conf` → `hyprland.lua` | `dotfiles/config/hypr/hyprland.lua` (new) |
+| Migrate `hyprland.conf` → `hyprland.lua` | `configs/hypr/hyprland.lua` in the pinned corpus (pre-split path: `dotfiles/config/hypr/hyprland.lua`) |
 | Add 9 modular Lua config files | `keybindings.lua`, `monitors.lua`, `autostart.lua`, `window-rules.lua`, `animations.lua`, `input.lua`, `decoration.lua`, `cursor.lua`, `env-variables.lua` |
 | Add animated palette border glow | `colors.lua` — reads `current/colors.conf` at `dofile` time; sets `general.col.active_border` gradient + `borderangle` loop; re-applies on every `hyprctl reload` (runtime palette swap) |
-| Remove old `hyprland.conf` | `dotfiles/config/hypr/hyprland.conf` (deleted) |
+| Remove old `hyprland.conf` | `configs/hypr/hyprland.conf` absent from the pinned corpus (pre-split path: `dotfiles/config/hypr/hyprland.conf`, deleted) |
 | Add must-have packages | `packages.yaml` — dunst, hyprpolkitagent, xdg-desktop-portal-hyprland, xdg-desktop-portal-gtk, wl-clipboard, grim, slurp, rofi, thunar, cliphist, lf, hyprcursor, hyprlock, hypridle |
 | Wire services via systemd | `autostart.lua` — systemctl --user start for hyprpolkitagent, xdg-desktop-portal-hyprland, xdg-desktop-portal-gtk |
 | Update Ansible roles | `compositor_configs/vars/main.yml` — 13 skeleton files (was 4) |

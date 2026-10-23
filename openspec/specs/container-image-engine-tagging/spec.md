@@ -1,5 +1,29 @@
 # Container Image Engine Tagging
 
+## Purpose
+
+Make every container image name identify the engine that built it, so docker and podman images
+cannot silently overwrite each other.
+
+## Requirements
+
+### Requirement: Container image names SHALL carry the engine qualifier
+
+WEG and CSG SHALL build image names through `engine_qualified_image`, producing
+`{registry/}{name}-{engine}:{tag}` for every engine, including the default docker engine.
+
+#### Scenario: docker and podman images do not collide
+
+- **GIVEN** the same image name and tag built once with docker and once with podman
+- **WHEN** both references are resolved
+- **THEN** they differ by the `-docker` / `-podman` qualifier
+
+#### Scenario: the default engine is still qualified
+
+- **GIVEN** an image built with no explicit engine override
+- **WHEN** the reference is resolved
+- **THEN** it carries the default engine's qualifier rather than an unqualified name
+
 ## Why
 
 Container images built by WEG and CSG share identical tags across both docker and podman engines, making it impossible to distinguish which engine an image was built for. Rebuilding for a different engine silently overwrites the existing image.
