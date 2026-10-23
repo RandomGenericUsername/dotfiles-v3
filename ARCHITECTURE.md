@@ -184,7 +184,7 @@ for the offline caveat (R-16).
 | `_bmad/`, `_bmad-output/` | BMAD harness; planning + implementation artifacts (incl. the cli-repos spine) | historical record |
 | `prototypes/`, `spikes/` | Throwaway probes (canvas/Hyprland/DBus/schema) | **historical** |
 | `.worktrees/` | Gitignored worktrees created by `scripts/worktree-guard.sh` | live, never committed |
-| `AGENTS.md`, `CLAUDE.md` (symlink), `Makefile`, `bootstrap.sh` | The operating contract, gate set, fresh-machine entry point | live |
+| `AGENTS.md`, `CLAUDE.md` (symlink), `README.md`, `docs/WORKSPACE.md`, `Makefile`, `bootstrap.sh` | The operating contract, composition overview, cross-repo ownership/pin map, gate set, fresh-machine entry point | live |
 | `LICENSE`, `CHANGELOG.md` | MIT license + the 0.x split summary (S7); the authoritative record stays the spine/slices/residual ledger | live (product metadata) |
 
 `src/cli-tools/`, `src/shared/`, `src/gui-tools/`, the retired in-repo
@@ -704,7 +704,7 @@ closure record).
 | `docs/01-dotfiles-provisioning-phase1-plan.md` | Phase-1 provisioning plan + Epic-4 amendment (removes `default_palette`/`icons`/`generated/`) | historical, amended |
 | `docs/02-config-in-spine-pattern.md` | Config-in-spine decision record (spine + symlinks + backup guard) | normative |
 | `docs/100-ags-bar-rearchitecture.md` | Bar re-architecture exploration + prototype log | historical |
-| `docs/101-ags-platform-architecture.md` | AGS platform design of record (ports, schemas, icon contract); its `bar-v0.1.1` pin note is stale | normative |
+| `docs/101-ags-platform-architecture.md` | AGS platform design of record (ports, schemas, icon contract); the bar pin note is `v0.4.1` (the `ags-apps` monorepo unit) | normative |
 | `docs/HANDOFF-ags-platform.md` | Roadmap, working manner, environment facts, pin ladder (lags `v0.4.0`) | historical |
 | `docs/HANDOFF-bar-rearchitecture.md` | Context handoff for the bar work | historical |
 | `docs/GUIDE-ags-app-repos-refinement.md` | Decided topology + the deferred per-app-split exit gate | normative (topology) |

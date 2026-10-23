@@ -1,9 +1,10 @@
 # AGENTS.md — dotfiles-v3 operating contract
 
 Canonical agent instructions for this repo (Claude, OpenCode, and any BMAD/OpenSpec
-skill must follow this). This repo is the dotfiles host: the composition manifests
-+ pinned installer engine, the Python runtime, the AGS bar, the CLI tools
-(csg / weg / itr), and the shared harness.
+skill must follow this). This repo is the dotfiles composition: the manifests + pinned installer
+engine, the Python runtime, and the composition gates. The AGS bar/apps live in the pinned
+`ags-apps` unit; the CLI tools (csg / weg / itr) live in their own repos. The workspace map is
+[`docs/WORKSPACE.md`](docs/WORKSPACE.md).
 
 ## 1. Worktree discipline — NEVER work on `master`
 
