@@ -10,7 +10,7 @@ and it is a byte-identical duplicate of `ags-apps/bar/`.
 
 Evidence:
 
-- `git ls-files dotfiles/config/ags | wc -l` → **115**; `git -C /home/inumaki/Development/ags-apps ls-files bar | wc -l` → **115** (same tree, slice 1 copied it verbatim).
+- `git ls-files dotfiles/config/ags | wc -l` → **115**; `git -C /home/inumaki/Development/dotfiles/ags-apps ls-files bar | wc -l` → **115** (same tree, slice 1 copied it verbatim).
 - `compositor_configs_skeleton_files` carries **no** `dotfiles/config/ags/` entry
   (`src/provisioning/ansible/roles/compositor_configs/vars/main.yml:106-121`); the
   91 bar entries were retired by slice 2.

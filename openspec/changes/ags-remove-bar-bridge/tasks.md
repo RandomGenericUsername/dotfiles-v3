@@ -6,17 +6,17 @@ one and the tree is deleted only after every gate that reads it is retired or
 repointed.
 
 Preconditions for the whole change: `ags-apps/bar` exists and is the pinned unit
-(`git -C /home/inumaki/Development/ags-apps tag | grep bar-v0.1.0`), and
-`cd /home/inumaki/Development/ags-apps && make gates-ci` is green.
+(`git -C /home/inumaki/Development/dotfiles/ags-apps tag | grep bar-v0.1.0`), and
+`cd /home/inumaki/Development/dotfiles/ags-apps && make gates-ci` is green.
 
 ## 0. Freeze the duplicate (no code)
 
 - [ ] 0.1 Prove the two trees are the same tree, so deletion loses nothing.
   Verify: `git ls-files dotfiles/config/ags | wc -l` → 115;
-  `git -C /home/inumaki/Development/ags-apps ls-files bar | wc -l` → 115;
-  `diff -rq dotfiles/config/ags /home/inumaki/Development/ags-apps/bar --exclude=node_modules --exclude=@girs --exclude=tsconfig.json` → no differences.
+  `git -C /home/inumaki/Development/dotfiles/ags-apps ls-files bar | wc -l` → 115;
+  `diff -rq dotfiles/config/ags /home/inumaki/Development/dotfiles/ags-apps/bar --exclude=node_modules --exclude=@girs --exclude=tsconfig.json` → no differences.
 - [ ] 0.2 Record the ags-apps gate baseline the retirement leans on.
-  Verify: `cd /home/inumaki/Development/ags-apps && make gates-ci` → exit 0
+  Verify: `cd /home/inumaki/Development/dotfiles/ags-apps && make gates-ci` → exit 0
   (`bar-typecheck`/`ags-test` live at `ags-apps/Makefile:88,143`).
 
 ## 1. Rewrite `deploy-coverage` so it no longer requires the in-repo entry

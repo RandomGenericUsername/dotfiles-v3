@@ -12,7 +12,7 @@ question is already decided: `docs/GUIDE-ags-app-repos-refinement.md` §7 keeps
 `ags-apps` backlog already exists (`EPIC-001-apps-thin-consumers` + REQ-001…
 REQ-006, all `proposed`).
 
-Evidence: `ls /home/inumaki/Development/ags-apps/` → scaffold only
+Evidence: `ls /home/inumaki/Development/dotfiles/ags-apps/` → scaffold only
 (`AGENTS.md`, `tickets/`, `openspec/`, harness); **no `bar/` dir**; local `main`
 at `2d47625` (one commit ahead of `origin/main` `172be0f`, the unpushed
 EPIC-001 backlog commit). `ls dotfiles/config/` → `ags/`, `ags-capture/` … are

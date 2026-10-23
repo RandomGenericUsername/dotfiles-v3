@@ -50,7 +50,7 @@ Nothing is ticked from reading a diff.
   btop-theme-studio 2 → all non-zero, no app→app.
 
 - [x] 1.2 Per-app CI in `ags-apps` (typecheck + tests for `bar/`).
-  Verify: `make -C /home/inumaki/Development/ags-apps bar-check` (or the
+  Verify: `make -C /home/inumaki/Development/dotfiles/ags-apps bar-check` (or the
   repo's gate target) → exit 0.
   **Evidence (2026-10-19):** the bar targets exist and are wired into the root
   gate — `ags-apps/Makefile:143 bar-typecheck:`, `:198 ags-test:`, `:81
@@ -173,7 +173,7 @@ as simplest pilot per GUIDE §7):
   off to `ags-delete-redundant-code` (deletion is a separate change, AD-20).
   Verify: `ls ags-apps/` → seven app dirs; `make gates-ci` → exit 0.
   Explicitly NOT in this change: deleting any in-place duplicate.
-  **Evidence (2026-10-19):** `ls /home/inumaki/Development/ags-apps` → `bar
+  **Evidence (2026-10-19):** `ls /home/inumaki/Development/dotfiles/ags-apps` → `bar
   btop-theme-studio capture-tool hypr-pano icme notifications
   wallpaper-selector` (seven app dirs, plus harness). `make gates-ci` in
   `ags-apps` → **exit 0** at tag `v0.3.8` (= HEAD `c6f09e5`, `git tag
