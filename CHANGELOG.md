@@ -15,6 +15,18 @@ this summary:
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-10-24 — engine v0.1.9 / host verify
+
+### Fixed
+
+- Installer engine pin `v0.1.8` → `v0.1.9`: the wheel now ships
+  `inventory/group_vars` (BUG-002), so the installed engine's `verify` resolves
+  `container_runtime_engine` and `shell` instead of failing on undefined vars.
+- Host proof: `make provision ARGS="verify --expected-engine-tag v0.1.9"` →
+  exit 0 on 2026-10-24; engine 0.1.9, runtime pinned v0.1.0, daemon and clipboard
+  units active, runtime state seeded. A true fresh-VM proof is still pending
+  because `incus` is absent on this host.
+
 ## [0.6.1] - 2026-10-23 — runtime-seed fix
 
 ### Fixed
