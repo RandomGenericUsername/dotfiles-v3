@@ -15,6 +15,15 @@ this summary:
 
 ## [Unreleased]
 
+## [0.6.3] - 2026-10-24 — power-options Bluetooth policy
+
+### Added
+
+- Installer engine pin `v0.1.9` → `v0.1.10`: the new `power_options` role rewrites
+  `block_bt = false` in the Powersave/Powersave++/Balanced profiles, refreshes the active profile,
+  and writes `/etc/power-options/.dotfiles-bt-ok`. `verify` reads the three profiles and fails if
+  any still blocks Bluetooth. Switching power profiles no longer disables the radio.
+
 ## [0.6.2] - 2026-10-24 — engine v0.1.9 / host verify
 
 ### Fixed
