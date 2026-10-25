@@ -15,6 +15,15 @@ this summary:
 
 ## [Unreleased]
 
+## [0.6.4] - 2026-10-24 — power-options daemon reload
+
+### Fixed
+
+- Installer engine pin `v0.1.10` → `v0.1.11`: the `power_options` role now restarts
+  `power-options.service` after rewriting the profile TOMLs, then refreshes. Without the restart the
+  daemon kept its old in-memory Powersave profile and still soft-blocked Bluetooth; the
+  `policy_version = 2` marker makes an upgrade restart an already-false set once.
+
 ## [0.6.3] - 2026-10-24 — power-options Bluetooth policy
 
 ### Added
