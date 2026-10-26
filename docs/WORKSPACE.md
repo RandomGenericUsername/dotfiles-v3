@@ -40,7 +40,7 @@ and **which tag each consumer pins**. It is the cross-project companion to each 
 
 | Consumer | Pinned artifact | Tag | Declared in |
 | --- | --- | --- | --- |
-| `dotfiles-v3` | installer engine `dotfiles-provision` | `v0.1.11` | `dotfiles/provisioning/installer.pin` |
+| `dotfiles-v3` | installer engine `dotfiles-provision` | `v0.1.12` | `dotfiles/provisioning/installer.pin` |
 | `dotfiles-v3` | corpus `dotfiles-assets` | `v0.5.0` | `dotfiles/provisioning/assets.yaml` |
 | `dotfiles-v3` | CLIs `csg`/`weg`/`itr` + runtime `dotfiles-runtime` | `v0.2.0` each / `v0.1.0` | `dotfiles/provisioning/cli-tools.yaml` |
 | `dotfiles-runtime` | `cli-output` | `v0.1.0` | runtime `pyproject.toml` |
