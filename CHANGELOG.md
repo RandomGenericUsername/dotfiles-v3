@@ -15,6 +15,34 @@ this summary:
 
 ## [Unreleased]
 
+## [0.6.6] - 2026-10-26 — runtime palette order + engine v0.1.15
+
+### Changed
+
+- Installer engine pin `v0.1.12` → `v0.1.15`: the engine mirrors
+  `dotfiles-runtime v0.2.0` in `cli_tools` and in `verify`
+  (`verify_runtime_version` / `verify_runtime_tool_version`), so provisioning
+  installs and verifies the mandatory-palette runtime. The engine also carries
+  the earlier releases of this train: the weston SDDM greeter (v0.1.13) and the
+  `ags-apps v0.4.3` selector click-collapse (v0.1.14).
+- Assets corpus pin `v0.5.0` → `v0.6.0` to match the engine's mirrored
+  `*_assets_pinned_tag` defaults, including the SDDM `[Wayland]` template.
+- `dotfiles-runtime` pin `v0.1.0` → `v0.2.0`: `wallpaper set` prepares the
+  palette (hard) before the visible swap, and a palette failure exits non-zero
+  without swapping the wallpaper, writing `current.json`, or changing consumer
+  links. The published stage order is
+  `applying/generating_palette` → `applying/palette_generated` →
+  `applying/setting_wallpaper` → `visible/preparing_appearance_assets` →
+  `visible/appearance_assets_ready` → `visible/reconciling_consumers` →
+  `done/finished`; a palette failure publishes only `generating_palette` then
+  `error/generating_palette`, never `visible`. Reconcile refuses a legacy
+  null-palette state instead of unlinking consumer pointers.
+
+### Docs
+
+- `docs/ags-restart-vs-live-theme-refresh.md` records the runtime v0.2.0 stage
+  order; its restart-vs-live-refresh rules are unchanged.
+
 ## [0.6.5] - 2026-10-25 — color thumbnails consume
 
 ### Fixed
