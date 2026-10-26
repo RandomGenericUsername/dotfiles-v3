@@ -3,11 +3,12 @@
 #
 # Runs after `vm-fresh` provisions (and again after the P2 reboot) and checks
 # the VM actually converged: verify green, SDDM up, Hyprland session live,
-# AGS instances on the bus, icons rendered, GloView loaded, Wi-Fi associated.
-# Anything but Wi-Fi is FAIL (provision correctness); Wi-Fi association is
-# WARN (virtual-radio flakiness is environmental, and vm-fresh already
-# best-effort connects it). Prints one [PASS]/[FAIL]/[WARN] line per check
-# and exits non-zero when any FAIL check fails.
+# no DisplayServer=x11-user fallback, session-bounce checker green, weston
+# present, AGS instances on the bus, icons rendered, GloView loaded, Wi-Fi
+# associated.  Anything but Wi-Fi is FAIL (provision correctness); Wi-Fi
+# association is WARN (virtual-radio flakiness is environmental, and vm-fresh
+# already best-effort connects it). Prints one [PASS]/[FAIL]/[WARN] line per
+# check and exits non-zero when any FAIL check fails.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -53,7 +54,29 @@ else
   fail "no Hyprland process in guest"
 fi
 
-# 4. Always-on AGS instances on the bus (bar + notifications overlay).
+# 4. No silent greeter fallback: SDDM must keep its Wayland display server.
+if gexec sh -c 'journalctl -b -u sddm --no-pager 2>/dev/null | grep -q "falling back to DisplayServer=x11-user"'; then
+  fail "sddm fell back to DisplayServer=x11-user"
+else
+  pass "no sddm DisplayServer=x11-user fallback"
+fi
+
+# 5. The session-bounce checker must pass against the guest's own journal.
+# Runs as root (incus exec) so journal read access never depends on groups.
+if gexec python3 /home/arch/dotfiles-repo-v3/scripts/check-session-bounce.py --boot 0 >/tmp/session-bounce.log 2>&1; then
+  pass "session-bounce checker green in guest"
+else
+  fail "session-bounce checker red in guest (see /tmp/session-bounce.log via 'vm shell')"
+fi
+
+# 6. The Wayland fallback compositor must be installed by the provisioner.
+if gexec sh -c 'command -v weston' >/dev/null 2>&1; then
+  pass "weston installed (Wayland fallback compositor)"
+else
+  fail "weston missing from guest (expected Wayland fallback compositor)"
+fi
+
+# 7. Always-on AGS instances on the bus (bar + notifications overlay).
 AGS_LIST="$(gexec_arch 'XDG_RUNTIME_DIR=/run/user/$(id -u) ags list 2>/dev/null' || true)"
 if printf '%s' "$AGS_LIST" | grep -qx "ags"; then
   pass "AGS bar instance running"
@@ -66,14 +89,14 @@ else
   fail "AGS notifications instance missing from 'ags list'"
 fi
 
-# 5. Rendered icons present for the live wallpaper.
+# 8. Rendered icons present for the live wallpaper.
 if gexec_arch 'test -n "$(ls /home/arch/.local/state/dotfiles/current/icons/ 2>/dev/null)"'; then
   pass "current/icons populated"
 else
   fail "current/icons empty or missing in guest"
 fi
 
-# 6. GloView plugin loaded (needs the Hyprland IPC signature of the live
+# 9. GloView plugin loaded (needs the Hyprland IPC signature of the live
 # session; missing signature dir means no IPC to check against).
 SIG_DIR="$(gexec_arch 'ls -d /run/user/$(id -u)/hypr/* 2>/dev/null | head -1' || true)"
 if [ -n "$SIG_DIR" ] && gexec_arch "HYPRLAND_INSTANCE_SIGNATURE=\$(basename '$SIG_DIR') hyprctl plugin list 2>/dev/null | grep -qi gloview"; then
@@ -82,7 +105,7 @@ else
   fail "GloView not in 'hyprctl plugin list'"
 fi
 
-# 7. Wi-Fi associated to the virtual AP (best-effort by design: WARN only).
+# 10. Wi-Fi associated to the virtual AP (best-effort by design: WARN only).
 if gexec nmcli -t -f DEVICE,TYPE,STATE dev 2>/dev/null | grep -q "^wlan0:wifi:connected"; then
   pass "wlan0 connected to virtual AP"
 else
