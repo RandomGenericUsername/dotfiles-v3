@@ -15,6 +15,19 @@ this summary:
 
 ## [Unreleased]
 
+## [0.6.5] - 2026-10-25 — color thumbnails consume
+
+### Fixed
+
+- Installer engine pin `v0.1.11` → `v0.1.12`: the engine consumes `ags-apps v0.4.2`
+  (ags-apps BUG-001). The wallpaper-selector rendered every PNG card in black &
+  white — gdk-pixbuf's JPEG writer desaturates 4-channel (RGBA) pixbufs, and the
+  selector's disk-cache keys (path+mtime+size) never invalidate for files that do
+  not move. The fix flattens RGBA onto an opaque 3-channel pixbuf over black
+  before the JPEG save and bumps the thumb-cache entry format to v2, so every
+  poisoned entry regenerates on the first open of the fixed build; the engine's
+  `verify` mirror moves with the pin.
+
 ## [0.6.4] - 2026-10-24 — power-options daemon reload
 
 ### Fixed
