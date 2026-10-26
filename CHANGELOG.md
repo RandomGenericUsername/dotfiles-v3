@@ -15,6 +15,33 @@ this summary:
 
 ## [Unreleased]
 
+## [0.6.7] - 2026-10-26 — logout `uwsm stop` + assets v0.6.1 / runtime v0.2.2
+
+### Changed
+
+- Installer engine pin `v0.1.15` → `v0.1.16`: the engine consumes assets
+  `v0.6.1` and runtime `v0.2.2` in every `*_assets_pinned_tag` mirror and in
+  `verify` (`verify_runtime_version` / `verify_runtime_tool_version`), so a
+  provision installs and verifies the fixed logout action and runtime.
+- Assets corpus pin `v0.6.0` → `v0.6.1`: the wlogout Logout tile runs
+  `uwsm stop` instead of `loginctl terminate-user $USER`, so logout stops the
+  compositor unit and lets `sddm-helper` exit normally; SDDM returns to the
+  Pixie greeter instead of leaving a black VT with a cursor (provision
+  BUG-005). The corpus's `validate-configs` gate now pins the action. No other
+  tile, key, icon or pixie change ships in this pin.
+- `dotfiles-runtime` pin `v0.2.0` → `v0.2.2`: the icon-contrast prefs reader
+  accepts its own canonical document at any entry count, including four or
+  more prefs (runtime BUG-003), and BUG-004's `btop-theme-studio` skip is kept
+  so a wallpaper change does not discard unsaved studio edits. Includes
+  v0.2.1's BUG-002 csg timeout cleanup (330 s timeout, SIGINT before SIGKILL,
+  complete-artifact verification, 512 MiB container limit kept).
+
+### Notes
+
+- No AGS app code and no wlogout/pixie source in this repo changes; the
+  logout fix arrives only through the pinned assets tag. Host deploy and the
+  logout → 5-login acceptance are user-run.
+
 ## [0.6.6] - 2026-10-26 — runtime palette order + engine v0.1.15
 
 ### Changed
