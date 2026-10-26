@@ -27,12 +27,14 @@ The real helper expands the config path, detects CSS parse errors, and adds the 
 
 ```text
 wallpaper set
-  ├─ wallpaper.state: applying ──────────> show indeterminate progress card
-  ├─ set new wallpaper visibly
-  ├─ wallpaper.state: visible ───────────> update card text; keep progress moving
-  ├─ derive/apply palette and reconcile consumers (existing runtime sequence)
-  ├─ wallpaper.state: done ──────────────> refresh palette CSS; show completion
-  └─ wallpaper.state: error ─────────────> show failure
+  ├─ wallpaper.state: applying/generating_palette ─> show indeterminate progress card
+  ├─ generate the palette (hard); a failure stops here, before any visible change
+  ├─ wallpaper.state: applying/palette_generated ──> confirm palette generation
+  ├─ wallpaper.state: applying/setting_wallpaper ──> set new wallpaper visibly
+  ├─ wallpaper.state: visible ─────────────────────> update card text; keep progress moving
+  ├─ apply effects/icons and reconcile consumers
+  ├─ wallpaper.state: done ────────────────────────> refresh palette CSS; show completion
+  └─ wallpaper.state: error ───────────────────────> show failure
 ```
 
 The overlay subscribes to the existing `org.dotfiles.Events` D-Bus signal. At startup it subscribes first, then calls `GetTopicState` once so an operation already in progress is not missed. If the event hub starts later, D-Bus `NameOwnerChanged` triggers one more state read. There is no polling of the runtime.
@@ -43,21 +45,23 @@ The card's picture glyph and completed-step check-circle follow the repository i
 
 | Event stage | Published at | Checklist row made active |
 | --- | --- | --- |
-| `setting_wallpaper` | Before the visible swap | Setting the wallpaper |
-| `generating_palette` | After wallpaper visibility is confirmed | Generating the color palette |
+| `generating_palette` | At the start of `applying`, before palette generation | Generating the color palette |
 | `palette_generated` | Immediately after `ensure_palette()` succeeds | Confirms palette generation is complete |
-| `preparing_appearance_assets` | Before effects and icons are ensured | Preparing effects and icons |
+| `setting_wallpaper` | After palette generation succeeds, before the visible swap | Setting the wallpaper |
+| `preparing_appearance_assets` | After the visible swap, before effects and icons are ensured | Preparing effects and icons |
 | `appearance_assets_ready` | After effects/icons handling and desired state persistence | Updating desktop consumers |
 | `reconciling_consumers` | After apply-state derivation, immediately before reconcile | Updating desktop consumers |
 | `finished` | After reconcile returns | All rows complete |
 
-The palette event is emitted by an optional progress callback at the application use-case boundary. The command adapts it to the event bus. It is informational and cannot change derivation, locking, reconcile ownership, or operation order. Existing subscribers can ignore the optional field; the prior `state` values are unchanged. The notification's GTK timer only pulses the indeterminate bar while a card is active.
+Palette generation is a hard precondition in `v0.2.0`. A palette failure publishes only `applying/generating_palette` and then `error/generating_palette` (pending hash plus reason); it never publishes `visible`, and the last-good wallpaper and state are left unchanged. Reconcile also refuses a legacy null-palette state instead of unlinking consumer pointers.
+
+The palette milestones are reported through the optional progress callback at the application use-case boundary; the command publishes `generating_palette` as it enters `applying` and adapts the callback events to the event bus. They are informational and cannot change derivation, locking, reconcile ownership, or operation order. Existing subscribers can ignore the optional field; the prior `state` values are unchanged. The notification's GTK timer only pulses the indeterminate bar while a card is active.
 
 The event contract contains named stages, not a numeric completion ratio. The bar is therefore indeterminate during work and complete on `done`; it does not invent a percentage. The checklist identifies actual runtime boundaries. Effects and icon generation may use cache hits or degrade gracefully, so the row says they were processed rather than claiming that every output was freshly generated. The terminal event includes `reload_failures`; the card marks the consumer step as failed when that list is non-empty. The command still exits non-zero for those failures.
 
 ## Runtime and reconcile impact
 
-The reconcile engine, its actor/lock, wallpaper command, and order of wallpaper/palette/consumer work are unchanged. The runtime change adds optional milestone reporting at existing wallpaper-set boundaries and adds the notification app to the existing AGS restart skip set in `runtime/adapters/ags_reloader.py`. Reporting does not drive or coordinate the pipeline.
+The reconcile engine, its actor/lock, and wallpaper command are unchanged. Runtime `v0.2.0` moves palette preparation ahead of the visible swap (the palette is now mandatory), so the palette/consumer work runs in the order above and a palette failure aborts before any visible change. The runtime change also adds optional milestone reporting at the wallpaper-set boundaries and adds the notification app to the existing AGS restart skip set in `runtime/adapters/ags_reloader.py`. Reporting does not drive or coordinate the pipeline.
 
 Provisioning still deploys the notification app as a session-critical AGS instance. Its restart list behavior is unchanged: provisioned code changes can restart/relaunch that instance. The skip applies to the runtime's wallpaper-driven reload cycle, not to deployment or session startup.
 
