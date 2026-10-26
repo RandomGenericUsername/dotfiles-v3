@@ -40,15 +40,15 @@ and **which tag each consumer pins**. It is the cross-project companion to each 
 
 | Consumer | Pinned artifact | Tag | Declared in |
 | --- | --- | --- | --- |
-| `dotfiles-v3` | installer engine `dotfiles-provision` | `v0.1.15` | `dotfiles/provisioning/installer.pin` |
-| `dotfiles-v3` | corpus `dotfiles-assets` | `v0.6.0` | `dotfiles/provisioning/assets.yaml` |
-| `dotfiles-v3` | CLIs `csg`/`weg`/`itr` + runtime `dotfiles-runtime` | `v0.2.0` each / `v0.2.0` | `dotfiles/provisioning/cli-tools.yaml` |
+| `dotfiles-v3` | installer engine `dotfiles-provision` | `v0.1.16` | `dotfiles/provisioning/installer.pin` |
+| `dotfiles-v3` | corpus `dotfiles-assets` | `v0.6.1` | `dotfiles/provisioning/assets.yaml` |
+| `dotfiles-v3` | CLIs `csg`/`weg`/`itr` + runtime `dotfiles-runtime` | `v0.2.0` each / `v0.2.2` | `dotfiles/provisioning/cli-tools.yaml` |
 | `dotfiles-runtime` | `cli-output` | `v0.1.0` | runtime `pyproject.toml` |
 | `dotfiles-runtime` | `contracts` | `v0.2.0` | runtime `pyproject.toml` |
 | `dotfiles-provision` | `ags-apps` unit | `v0.4.3` | `ansible/roles/ags_apps/vars/main.yml` |
 | `dotfiles-provision` | `ags-platform` unit | `v0.2.0` | `ansible/roles/ags_apps/vars/main.yml` |
 | `ags-apps` | `ags-platform` | `v0.2.0` | `Makefile` (`AGS_PLATFORM_VERSION`) |
-| `dotfiles-assets` repo | its own release | `v0.6.0` | git tag (composition consumes the same) |
+| `dotfiles-assets` repo | its own release | `v0.6.1` | git tag (composition consumes the same) |
 
 A tag is never moved. A fix ships as a new tag. Consumer pin bumps edit the declared file first,
 then the mirrors; `make deploy-coverage` fails on a half-edit.
