@@ -48,6 +48,17 @@ unit (the `ags_apps` role symlinks the unit's `bar/` subdir as the live
 live-bar link and diverge the live bar from the pinned tag) plus a missing unit /
 live-bar link / resolution shortcut. It is not optional.
 
+**The AGS app inventory is the composition's.** `dotfiles/provisioning/apps.yaml`
+is the single app list and ownership source (AD-31/AD-32): one entry per app with
+`owner: legacy|standalone` and every surface (install dir, config/spine/XDG
+links, optional bin link, launcher, autostart, launch policy, bar palette
+pointer, cutover id). `dotfiles/provisioning/program-tuple.yaml` is the one
+`ags-platform`/`contracts`/`dotfiles-assets` tuple. Do NOT add a second per-app
+list or a per-app pin to the composition. All seven apps are `owner: legacy`
+today; a cutover flips exactly one entry after quiescing the old instance. See
+`docs/102-ags-app-consumption.md`; `make deploy-coverage` validates the list,
+tuple, one-owner rule, legacy surfaces and fixtures on every run.
+
 **CLI tools, the runtime, the installer engine and shared libraries deploy from
 pinned repos — this repo authors NO in-repo package sources.** `csg`, `weg`, `itr`
 and `dotfiles-runtime` are consumed as `{name, repo, tag}` entries in

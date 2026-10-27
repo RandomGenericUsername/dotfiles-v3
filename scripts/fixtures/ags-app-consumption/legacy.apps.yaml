@@ -1,0 +1,26 @@
+# Fixture: a fully legacy list. Both entries are owned by the old monorepo role.
+apps:
+  - app: bar
+    installDir: bar
+    owner: legacy
+    instance: ags
+    configDir: ags
+    configLink: ags
+    spineLink: ags
+    xdgLink: ags
+    autostart: ags
+    launch: always
+    barPalettePointer: true
+    cutoverId: REQ-015
+  - app: hypr-pano
+    installDir: hypr-pano
+    owner: legacy
+    instance: hypr-pano
+    configDir: ags-hypr-pano
+    configLink: ags-hypr-pano
+    spineLink: ags-hypr-pano
+    xdgLink: ags-hypr-pano
+    launcher: hypr-pano-ui
+    autostart: hypr-pano
+    launch: on-demand
+    cutoverId: REQ-009

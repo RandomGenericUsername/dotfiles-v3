@@ -43,10 +43,10 @@ manifest carries zero local `source:` entries
 
 | The repo owns | The repo consumes |
 |---|---|
-| Declarative manifests (`dotfiles/provisioning/*.yaml`) and the installer pin (`installer.pin`) | The installer engine `dotfiles-provision` (its Python package + `ansible/` tree) as a pinned tag; its roles/playbooks are read from the cached checkout by the composition gates |
+| Declarative manifests (`dotfiles/provisioning/*.yaml`), the AGS app list and program tuple, and the installer pin (`installer.pin`) | The installer engine `dotfiles-provision` (its Python package + `ansible/` tree) as a pinned tag; its roles/playbooks are read from the cached checkout by the composition gates |
 | Nothing under `src/` — the tree is asserted absent | `dotfiles-runtime` (CLI, daemon, clipboard watcher, cache/state) as a pinned repo; its `cli-output` / `cli-invocation-contract` pins live there; `config-assembler-engine` + `oci-runtime` as git-tag pins inside the CLI repos; the three CLIs + the runtime as `{name,repo,tag}` manifest entries (section 4) |
-| Inputs: configs + Hyprland Lua + templates are the pinned `dotfiles-assets` classes; the btop active-theme is host state in the install spine (R-07) | `ags-apps` monorepo as one pinned unit (seven AGS apps + the capture-tool backend) |
-| Gates and their scripts (`Makefile`, `scripts/*.py`) | `ags-platform` as one pinned unit (bare specifier, `node_modules` shortcut) |
+| Inputs: configs + Hyprland Lua + templates are the pinned `dotfiles-assets` classes; the btop active-theme is host state in the install spine (R-07) | `ags-apps` monorepo as one pinned unit (seven AGS apps + the capture-tool backend) until each app's cutover; the single list/tuple in `dotfiles/provisioning/{apps,program-tuple}.yaml` is the composition-owned target |
+| Gates and their scripts (`Makefile`, `scripts/*.py`) | `ags-platform` as one pinned unit (bare specifier, `node_modules` shortcut); the program tuple records the adoption tag |
 | Docs, planning, and the historical record (`docs/`, `_bmad-output/`, `openspec/`) | System packages: pacman/apt + AUR (`roles/packages` in the pinned engine); a user-provided container engine (podman or docker) — **never installed by a role** (`bootstrap.sh:45-57`) |
 
 Consequences that surprise newcomers:
@@ -58,6 +58,14 @@ Consequences that surprise newcomers:
 - **No GUI source lives here.** The bar, clipboard overlay, notifications, capture
   tool, wallpaper selector, ICME and btop studio all deploy *whole* from the
   `ags-apps` unit (`ansible/roles/ags_apps/vars/main.yml:1-90` in the pinned engine).
+- **The AGS app inventory is composed here.** `dotfiles/provisioning/apps.yaml`
+  is the single ownership list (all seven apps are `owner: legacy` until their
+  cutovers) and `dotfiles/provisioning/program-tuple.yaml` is the one
+  `ags-platform`/`contracts`/`dotfiles-assets` tuple. `make deploy-coverage`
+  proves one owner per app, validates the tuple and the legacy surfaces, and
+  runs the legacy/mixed/all-standalone fixtures. The one-owner rule, field
+  semantics and cutover checklist are in `docs/102-ags-app-consumption.md`;
+  the provision mirror is a separate `dotfiles-provision` ticket.
 - **No CLI or runtime source lives here.** `csg`/`weg`/`itr` and the runtime are
   `{name, repo, tag}` manifest entries; `src/cli-tools/`, `src/shared/` and `src/runtime/` are asserted absent (`scripts/deploy-coverage.py`).
 - **The contract is not authored here either.** The event-contract conformance
@@ -152,11 +160,12 @@ source of truth; everything under "Mirrors / lock" is a hand-maintained copy tha
 then its mirrors, then this table (`deploy-coverage`'s `assert_pin_set` fails on a
 half-edit, recipe (a) in section 11).
 
-| Pin | Declared in (one source) | Value (2026-10-23) | Mirrors / lock | Validated by |
+| Pin | Declared in (one source) | Value (2026-10-26) | Mirrors / lock | Validated by |
 |---|---|---|---|---|
 | Installer engine `dotfiles-provision` | `dotfiles/provisioning/installer.pin` | `v0.1.17` | `bootstrap.sh` reads the file (never repeats the tag) and re-checks the semver shape; `scripts/engine_checkout.py` resolves the cached checkout for every gate | `deploy-coverage` (`assert_pin_set` + the engine checkout it reads); `ansible-embedded-template-lint` reads the same pin |
 | Assets corpus `dotfiles-assets` | `dotfiles/provisioning/assets.yaml` → `assets.tag` | `v0.6.1` | engine `roles/assets/vars/main.yml` (`assets_repo`, `assets_pinned_tag`, `assets_classes`, `assets_schema_support`); `roles/verify/vars/main.yml` (`verify_assets_pinned_tag`, class dirs, schema window); per-consumer `{compositor_configs,config_copies,zsh_config,kitty_config,btop_config,wlogout_config,display_manager}_assets_pinned_tag`, plus `assets_csg_pinned_tag` and `settings_weg_image_tag` | `deploy-coverage` (`assert_assets_shape`, `assert_pin_set`); engine parity tests |
 | CLIs `csg` · `weg` · `itr` + runtime `dotfiles-runtime` | `dotfiles/provisioning/cli-tools.yaml` (`{name, repo, tag}`) | csg `v0.2.1`; weg/itr `v0.2.0`; runtime `v0.2.3` | engine `roles/cli_tools/vars/main.yml` (`cli_tools:`); `roles/verify/vars/main.yml` (`verify_<name>_version`, tag-bearing checkout path, `pinned` record, `verify_<name>_contract_version: 0.2.0`; runtime uses `verify_runtime_version`/`verify_runtime_tool_version`) | `deploy-coverage` (`assert_cli_provisioned_from_pinned_manifest` + `assert_pin_set`) |
+| Program tuple `ags-platform` / `contracts` / `dotfiles-assets` | `dotfiles/provisioning/program-tuple.yaml` | `v0.3.0` / `v0.3.0` / `v0.6.1` | no role mirror yet — the generic per-app parser/verify is `dotfiles-provision` REQ-008; the legacy unit still resolves `ags-platform v0.2.0` until the adoption release | `deploy-coverage` (`run_ags_app_consumption_checks`: shape, assets-tag agreement, all-legacy surface mapping; a standalone flip is rejected while the legacy platform pin differs) |
 | **Not pinned here** (named so the set is honest) | — | runtime's `cli-output v0.1.0` and `cli-invocation-contract v0.2.0` are pinned in `dotfiles-runtime`; `config-assembler-engine v0.1.0` and `oci-runtime v0.5.0` live only in the CLI repos' `pyproject.toml`; `ags-platform` / `ags-apps` are pinned in the engine roles; uv is `0.9.22`, sha256-verified | owned by those repos / the runtime / the engine / `bootstrap.sh` | their own gates; `bootstrap.sh:246-301` |
 | Vendored event contract (**a commit, not a tag**, by design) | `dotfiles-runtime` `src/runtime/adapters/CONTRACT_PIN` | `dbdc5b8` | the runtime repo's `contracts/` + embedded schemas are byte-identical copies | `make contracts-check` / `make contract-pin-check` in `dotfiles-runtime` |
 
@@ -173,9 +182,11 @@ for the offline caveat (R-16).
 | `dotfiles/provisioning/installer.pin` | The installer-engine tag (`v0.1.17`) — the ONE source read by `bootstrap.sh` and the Python gates. The engine's Python + `ansible/` tree is the pinned external `dotfiles-provision` repo, installed from `git+…@tag` and cached at `.dev/dotfiles-provision-<tag>/` (gitignored) for the gates | **live** (single source for the engine pin) |
 | `dotfiles/config/` | **absent since R-07** — the btop active-theme preference is host state in the install spine (`<install>/config/btop/active-theme`, written by the studio); all static config is the pinned assets `configs` class and all templates are its `templates` class | **absent; `assert_composition_only` asserts it** |
 | `dotfiles/provisioning/assets.yaml` | The assets pin (`repo`, `tag`, `classes`) — the corpus itself is `dotfiles-assets` | **live** (single source for the corpus pin) |
+| `dotfiles/provisioning/apps.yaml` | The single AGS app list and ownership source (`owner: legacy|standalone`, install dir, links, launcher/autostart, launch policy, palette pointer, cutover id) | **live** (all seven apps legacy; AD-31/AD-32) |
+| `dotfiles/provisioning/program-tuple.yaml` | The one `ags-platform`/`contracts`/`dotfiles-assets` tag tuple for the install generation | **live** (one record per install; validated by `deploy-coverage`) |
 | `dotfiles/applications/`, `dotfiles/scripts/` | **retired at S4** — the six `.desktop` entries and `toggle-touchpad` ship in `dotfiles-assets` `desktop/` | **absent; `deploy-coverage` asserts it** (AD-10/AD-16) |
-| `dotfiles/provisioning/` | Declarative manifests: `cli-tools.yaml`, `assets.yaml`, `config-copies.yaml`, `filesystem.yaml`, `packages.yaml` + `installer.pin` | **live** (single source for pins) |
-| `scripts/` | Gates: `deploy-coverage.py`, `ci-gates-parity.py`, `ansible-embedded-template-lint.py`; plus `worktree-guard.sh` | **live** |
+| `dotfiles/provisioning/` | Declarative manifests: `cli-tools.yaml`, `assets.yaml`, `apps.yaml`, `program-tuple.yaml`, `config-copies.yaml`, `filesystem.yaml`, `packages.yaml` + `installer.pin` | **live** (single source for pins) |
+| `scripts/` | Gates: `deploy-coverage.py`, `ags_app_consumption.py` (+ `fixtures/ags-app-consumption/`), `ci-gates-parity.py`, `ansible-embedded-template-lint.py`; plus `worktree-guard.sh` | **live** |
 | `contracts/` | **absent since REQ-002** — the event-contract conformance copies live in the `dotfiles-runtime` repo, which owns the vendored binding, embedded schemas and pin-check | **absent; `assert_composition_only`/`src` guard** |
 | `dev/` | Incus VM harness (`dev/vm`, `vm-fresh.sh`, …) for disposable provision runs | **live, local-only** (needs incus; not in CI) |
 | `.dev/` | Gitignored on-demand `ags-platform` checkout for `make ags-platform-dev` | live, disposable |

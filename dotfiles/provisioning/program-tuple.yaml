@@ -1,0 +1,12 @@
+# One program tuple per install (AD-31/AD-34).
+#
+# The composition owns this record; every standalone app repo and the remaining
+# legacy unit build/test against these exact tags for the adoption generation.
+# A tuple bump is a program-wide revalidation event, never part of a single-app
+# cutover. The contracts repo owns the schema (v0.3.0,
+# schemas/program-tuple.schema.json) and `make deploy-coverage` validates the
+# shape plus the assets-pin agreement.
+schemaVersion: 1
+ags-platform: v0.3.0
+contracts: v0.3.0
+dotfiles-assets: v0.6.1

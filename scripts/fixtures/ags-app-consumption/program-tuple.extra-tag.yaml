@@ -1,0 +1,6 @@
+# Fixture: the tuple names exactly three program tags, not an extra runtime pin.
+schemaVersion: 1
+ags-platform: v0.3.0
+contracts: v0.3.0
+dotfiles-assets: v0.6.1
+dotfiles-runtime: v0.2.3

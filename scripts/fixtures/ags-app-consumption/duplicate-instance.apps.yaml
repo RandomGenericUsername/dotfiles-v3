@@ -1,0 +1,25 @@
+# Fixture: two apps claim the same AGS instance. The runtime would discover two
+# owners for one bus name.
+apps:
+  - app: bar
+    installDir: bar
+    owner: legacy
+    instance: ags
+    configDir: ags
+    configLink: ags
+    spineLink: ags
+    xdgLink: ags
+    autostart: ags
+    launch: always
+    barPalettePointer: true
+    cutoverId: REQ-015
+  - app: notifications
+    installDir: notifications
+    owner: legacy
+    instance: ags
+    configDir: ags-notifications
+    configLink: ags-notifications
+    spineLink: ags-notifications
+    xdgLink: ags-notifications
+    launch: always
+    cutoverId: REQ-012

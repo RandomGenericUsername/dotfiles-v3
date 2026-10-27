@@ -1,0 +1,13 @@
+# Fixture: an owner outside the contract enum.
+apps:
+  - app: bar
+    installDir: bar
+    owner: old
+    instance: ags
+    configDir: ags
+    configLink: ags
+    spineLink: ags
+    xdgLink: ags
+    launch: always
+    barPalettePointer: true
+    cutoverId: REQ-015

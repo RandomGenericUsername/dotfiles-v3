@@ -1,0 +1,25 @@
+# Fixture: two apps claim the same config link, so one XDG entry would have two
+# owners.
+apps:
+  - app: bar
+    installDir: bar
+    owner: legacy
+    instance: ags
+    configDir: ags
+    configLink: ags
+    spineLink: ags
+    xdgLink: ags
+    autostart: ags
+    launch: always
+    barPalettePointer: true
+    cutoverId: REQ-015
+  - app: notifications
+    installDir: notifications
+    owner: legacy
+    instance: notifications
+    configDir: ags-notifications
+    configLink: ags
+    spineLink: ags-notifications
+    xdgLink: ags-notifications
+    launch: always
+    cutoverId: REQ-012

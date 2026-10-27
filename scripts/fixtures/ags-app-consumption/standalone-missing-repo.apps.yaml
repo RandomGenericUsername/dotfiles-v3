@@ -1,0 +1,13 @@
+# Fixture: a standalone entry must carry both repo and tag.
+apps:
+  - app: bar
+    installDir: bar
+    owner: standalone
+    instance: ags
+    configDir: ags
+    configLink: ags
+    spineLink: ags
+    xdgLink: ags
+    launch: always
+    barPalettePointer: true
+    cutoverId: REQ-015

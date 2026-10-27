@@ -93,6 +93,14 @@ required):
       runtime is a pinned repo), `dotfiles/` holds `provisioning/` (`config/` is
       absent), and `src/runtime/`, `src/provisioning/`, `dotfiles/assets/`,
       `dotfiles/applications/` and `dotfiles/scripts/` are absent.
+  (q) asserts the per-app AGS consumption contract (AD-31/AD-32): the single
+      `dotfiles/provisioning/apps.yaml` list and the one
+      `dotfiles/provisioning/program-tuple.yaml` validate against the
+      contracts v0.3.0 rules (mirrored structurally here because the gate runs
+      without a contracts checkout), every app has exactly one owner, the
+      legacy entries name real surfaces in the pinned engine roles, the tuple
+      agrees with `assets.tag`, and the committed legacy/mixed/all-standalone
+      fixtures accept/reject the intended shapes.
 
 The relative-import closure of `dotfiles/config/ags/app.tsx` is still computed
 when that dev/typecheck/test bridge is PRESENT (a developer checkout, or the
@@ -157,6 +165,11 @@ import sys
 import tomllib
 from pathlib import Path
 
+from ags_app_consumption import (
+    APPS_MANIFEST,
+    PROGRAM_TUPLE,
+    run_checks as run_ags_app_consumption_checks,
+)
 from engine_checkout import EngineCheckoutError, engine_checkout, read_engine_pin
 
 # The pinned engine checkout, resolved once in main(). Every role constant below
@@ -2821,6 +2834,13 @@ def main() -> int:
         # answer to "where is the pin list" — ARCHITECTURE section 4.1 documents
         # the same set for human readers.
         installer_tag, cli_tags = assert_pin_set(root, assets_tag)
+        # AD-31/AD-32: ONE app list and ONE program tuple. Validated against
+        # the contracts v0.3.0 structural rules (mirrored here so a stock
+        # checkout needs no contracts clone), the pinned engine's legacy-role
+        # surfaces, and the committed legacy/mixed/all-standalone fixtures.
+        # The fixture self-test runs on every gate invocation, so a broken
+        # list shape fails here rather than at the first cutover.
+        app_summary = run_ags_app_consumption_checks(root, engine)
         # S7 (AD-17 terminal): the catch-all. Anything authored under src/ or
         # dotfiles/ beyond the manifests (or any retired corpus/engine root
         # returning) fails here even if its named per-tree guard was forgotten.
@@ -2956,6 +2976,26 @@ def main() -> int:
         + ", ".join(f"{name} {tag}" for name, tag in sorted(cli_tags.items()))
         + " — every pin semver and gate-mirrored; the runtime's library/contract "
         "pins live in dotfiles-runtime"
+    )
+    print(
+        f"deploy-coverage: app list {APPS_MANIFEST} — {app_summary['apps']} apps, "
+        f"owners legacy={app_summary['owners']['legacy']} "
+        f"standalone={app_summary['owners']['standalone']}; exactly one owner per "
+        f"app and every legacy surface names a pinned-engine role"
+    )
+    print(
+        f"deploy-coverage: program tuple {PROGRAM_TUPLE} — ags-platform "
+        f"{app_summary['tuple']['ags-platform']}, contracts "
+        f"{app_summary['tuple']['contracts']}, dotfiles-assets "
+        f"{app_summary['tuple']['dotfiles-assets']} (agrees with assets.tag); one "
+        f"tuple per install"
+    )
+    print(
+        f"deploy-coverage: PASS — app-list fixtures "
+        f"({app_summary['app_fixtures']}) accept legacy/mixed/all-standalone and "
+        f"reject duplicate/owner/repo violations; program-tuple fixtures accept "
+        f"{app_summary['tuple_accepted']} and reject "
+        f"{app_summary['tuple_rejected']}"
     )
     print(
         "deploy-coverage: COMPOSITION-ONLY — src/ is absent (the runtime is the "

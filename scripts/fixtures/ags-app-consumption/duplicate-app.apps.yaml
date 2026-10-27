@@ -1,0 +1,27 @@
+# Fixture: the same app appears twice with two different owners. This is the
+# duplicate-owner defect the one-owner invariant exists to reject.
+apps:
+  - app: bar
+    installDir: bar
+    owner: legacy
+    instance: ags
+    configDir: ags
+    configLink: ags
+    spineLink: ags
+    xdgLink: ags
+    autostart: ags
+    launch: always
+    barPalettePointer: true
+    cutoverId: REQ-015
+  - app: bar
+    installDir: bar-two
+    owner: standalone
+    repo: https://github.com/RandomGenericUsername/ags-bar.git
+    tag: v0.1.0
+    instance: ags-two
+    configDir: ags-two
+    configLink: ags-two
+    spineLink: ags-two
+    xdgLink: ags-two
+    launch: always
+    cutoverId: REQ-015

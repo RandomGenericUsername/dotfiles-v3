@@ -1,0 +1,4 @@
+# Fixture: the contracts tag is required.
+schemaVersion: 1
+ags-platform: v0.3.0
+dotfiles-assets: v0.6.1

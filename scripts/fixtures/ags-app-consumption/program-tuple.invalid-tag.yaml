@@ -1,0 +1,5 @@
+# Fixture: a branch is not an immutable program tag.
+schemaVersion: 1
+ags-platform: main
+contracts: v0.3.0
+dotfiles-assets: v0.6.1

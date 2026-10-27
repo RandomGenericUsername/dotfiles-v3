@@ -1,0 +1,121 @@
+# The single AGS app list and ownership source (AD-31/AD-32).
+#
+# Every AGS app is declared exactly once. The old monorepo role acts only on
+# `owner: legacy`; the per-app installer role acts only on
+# `owner: standalone`. A cutover is one composition commit that flips one
+# entry's owner, so there is never a deny-list or a second app metadata list.
+#
+# The contracts repo owns the schema (v0.3.0,
+# schemas/ags-apps-install-list.schema.json). `make deploy-coverage` validates
+# this file against the same structural rules and the fixture set, then checks
+# the legacy entry surfaces against the pinned engine's roles.
+#
+# Field notes:
+#   app          manifest app id (one lowercase path segment)
+#   installDir   future per-app install dir: <install>/apps/<installDir>/<tag>;
+#                legacy entries still live under <install>/ags-apps/<tag>/
+#   owner        legacy = old `ags_apps` monorepo role; standalone = per-app role
+#   instance     AGS bus name (`ags list`)
+#   configDir    deployed config dir / manifest configDir
+#   configLink   config-link basename (must equal configDir)
+#   spineLink    link basename under <install>/config
+#   xdgLink      link basename under $XDG_CONFIG_HOME
+#   binLink      optional app-owned command in the user bin dir
+#   launcher     optional provisioned launcher command
+#   autostart    autostart identity (today the AGS instance name)
+#   launch       always = session-critical, restarted by provisioning;
+#                on-demand = launcher starts it
+#   cutoverId    the per-app cutover ticket/epoch
+#
+# All seven entries are `legacy` today: the pinned engine still installs the
+# whole `ags-apps` monorepo. Do not flip one until its app repo, the generic
+# provision role and the program tuple are ready (see
+# docs/102-ags-app-consumption.md).
+apps:
+  - app: bar
+    installDir: bar
+    owner: legacy
+    instance: ags
+    configDir: ags
+    configLink: ags
+    spineLink: ags
+    xdgLink: ags
+    autostart: ags
+    launch: always
+    barPalettePointer: true
+    cutoverId: REQ-015
+
+  - app: hypr-pano
+    installDir: hypr-pano
+    owner: legacy
+    instance: hypr-pano
+    configDir: ags-hypr-pano
+    configLink: ags-hypr-pano
+    spineLink: ags-hypr-pano
+    xdgLink: ags-hypr-pano
+    launcher: hypr-pano-ui
+    autostart: hypr-pano
+    launch: on-demand
+    cutoverId: REQ-009
+
+  - app: notifications
+    installDir: notifications
+    owner: legacy
+    instance: notifications
+    configDir: ags-notifications
+    configLink: ags-notifications
+    spineLink: ags-notifications
+    xdgLink: ags-notifications
+    autostart: notifications
+    launch: always
+    cutoverId: REQ-012
+
+  - app: capture
+    installDir: capture
+    owner: legacy
+    instance: capture
+    configDir: ags-capture
+    configLink: ags-capture
+    spineLink: ags-capture
+    xdgLink: ags-capture
+    binLink: capture-tool
+    launcher: capture-ui
+    autostart: capture
+    launch: on-demand
+    cutoverId: REQ-011
+
+  - app: wallpaper-selector
+    installDir: wallpaper-selector
+    owner: legacy
+    instance: wallpaper-selector
+    configDir: ags-wallpaper-selector
+    configLink: ags-wallpaper-selector
+    spineLink: ags-wallpaper-selector
+    xdgLink: ags-wallpaper-selector
+    launcher: wallpaper-selector-ui
+    launch: on-demand
+    cutoverId: REQ-013
+
+  - app: icme
+    installDir: icme
+    owner: legacy
+    instance: icon-color-mapping-editor
+    configDir: ags-icme
+    configLink: ags-icme
+    spineLink: ags-icme
+    xdgLink: ags-icme
+    launcher: icon-color-mapping-editor
+    launch: on-demand
+    cutoverId: REQ-014
+
+  - app: btop-theme-studio
+    installDir: btop-theme-studio
+    owner: legacy
+    instance: btop-theme-studio
+    configDir: ags-btop-studio
+    configLink: ags-btop-studio
+    spineLink: ags-btop-studio
+    xdgLink: ags-btop-studio
+    launcher: btop-theme-studio
+    launch: on-demand
+    cutoverId: REQ-010

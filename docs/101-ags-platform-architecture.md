@@ -118,6 +118,15 @@ apps repo gives ~90% of the benefit; individual apps can be split out later
 mechanically (copy the folder, depend on the published platform). Per-app repos
 now would pay the multi-repo/version-skew tax before it is earned.
 
+> **Update 2026-10-26 — per-app split activated.** EPIC-002 / REQ-008
+> (AD-25/31/32) supersedes the “one apps repo” end state: the bar and six apps
+> each get their own repo, installed from one `dotfiles-v3` app list
+> (`dotfiles/provisioning/apps.yaml`) against one program tuple
+> (`dotfiles/provisioning/program-tuple.yaml`). The `ags-apps` monorepo is the
+> migration workshop and is archived after the last cutover; all seven apps
+> still ship from it today. Composition details and the cutover checklist:
+> [`102-ags-app-consumption.md`](./102-ags-app-consumption.md).
+
 ### 3.2 Distribution (verified on the host)
 
 AGS (v3.1.0) embeds **esbuild** for transpilation/bundling. Verified:

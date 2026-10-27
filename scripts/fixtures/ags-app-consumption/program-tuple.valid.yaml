@@ -1,0 +1,5 @@
+# Fixture: the one valid program tuple shape.
+schemaVersion: 1
+ags-platform: v0.3.0
+contracts: v0.3.0
+dotfiles-assets: v0.6.1

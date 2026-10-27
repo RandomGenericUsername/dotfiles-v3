@@ -21,6 +21,17 @@ pinned `dotfiles-assets` repo (`dotfiles/provisioning/assets.yaml`). This repo
 authors neither: it owns the manifests, the runtime and the gates. The full pin
 set is `ARCHITECTURE.md` §4.1.
 
+**AGS app surfaces are list-driven (AD-31/AD-32).** The seven AGS apps are
+declared once in `dotfiles/provisioning/apps.yaml`; the install dir,
+config/spine/XDG links, optional bin link, launcher, autostart and launch policy
+all come from that entry. `config_links_managed_dirs` must cover every declared
+config/XDG link, and `make deploy-coverage` fails if an entry names a link or
+instance the pinned roles do not manage. All seven entries are `owner: legacy`
+today; the per-app cutover flips one entry and never hot-swaps a link under a
+running app. The field semantics, one-owner rule and cutover checklist are in
+[`102-ags-app-consumption.md`](./102-ags-app-consumption.md). The provision mirror
+that consumes the same list is `dotfiles-provision` REQ-008, a separate ticket.
+
 ## Motivation
 
 Single source of truth for ALL machine configs inside the install target

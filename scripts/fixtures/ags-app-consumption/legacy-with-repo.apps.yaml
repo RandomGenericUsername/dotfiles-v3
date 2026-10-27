@@ -1,0 +1,14 @@
+# Fixture: a legacy entry must not carry a standalone repo pin.
+apps:
+  - app: bar
+    installDir: bar
+    owner: legacy
+    repo: https://github.com/RandomGenericUsername/ags-bar.git
+    instance: ags
+    configDir: ags
+    configLink: ags
+    spineLink: ags
+    xdgLink: ags
+    launch: always
+    barPalettePointer: true
+    cutoverId: REQ-015
