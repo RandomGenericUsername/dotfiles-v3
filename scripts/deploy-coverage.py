@@ -2433,6 +2433,10 @@ def assert_pin_set(root: Path, assets_tag: str) -> tuple[str, dict[str, str]]:
     * **CLIs** — every manifest entry, including `dotfiles-runtime`, is a
       semver tag mirrored by the pinned engine's `cli_tools` role vars AND by
       `verify` (`version`, tag-bearing checkout path, `pinned` record).
+    * **csg-templates source** — the composition `assets.yaml` source path names
+      the same csg tag as the CLI manifest. The engine role derives the live
+      copy path from its own mirror, so a stale manifest path is a latent
+      second pin that this gate rejects.
 
     This repo authors no `[tool.uv.sources]`; the runtime's library/contract
     pins live in `dotfiles-runtime` and are locked by its own gates.
@@ -2551,6 +2555,50 @@ def assert_pin_set(root: Path, assets_tag: str) -> tuple[str, dict[str, str]]:
                 f"{verify_vars.get(pin_key)!r}"
             )
         cli_tags[name] = tag
+
+    # 4. The composition csg-templates source mirrors the csg pin.
+    csg_tag = cli_tags.get("csg")
+    if csg_tag is None:
+        raise ValueError(
+            f"{CLI_TOOLS_MANIFEST} has no `csg` entry — the csg-templates "
+            f"source cannot be checked"
+        )
+    assets_manifest_path = root / ASSETS_MANIFEST
+    if not assets_manifest_path.is_file():
+        raise ValueError(f"the assets manifest {ASSETS_MANIFEST} is missing")
+    assets_manifest = yaml.safe_load(
+        assets_manifest_path.read_text(encoding="utf-8")
+    ) or {}
+    assets_entries = assets_manifest.get("entries")
+    if not isinstance(assets_entries, list):
+        raise ValueError(f"{ASSETS_MANIFEST} has no `entries` list")
+    csg_template = next(
+        (
+            entry
+            for entry in assets_entries
+            if isinstance(entry, dict) and entry.get("name") == "csg-templates"
+        ),
+        None,
+    )
+    if csg_template is None:
+        raise ValueError(
+            f"{ASSETS_MANIFEST} has no `csg-templates` entry — the csg "
+            f"template catalog is a pinned-CLI source"
+        )
+    csg_source = str(csg_template.get("source") or "")
+    csg_source_prefix = "{{ install_dir | trim }}/cli-tools/csg/"
+    if not csg_source.startswith(csg_source_prefix):
+        raise ValueError(
+            f"{ASSETS_MANIFEST} csg-templates source {csg_source!r} must be "
+            f"under {csg_source_prefix!r}"
+        )
+    csg_source_tag = csg_source[len(csg_source_prefix):].split("/", 1)[0]
+    if csg_source_tag != csg_tag:
+        raise ValueError(
+            f"{ASSETS_MANIFEST} csg-templates source pins {csg_source_tag!r} "
+            f"but {CLI_TOOLS_MANIFEST} pins csg at {csg_tag!r} — bump both or "
+            f"neither"
+        )
 
     return installer_tag, cli_tags
 
