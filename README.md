@@ -30,15 +30,15 @@ set is `ARCHITECTURE.md` §4.1 and `make deploy-coverage`.
 ```bash
 ./bootstrap.sh                 # fresh machine: uv → engine → collections → bootstrap → verify
 make bootstrap ARGS="--ask-become-pass"   # same, through make
-make provision ARGS="verify --expected-engine-tag v0.1.16"  # installed console
+make provision ARGS="verify --expected-engine-tag v0.1.17"  # installed console
 make gates-ci                  # four composition gates
 make deploy-coverage           # pin-set + composition-only shape
 openspec validate --all        # spec/change baseline
 ```
 
-`bootstrap.sh` reads `dotfiles/provisioning/installer.pin` (currently `v0.1.16`), installs the
+`bootstrap.sh` reads `dotfiles/provisioning/installer.pin` (currently `v0.1.17`), installs the
 engine from `git+…@tag`, fetches the pinned assets corpus (`v0.6.1`), and runs the aggregate.
-The engine is never edited here; neither is the runtime (`dotfiles-runtime@v0.2.2`).
+The engine is never edited here; neither is the runtime (`dotfiles-runtime@v0.2.3`).
 
 ## What lives here
 

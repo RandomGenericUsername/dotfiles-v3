@@ -15,6 +15,35 @@ this summary:
 
 ## [Unreleased]
 
+## [0.6.8] - 2026-10-26 — csg v0.2.1 + runtime v0.2.3 (engine v0.1.17)
+
+### Changed
+
+- Installer engine pin `v0.1.16` → `v0.1.17`: the engine consumes csg
+  `v0.2.1` and runtime `v0.2.3` in its `cli_tools`, `assets_csg_pinned_tag`,
+  `settings_csg_image_tag` and `verify` mirrors (plus both test fixtures), so
+  a provision installs and verifies the stale-container sweep and the
+  optional-root watch health. The assets corpus stays `v0.6.1`.
+- `csg` pin `v0.2.0` → `v0.2.1`: container-mode wrappers are labelled
+  csg-owned and a best-effort startup sweep removes stale csg wrappers —
+  previous-boot wrappers immediately, same-boot wrappers only after their own
+  timeout plus a 60 s grace; young/concurrent, unlabelled/foreign and
+  age-less wrappers are untouched, and sweep failures never fail the
+  requested palette run (csg BUG-001).
+- `dotfiles-runtime` pin `v0.2.2` → `v0.2.3`: an absent optional intent root
+  (`$XDG_CONFIG_HOME/dotfiles/desired.json`) is informational
+  (`optional_absent`) and only required roots degrade watch health
+  (runtime BUG-005). The health record gains the additive `optional_absent`
+  field under its unchanged `version: 1`, `inspect daemon`/`doctor` report it
+  without failing, and `WatchCoordinator` retries once per burst so a parent
+  created later is watched without a daemon restart.
+
+### Notes
+
+- No assets corpus, AGS, wlogout or pixie changes; the pins arrive only
+  through the engine and the CLI manifest. Host deploy and live checks are
+  user-run after this pin.
+
 ## [0.6.7] - 2026-10-26 — logout `uwsm stop` + assets v0.6.1 / runtime v0.2.2
 
 ### Changed

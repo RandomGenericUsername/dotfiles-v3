@@ -39,7 +39,7 @@ manifest carries zero local `source:` entries
 (`scripts/deploy-coverage.py`, `assert_manifest_source_scope`). The installer engine
 — its Python package AND its Ansible tree — is the pinned external
 `dotfiles-provision` repo (`dotfiles/provisioning/installer.pin`); the runtime is
-`dotfiles-runtime` at `v0.2.2`.
+`dotfiles-runtime` at `v0.2.3`.
 
 | The repo owns | The repo consumes |
 |---|---|
@@ -93,7 +93,7 @@ Consequences that surprise newcomers:
       +--------+--------+--------+
                v
    cli-output v0.1.0 · config-assembler-engine v0.1.0 · oci-runtime v0.5.0
-   dotfiles-runtime v0.2.2 (pinned sibling; consumes contracts + cli-output)
+   dotfiles-runtime v0.2.3 (pinned sibling; consumes contracts + cli-output)
 ```
 
 **Direction rules (enforced by test, not by convention)**
@@ -120,10 +120,10 @@ anonymously over HTTPS by tag (`openspec/changes/archive/2026-10-21-cli-tools-re
 | `oci-runtime` | `oci_runtime` — engine abstraction, build/run/exec, `resolve_build_context` | `v0.5.0` (imported code was 0.4.0; forward-only) | Git tag in `csg` and `weg` only | same five |
 | `icon-templates-renderer` | console `itr` (pure Python, no container mode) | `v0.2.0` (reports `contract 0.2.0`) | `{name, repo, tag}` manifest + role mirror + verify pin | same five |
 | `wallpaper-effects-generator` | console `weg` + `Dockerfile.imagemagick` + `image` verb | `v0.2.0` (reports `contract 0.2.0`) | same | same five + `image` |
-| `color-scheme-generator` | console `csg` + four Dockerfiles + template catalog + `image` verb | `v0.2.0` (reports `contract 0.2.0`) | same | same five + `image` |
+| `color-scheme-generator` | console `csg` + four Dockerfiles + template catalog + `image` verb | `v0.2.1` — stale-labelled wrapper sweep (BUG-001); reports `contract 0.2.0` | same | same five + `image` |
 | `dotfiles-assets` | **data corpus** (no package, no console script): `icons/` (templates + one group map + vocabulary), `templates/` (9 Jinja sources + 9 vars schemas), `configs/`, `content/`, `desktop/` (6 entries + `toggle-touchpad` + `desktop.yaml` `requires`/`optional` contract) | `v0.6.1` — **all five classes populated**, including the SDDM Wayland template and the wlogout Logout `uwsm stop` fix (BUG-005); `icons/schema.json`, every `templates/**/*.vars.schema.json` and `desktop/desktop.yaml` at `schema_major: 1` | `assets:` block in `dotfiles/provisioning/assets.yaml` + role/verify mirrors (+ a per-render-role pin mirror); fetched once into `<install>/assets/<tag>/` | `validate validate-icons validate-content validate-templates validate-desktop lint hermetic` |
-| `dotfiles-runtime` | **host runtime** (console `dotfiles-runtime`): wallpaper apply/derive/reconcile, state/history, content cache, D-Bus daemon, clipboard watcher | `v0.2.2` — mandatory palette prepared before the visible swap; icon-contrast prefs round-trip at any entry count (BUG-003) and BUG-004's btop-theme-studio skip is kept | `{name, repo, tag}` in `dotfiles/provisioning/cli-tools.yaml`; installed from the tag-bearing checkout; verify asserts the checkout, `pinned` and `version` | `test lint contracts-check hermetic lock-check docs-check` (runtime repo) |
-| `dotfiles-provision` | **installer engine** (console `dotfiles-provision`): the Python hexagon (`provisioning` package) + the Ansible tree (roles, playbooks, inventory, group_vars). The composition repo owns the manifests and gates; this repo owns nothing the engine also authors | `v0.1.16` — engine tag, annotated | `dotfiles/provisioning/installer.pin` (one semver tag, read by `bootstrap.sh` and the Python gates); installed self-contained from `git+…@tag` into `UV_TOOL_BIN_DIR` (the wheel carries `provisioning/_ansible`, R-15 closed); gates read the cached `.dev/dotfiles-provision-<tag>/` | `gates` (`test lint hermetic lock-check docs-check`) + CI-only `assets-parity`, plus its own CI |
+| `dotfiles-runtime` | **host runtime** (console `dotfiles-runtime`): wallpaper apply/derive/reconcile, state/history, content cache, D-Bus daemon, clipboard watcher | `v0.2.3` — an absent optional intent root is informational (`optional_absent`), only required roots degrade (BUG-005); the mandatory palette order and icon-contrast prefs round-trip are kept | `{name, repo, tag}` in `dotfiles/provisioning/cli-tools.yaml`; installed from the tag-bearing checkout; verify asserts the checkout, `pinned` and `version` | `test lint contracts-check hermetic lock-check docs-check` (runtime repo) |
+| `dotfiles-provision` | **installer engine** (console `dotfiles-provision`): the Python hexagon (`provisioning` package) + the Ansible tree (roles, playbooks, inventory, group_vars). The composition repo owns the manifests and gates; this repo owns nothing the engine also authors | `v0.1.17` — engine tag, annotated | `dotfiles/provisioning/installer.pin` (one semver tag, read by `bootstrap.sh` and the Python gates); installed self-contained from `git+…@tag` into `UV_TOOL_BIN_DIR` (the wheel carries `provisioning/_ansible`, R-15 closed); gates read the cached `.dev/dotfiles-provision-<tag>/` | `gates` (`test lint hermetic lock-check docs-check`) + CI-only `assets-parity`, plus its own CI |
 
 **Two consumption shapes only** (`POST-MIGRATION.md` §2):
 
@@ -132,7 +132,7 @@ anonymously over HTTPS by tag (`openspec/changes/archive/2026-10-21-cli-tools-re
 [tool.uv.sources]
 cli-output = { git = "https://github.com/RandomGenericUsername/cli-output", tag = "v0.1.0" }
 # 2. CLIs — dotfiles/provisioning/cli-tools.yaml
-#    entries: [{name: csg, repo: …/color-scheme-generator, tag: v0.2.0}, …]
+#    entries: [{name: csg, repo: …/color-scheme-generator, tag: v0.2.1}, …]
 ```
 
 **`contracts` carries two contracts, and that is deliberate** (spine AD-4, OPEN-7
@@ -154,9 +154,9 @@ half-edit, recipe (a) in section 11).
 
 | Pin | Declared in (one source) | Value (2026-10-23) | Mirrors / lock | Validated by |
 |---|---|---|---|---|
-| Installer engine `dotfiles-provision` | `dotfiles/provisioning/installer.pin` | `v0.1.16` | `bootstrap.sh` reads the file (never repeats the tag) and re-checks the semver shape; `scripts/engine_checkout.py` resolves the cached checkout for every gate | `deploy-coverage` (`assert_pin_set` + the engine checkout it reads); `ansible-embedded-template-lint` reads the same pin |
+| Installer engine `dotfiles-provision` | `dotfiles/provisioning/installer.pin` | `v0.1.17` | `bootstrap.sh` reads the file (never repeats the tag) and re-checks the semver shape; `scripts/engine_checkout.py` resolves the cached checkout for every gate | `deploy-coverage` (`assert_pin_set` + the engine checkout it reads); `ansible-embedded-template-lint` reads the same pin |
 | Assets corpus `dotfiles-assets` | `dotfiles/provisioning/assets.yaml` → `assets.tag` | `v0.6.1` | engine `roles/assets/vars/main.yml` (`assets_repo`, `assets_pinned_tag`, `assets_classes`, `assets_schema_support`); `roles/verify/vars/main.yml` (`verify_assets_pinned_tag`, class dirs, schema window); per-consumer `{compositor_configs,config_copies,zsh_config,kitty_config,btop_config,wlogout_config,display_manager}_assets_pinned_tag`, plus `assets_csg_pinned_tag` and `settings_weg_image_tag` | `deploy-coverage` (`assert_assets_shape`, `assert_pin_set`); engine parity tests |
-| CLIs `csg` · `weg` · `itr` + runtime `dotfiles-runtime` | `dotfiles/provisioning/cli-tools.yaml` (`{name, repo, tag}`) | `v0.2.0` each; runtime `v0.2.2` | engine `roles/cli_tools/vars/main.yml` (`cli_tools:`); `roles/verify/vars/main.yml` (`verify_<name>_version`, tag-bearing checkout path, `pinned` record, `verify_<name>_contract_version: 0.2.0`; runtime uses `verify_runtime_version`/`verify_runtime_tool_version`) | `deploy-coverage` (`assert_cli_provisioned_from_pinned_manifest` + `assert_pin_set`) |
+| CLIs `csg` · `weg` · `itr` + runtime `dotfiles-runtime` | `dotfiles/provisioning/cli-tools.yaml` (`{name, repo, tag}`) | csg `v0.2.1`; weg/itr `v0.2.0`; runtime `v0.2.3` | engine `roles/cli_tools/vars/main.yml` (`cli_tools:`); `roles/verify/vars/main.yml` (`verify_<name>_version`, tag-bearing checkout path, `pinned` record, `verify_<name>_contract_version: 0.2.0`; runtime uses `verify_runtime_version`/`verify_runtime_tool_version`) | `deploy-coverage` (`assert_cli_provisioned_from_pinned_manifest` + `assert_pin_set`) |
 | **Not pinned here** (named so the set is honest) | — | runtime's `cli-output v0.1.0` and `cli-invocation-contract v0.2.0` are pinned in `dotfiles-runtime`; `config-assembler-engine v0.1.0` and `oci-runtime v0.5.0` live only in the CLI repos' `pyproject.toml`; `ags-platform` / `ags-apps` are pinned in the engine roles; uv is `0.9.22`, sha256-verified | owned by those repos / the runtime / the engine / `bootstrap.sh` | their own gates; `bootstrap.sh:246-301` |
 | Vendored event contract (**a commit, not a tag**, by design) | `dotfiles-runtime` `src/runtime/adapters/CONTRACT_PIN` | `dbdc5b8` | the runtime repo's `contracts/` + embedded schemas are byte-identical copies | `make contracts-check` / `make contract-pin-check` in `dotfiles-runtime` |
 
@@ -170,7 +170,7 @@ for the offline caveat (R-16).
 | Path | What it is | Status |
 |---|---|---|
 | `src/` | **absent since REQ-002** — the runtime is the pinned `dotfiles-runtime` repo (`{name, repo, tag}` in `cli-tools.yaml`) | **absent; `assert_composition_only` asserts it** |
-| `dotfiles/provisioning/installer.pin` | The installer-engine tag (`v0.1.16`) — the ONE source read by `bootstrap.sh` and the Python gates. The engine's Python + `ansible/` tree is the pinned external `dotfiles-provision` repo, installed from `git+…@tag` and cached at `.dev/dotfiles-provision-<tag>/` (gitignored) for the gates | **live** (single source for the engine pin) |
+| `dotfiles/provisioning/installer.pin` | The installer-engine tag (`v0.1.17`) — the ONE source read by `bootstrap.sh` and the Python gates. The engine's Python + `ansible/` tree is the pinned external `dotfiles-provision` repo, installed from `git+…@tag` and cached at `.dev/dotfiles-provision-<tag>/` (gitignored) for the gates | **live** (single source for the engine pin) |
 | `dotfiles/config/` | **absent since R-07** — the btop active-theme preference is host state in the install spine (`<install>/config/btop/active-theme`, written by the studio); all static config is the pinned assets `configs` class and all templates are its `templates` class | **absent; `assert_composition_only` asserts it** |
 | `dotfiles/provisioning/assets.yaml` | The assets pin (`repo`, `tag`, `classes`) — the corpus itself is `dotfiles-assets` | **live** (single source for the corpus pin) |
 | `dotfiles/applications/`, `dotfiles/scripts/` | **retired at S4** — the six `.desktop` entries and `toggle-touchpad` ship in `dotfiles-assets` `desktop/` | **absent; `deploy-coverage` asserts it** (AD-10/AD-16) |
