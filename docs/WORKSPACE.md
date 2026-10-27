@@ -40,9 +40,9 @@ and **which tag each consumer pins**. It is the cross-project companion to each 
 
 | Consumer | Pinned artifact | Tag | Declared in |
 | --- | --- | --- | --- |
-| `dotfiles-v3` | installer engine `dotfiles-provision` | `v0.1.16` | `dotfiles/provisioning/installer.pin` |
+| `dotfiles-v3` | installer engine `dotfiles-provision` | `v0.1.17` | `dotfiles/provisioning/installer.pin` |
 | `dotfiles-v3` | corpus `dotfiles-assets` | `v0.6.1` | `dotfiles/provisioning/assets.yaml` |
-| `dotfiles-v3` | CLIs `csg`/`weg`/`itr` + runtime `dotfiles-runtime` | `v0.2.0` each / `v0.2.2` | `dotfiles/provisioning/cli-tools.yaml` |
+| `dotfiles-v3` | CLIs `csg`/`weg`/`itr` + runtime `dotfiles-runtime` | `csg v0.2.1` / `weg/itr v0.2.0` / `runtime v0.2.3` | `dotfiles/provisioning/cli-tools.yaml` |
 | `dotfiles-runtime` | `cli-output` | `v0.1.0` | runtime `pyproject.toml` |
 | `dotfiles-runtime` | `contracts` | `v0.2.0` | runtime `pyproject.toml` |
 | `dotfiles-provision` | `ags-apps` unit | `v0.4.3` | `ansible/roles/ags_apps/vars/main.yml` |
