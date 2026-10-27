@@ -38,6 +38,14 @@ this summary:
   without failing, and `WatchCoordinator` retries once per burst so a parent
   created later is watched without a daemon restart.
 
+### Fixed
+
+- `dotfiles/provisioning/assets.yaml`'s `csg-templates` source now names
+  `v0.2.1`, matching the csg pin; `make deploy-coverage` now rejects a source
+  tag that differs from `cli-tools.yaml`. The stale `v0.2.0` path was inert at
+  deploy time (the engine role uses `assets_csg_pinned_tag`) but was a latent
+  second pin.
+
 ### Notes
 
 - No assets corpus, AGS, wlogout or pixie changes; the pins arrive only
