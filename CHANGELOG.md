@@ -15,6 +15,28 @@ this summary:
 
 ## [Unreleased]
 
+## [0.6.11] - 2026-10-28 — engine v0.1.23 + runtime v0.3.0 final align
+
+### Changed
+
+- Installer engine pin `v0.1.22` → `v0.1.23`: the engine consumes
+  `dotfiles-runtime v0.3.0` in `cli_tools` and `verify` (with its fixture),
+  so the composition's final runtime pin and the engine mirrors now agree.
+- `dotfiles-runtime` pin `v0.2.3` → `v0.3.0`: manifest discovery/identity,
+  applied-appearance ledger, parallel live/serialized restart lanes and the
+  clipboard namespace migration.
+- Docs/pin tables (`ARCHITECTURE.md`, `README.md`, `docs/WORKSPACE.md`,
+  `docs/102-ags-app-consumption.md`) align engine `v0.1.23` and runtime
+  `v0.3.0`. All seven app entries stay standalone; assets `v0.6.2`,
+  platform/contracts `v0.3.0` and the app tags are unchanged.
+- OpenSpec 3.3 is closed for the composition (the GitHub archive/push remains
+  external); 4.2 host no-op/refresh remains pending.
+
+### Notes
+
+- No host provision, publish or archive was performed; the engine/runtime tags
+  are local-only in this change.
+
 ## [0.6.10] - 2026-10-28 — final all-standalone AGS cutover (engine v0.1.22)
 
 ### Changed

@@ -48,9 +48,9 @@ and **which tag each consumer pins**. It is the cross-project companion to each 
 
 | Consumer | Pinned artifact | Tag | Declared in |
 | --- | --- | --- | --- |
-| `dotfiles-v3` | installer engine `dotfiles-provision` | `v0.1.22` | `dotfiles/provisioning/installer.pin` |
+| `dotfiles-v3` | installer engine `dotfiles-provision` | `v0.1.23` | `dotfiles/provisioning/installer.pin` |
 | `dotfiles-v3` | corpus `dotfiles-assets` | `v0.6.2` | `dotfiles/provisioning/assets.yaml` |
-| `dotfiles-v3` | CLIs `csg`/`weg`/`itr` + runtime `dotfiles-runtime` | `csg v0.2.1` / `weg/itr v0.2.0` / `runtime v0.2.3` | `dotfiles/provisioning/cli-tools.yaml` |
+| `dotfiles-v3` | CLIs `csg`/`weg`/`itr` + runtime `dotfiles-runtime` | `csg v0.2.1` / `weg/itr v0.2.0` / `runtime v0.3.0` | `dotfiles/provisioning/cli-tools.yaml` |
 | `dotfiles-v3` | program tuple `ags-platform` / `contracts` / `dotfiles-assets` | `v0.3.0` / `v0.3.0` / `v0.6.2` | `dotfiles/provisioning/program-tuple.yaml` |
 | `dotfiles-v3` | seven AGS app units (bar + notifications/capture/clipboard/wallpaper-selector/icme/btop-theme-studio) | `ags-bar v0.1.1`; other six `v0.1.0` | `dotfiles/provisioning/apps.yaml` |
 | `dotfiles-runtime` | `cli-output` | `v0.1.0` | runtime `pyproject.toml` |
@@ -61,9 +61,8 @@ and **which tag each consumer pins**. It is the cross-project companion to each 
 A tag is never moved. A fix ships as a new tag. Consumer pin bumps edit the declared file first,
 then the mirrors; `make deploy-coverage` fails on a half-edit.
 
-Runtime note: the engine `v0.1.22` release still mirrors `dotfiles-runtime v0.2.3`; the
-composition has not claimed the separate local `v0.3.0` release until an engine release
-mirrors it in `cli_tools` and `verify`.
+Runtime note: engine `v0.1.23` consumes and verifies `dotfiles-runtime v0.3.0`
+in `cli_tools` and `verify`; runtime and engine pins are aligned.
 
 ## AGS app ownership and cutover
 

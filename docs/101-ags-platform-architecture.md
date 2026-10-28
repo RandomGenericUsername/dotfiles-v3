@@ -127,7 +127,7 @@ now would pay the multi-repo/version-skew tax before it is earned.
 > (AD-25/31/32) supersedes the “one apps repo” end state: the bar and six apps
 > each have their own repo, installed from one `dotfiles-v3` app list
 > (`dotfiles/provisioning/apps.yaml`) against one program tuple
-> (`dotfiles/provisioning/program-tuple.yaml`). Engine `v0.1.22` retires the
+> (`dotfiles/provisioning/program-tuple.yaml`). Engine `v0.1.23` retires the
 > `ags-apps` monorepo role; only external publish/archive and host apply remain.
 > Composition details: [`102-ags-app-consumption.md`](./102-ags-app-consumption.md).
 

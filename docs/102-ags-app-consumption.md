@@ -1,12 +1,10 @@
 # 102 — AGS app consumption (one list, one tuple, one owner)
 
-> **Status:** final all-standalone composition (2026-10-28). Engine `v0.1.22`
+> **Status:** final all-standalone composition (2026-10-28). Engine `v0.1.23`
 > installs the seven released app repos from the single list; the old
-> `ags-apps` monorepo role/playbook is gone. `dotfiles-assets` is `v0.6.2`.
-> **Runtime caveat:** the engine `v0.1.22` release still mirrors
-> `dotfiles-runtime v0.2.3`; the separate local `v0.3.0` runtime release is not
-> consumed until an engine release mirrors it in `cli_tools` + `verify`.
-> No host provision or GitHub publish/archive has been run.
+> `ags-apps` monorepo role/playbook is gone. `dotfiles-assets` is `v0.6.2` and
+> `dotfiles-runtime` is `v0.3.0` (manifest-driven refresh). No host provision or
+> GitHub publish/archive has been run.
 
 This is the composition owner's guide to the per-app AGS program defined by
 `ags-apps` EPIC-002 / REQ-008 and AD-31/AD-32.
@@ -18,8 +16,8 @@ This is the composition owner's guide to the per-app AGS program defined by
 | Which app exists, who owns it, and every deployment surface | `dotfiles/provisioning/apps.yaml` | `dotfiles-v3` |
 | The one `ags-platform` / `contracts` / `dotfiles-assets` tag triple | `dotfiles/provisioning/program-tuple.yaml` | `dotfiles-v3` |
 | App-list and tuple schema | `contracts` v0.3.0 `schemas/ags-apps-install-list.schema.json`, `schemas/program-tuple.schema.json` | `contracts` |
-| Install/cutover/verify behavior | `dotfiles-provision` REQ-008 (engine `v0.1.22`) | `dotfiles-provision` |
-| Manifest discovery, ledger, refresh lanes | `dotfiles-runtime` REQ-002 (`v0.3.0` local; engine still mirrors `v0.2.3`) | `dotfiles-runtime` |
+| Install/cutover/verify behavior | `dotfiles-provision` REQ-008 (engine `v0.1.23`) | `dotfiles-provision` |
+| Manifest discovery, ledger, refresh lanes | `dotfiles-runtime` REQ-002 (`v0.3.0`) | `dotfiles-runtime` |
 | Launcher/autostart/keybind surfaces | `dotfiles-provision` `ags_apps_units`, `dotfiles-assets` | those repos |
 
 There is **no second per-app list**. `ags_apps_units` owns every app surface;
@@ -110,8 +108,8 @@ The composition-side closeout is done when the app list, tuple, engine pin,
 assets pin and docs are committed and the gates are green. The remaining
 external steps are **not** performed here:
 
-1. Publish the seven local app tags, the engine `v0.1.22`, assets `v0.6.2`
-   (and runtime `v0.3.0` once an engine release mirrors it) to their remotes.
+1. Publish the seven local app tags, the engine `v0.1.23`, assets `v0.6.2`
+   and runtime `v0.3.0` to their remotes.
 2. Apply the composition on the host (`bootstrap`/`provision`) and run `verify`.
 3. Verify `ags list`, the XDG/spine/app links, launcher toggles, autostart
    identity, bar `colors.css`, and the absence of `<install>/ags-apps/`.
