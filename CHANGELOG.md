@@ -20,6 +20,10 @@ this summary:
 - Bar app pin `v0.1.2` → `v0.1.3`: the conformance test and docs accept the
   committed `colors.css` runtime-pointer symlink the engine's
   `barPalettePointer` contract requires.
+- Installer engine pin `v0.1.23` → `v0.1.24`: bootstrap runs
+  `compositor-configs` before `ags-apps-units` so the app role sees the current
+  assets-owned `hypr/autostart.lua`, and `cli_tools`/`verify`/`assets` agree on
+  the tpr checkout at `<install>/cli-tools/tpr/<tag>`.
 
 ## [0.6.11] - 2026-10-28 — engine v0.1.23 + runtime v0.3.0 final align
 

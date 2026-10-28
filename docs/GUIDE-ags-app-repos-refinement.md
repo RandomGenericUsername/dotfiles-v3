@@ -8,7 +8,7 @@
 >
 > **Update 2026-10-28 — the split is complete.** The `ags-apps` EPIC-002 /
 > REQ-008 architecture (AD-25/31/32) moved all seven apps to standalone repos;
-> engine `v0.1.23` retires the monorepo role and installs them from
+> engine `v0.1.24` retires the monorepo role and installs them from
 > `dotfiles/provisioning/apps.yaml`. The composition side (single app list, one
 > program tuple, one-owner gate) is recorded in
 > [`102-ags-app-consumption.md`](./102-ags-app-consumption.md). Only external

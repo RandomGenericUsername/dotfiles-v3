@@ -1,6 +1,6 @@
 # 102 — AGS app consumption (one list, one tuple, one owner)
 
-> **Status:** final all-standalone composition (2026-10-28). Engine `v0.1.23`
+> **Status:** final all-standalone composition (2026-10-28). Engine `v0.1.24`
 > installs the seven released app repos from the single list; the old
 > `ags-apps` monorepo role/playbook is gone. `dotfiles-assets` is `v0.6.2` and
 > `dotfiles-runtime` is `v0.3.0` (manifest-driven refresh). No host provision or
@@ -16,7 +16,7 @@ This is the composition owner's guide to the per-app AGS program defined by
 | Which app exists, who owns it, and every deployment surface | `dotfiles/provisioning/apps.yaml` | `dotfiles-v3` |
 | The one `ags-platform` / `contracts` / `dotfiles-assets` tag triple | `dotfiles/provisioning/program-tuple.yaml` | `dotfiles-v3` |
 | App-list and tuple schema | `contracts` v0.3.0 `schemas/ags-apps-install-list.schema.json`, `schemas/program-tuple.schema.json` | `contracts` |
-| Install/cutover/verify behavior | `dotfiles-provision` REQ-008 (engine `v0.1.23`) | `dotfiles-provision` |
+| Install/cutover/verify behavior | `dotfiles-provision` REQ-008 (engine `v0.1.24`) | `dotfiles-provision` |
 | Manifest discovery, ledger, refresh lanes | `dotfiles-runtime` REQ-002 (`v0.3.0`) | `dotfiles-runtime` |
 | Launcher/autostart/keybind surfaces | `dotfiles-provision` `ags_apps_units`, `dotfiles-assets` | those repos |
 
@@ -29,7 +29,7 @@ All seven entries are `owner: standalone`; `ags_apps_units` is the only owner.
 
 | app | repo | tag | installDir | instance | configDir / links | launcher | autostart | launch | binLink | cutover |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `bar` | `ags-bar` | v0.1.1 | `bar` | `ags` | `ags` | — | `ags` | always | — | REQ-015 |
+| `bar` | `ags-bar` | v0.1.3 | `bar` | `ags` | `ags` | — | `ags` | always | — | REQ-015 |
 | `notifications` | `ags-notifications` | v0.1.0 | `notifications` | `notifications` | `ags-notifications` | — | `notifications` | always | — | REQ-012 |
 | `capture` | `ags-capture-tool` | v0.1.0 | `capture` | `capture` | `ags-capture` | `capture-ui` | `capture` | on-demand | `capture-tool` | REQ-011 |
 | `clipboard` | `ags-clipboard` | v0.1.0 | `clipboard` | `clipboard` | `ags-clipboard` | `clipboard-ui` | `clipboard` | on-demand | — | REQ-009 |
@@ -37,10 +37,11 @@ All seven entries are `owner: standalone`; `ags_apps_units` is the only owner.
 | `icme` | `ags-icme` | v0.1.0 | `icme` | `icon-color-mapping-editor` | `ags-icme` | `icon-color-mapping-editor` | — | on-demand | — | REQ-014 |
 | `btop-theme-studio` | `ags-btop-theme-studio` | v0.1.0 | `btop-theme-studio` | `btop-theme-studio` | `ags-btop-studio` | `btop-theme-studio` | — | on-demand | — | REQ-010 |
 
-The bar's `v0.1.1` tag is the state-migration release (`colors.css` points at
-the runtime-owned `$XDG_STATE_HOME/dotfiles/current/colors.gtk.css`; `icons.json`
-is the platform artifact). `capture` is the app id while `capture-tool` is its
-bin command; `installDir` is `capture`, not the repo stem.
+The bar's `v0.1.3` tag carries `colors.css` as a symlink to the runtime-owned
+`$XDG_STATE_HOME/dotfiles/current/colors.gtk.css` (verified by the engine's
+`barPalettePointer` contract); `icons.json` is the platform artifact. `capture`
+is the app id while `capture-tool` is its bin command; `installDir` is
+`capture`, not the repo stem.
 
 ### Field semantics
 
@@ -108,7 +109,7 @@ The composition-side closeout is done when the app list, tuple, engine pin,
 assets pin and docs are committed and the gates are green. The remaining
 external steps are **not** performed here:
 
-1. Publish the seven local app tags, the engine `v0.1.23`, assets `v0.6.2`
+1. Publish the seven local app tags, the engine `v0.1.24`, assets `v0.6.2`
    and runtime `v0.3.0` to their remotes.
 2. Apply the composition on the host (`bootstrap`/`provision`) and run `verify`.
 3. Verify `ags list`, the XDG/spine/app links, launcher toggles, autostart

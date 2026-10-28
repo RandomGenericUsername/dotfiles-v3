@@ -10,7 +10,7 @@
 > decided, and what is still open.
 
 > **Note (bar source moved):** the AGS bar source lives in the external
-> `ags-bar` repo and deploys as the standalone `v0.1.1` tag; the `ags_apps_units`
+> `ags-bar` repo and deploys as the standalone `v0.1.3` tag; the `ags_apps_units`
 > provisioning role installs it at `<install>/apps/bar/<tag>` and links the
 > app-list `spineLink` as `<install>/config/ags`. The in-repo
 > `dotfiles/config/ags/` tree and the old `ags-apps` monorepo role are retired;
@@ -127,7 +127,7 @@ now would pay the multi-repo/version-skew tax before it is earned.
 > (AD-25/31/32) supersedes the “one apps repo” end state: the bar and six apps
 > each have their own repo, installed from one `dotfiles-v3` app list
 > (`dotfiles/provisioning/apps.yaml`) against one program tuple
-> (`dotfiles/provisioning/program-tuple.yaml`). Engine `v0.1.23` retires the
+> (`dotfiles/provisioning/program-tuple.yaml`). Engine `v0.1.24` retires the
 > `ags-apps` monorepo role; only external publish/archive and host apply remain.
 > Composition details: [`102-ags-app-consumption.md`](./102-ags-app-consumption.md).
 
