@@ -15,6 +15,12 @@ this summary:
 
 ## [Unreleased]
 
+### Changed
+
+- Bar app pin `v0.1.2` → `v0.1.3`: the conformance test and docs accept the
+  committed `colors.css` runtime-pointer symlink the engine's
+  `barPalettePointer` contract requires.
+
 ## [0.6.11] - 2026-10-28 — engine v0.1.23 + runtime v0.3.0 final align
 
 ### Changed
