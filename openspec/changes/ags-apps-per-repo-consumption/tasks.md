@@ -21,4 +21,4 @@
 ## 4. Integration
 
 - [x] 4.1 Run `make deploy-coverage` and `make gates-ci`; verify both pass on the real topology and the broken fixtures fail as expected.
-- [ ] 4.2 Run a no-op reconcile and a changed-appearance reconcile; verify no consumer refresh/restart on the no-op and the declared mode on the change.
+- [x] 4.2 Run a no-op reconcile and a changed-appearance reconcile; verify no consumer refresh/restart on the no-op and the declared mode on the change. — No-op `dotfiles-runtime reconcile` (run `20261028T220521Z`): bar/notifications PIDs unchanged, all seven ledger-current/down-skipped, appearance unchanged. `wallpaper set aurora.jpg` (run `20261028T220612Z`, appearance `7a559d29…`): bar restarted (mode `restart`, exit 0, PID 2184833→2260506); notifications stayed live and applied `palette-refresh` (`{"ok":true}`, PID unchanged); five on-demand apps not started; 0 failures. Restored `default.png` (appearance `410805c3…`).
