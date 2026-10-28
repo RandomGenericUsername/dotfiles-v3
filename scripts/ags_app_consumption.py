@@ -36,9 +36,9 @@ What it proves:
   duplicate apps/instances/config links, invalid owners and repo/tag
   contradictions; the tuple fixtures reject missing/extra/non-semver records.
 
-A standalone entry is still not deployed by the old monorepo role; the engine's
-generic `ags_apps_units` role owns it, and the gate asserts that role plus its
-verify mirror are present in the pinned checkout before any cutover.
+The final topology is all-standalone: the engine's generic `ags_apps_units`
+role is the ONLY installer/owner, the legacy `ags_apps` role/playbook is
+asserted absent, and `verify` mirrors the same app list, tuple and surfaces.
 """
 
 from __future__ import annotations
@@ -54,10 +54,13 @@ PROGRAM_TUPLE = "dotfiles/provisioning/program-tuple.yaml"
 ASSETS_MANIFEST = "dotfiles/provisioning/assets.yaml"
 FIXTURE_ROOT = "scripts/fixtures/ags-app-consumption"
 
-ENGINE_AGS_APPS_VARS = "ansible/roles/ags_apps/vars/main.yml"
 ENGINE_AGS_APPS_UNITS_VARS = "ansible/roles/ags_apps_units/vars/main.yml"
 ENGINE_AGS_APPS_UNITS_TASKS = "ansible/roles/ags_apps_units/tasks"
 ENGINE_AGS_PLATFORM_VARS = "ansible/roles/ags_platform/vars/main.yml"
+ENGINE_AGS_PLATFORM_TASKS = "ansible/roles/ags_platform/tasks/main.yml"
+ENGINE_AGS_ROLE_DIR = "ansible/roles/ags_apps"
+ENGINE_AGS_PLAYBOOK = "ansible/playbooks/ags-apps.yaml"
+ENGINE_ASSETS_VARS = "ansible/roles/assets/vars/main.yml"
 ENGINE_CLI_TOOLS_TASKS = "ansible/roles/cli_tools/tasks/main.yml"
 ENGINE_CLI_TOOLS_TEMPLATES = "ansible/roles/cli_tools/templates"
 ENGINE_CONFIG_LINKS_VARS = "ansible/roles/config_links/vars/main.yml"
@@ -66,7 +69,9 @@ ENGINE_VERIFY_VARS = "ansible/roles/verify/vars/main.yml"
 ENGINE_VERIFY_TASKS = "ansible/roles/verify/tasks/main.yml"
 ENGINE_VERIFY_STANDALONE = "ansible/roles/verify/tasks/_verify_standalone.yml"
 ENGINE_APP_LIST_FIXTURES = "tests/fixtures/ags-apps/app-list"
+ENGINE_AUTOSTART_FIXTURE = "tests/fixtures/ags-apps/autostart/v0.6.2.lua"
 ENGINE_FAKE_APP_FIXTURE = "tests/fixtures/ags-apps/fake-app"
+ENGINE_LAUNCHER_TEMPLATE = "ansible/roles/ags_apps_units/templates/ags-app-launcher.j2"
 ENGINE_UNITS_TEST = "tests/unit/test_ags_apps_units_role.py"
 
 # The seven apps the composition deploys today. This is an inventory assertion,
@@ -74,14 +79,48 @@ ENGINE_UNITS_TEST = "tests/unit/test_ags_apps_units_role.py"
 EXPECTED_APPS = frozenset(
     {
         "bar",
-        "hypr-pano",
         "notifications",
         "capture",
+        "clipboard",
         "wallpaper-selector",
         "icme",
         "btop-theme-studio",
     }
 )
+
+# The released tags this composition is pinned to for the final all-standalone
+# epoch. This is a release assertion (repo + immutable tag), not deployment
+# metadata: every surface/identity field remains in apps.yaml.
+FINAL_APP_RELEASES = {
+    "bar": (
+        "https://github.com/RandomGenericUsername/ags-bar.git",
+        "v0.1.1",
+    ),
+    "notifications": (
+        "https://github.com/RandomGenericUsername/ags-notifications.git",
+        "v0.1.0",
+    ),
+    "capture": (
+        "https://github.com/RandomGenericUsername/ags-capture-tool.git",
+        "v0.1.0",
+    ),
+    "clipboard": (
+        "https://github.com/RandomGenericUsername/ags-clipboard.git",
+        "v0.1.0",
+    ),
+    "wallpaper-selector": (
+        "https://github.com/RandomGenericUsername/ags-wallpaper-selector.git",
+        "v0.1.0",
+    ),
+    "icme": (
+        "https://github.com/RandomGenericUsername/ags-icme.git",
+        "v0.1.0",
+    ),
+    "btop-theme-studio": (
+        "https://github.com/RandomGenericUsername/ags-btop-theme-studio.git",
+        "v0.1.0",
+    ),
+}
 
 OWNERS = frozenset({"legacy", "standalone"})
 LAUNCH_POLICIES = frozenset({"always", "on-demand"})
@@ -404,50 +443,48 @@ def _engine_text(engine_root: Path, relative: str) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def _require_absent(engine_root: Path, relative: str) -> None:
+    if (engine_root / relative).exists():
+        raise ValueError(
+            f"the pinned engine still carries {relative} — the legacy AGS "
+            f"monorepo owner is retired; the all-standalone topology has no "
+            f"second role"
+        )
+
+
 def assert_engine_adoption_tuple(
     tuple_data: dict[str, Any], engine_root: Path
-) -> str:
-    """The engine must actually resolve the program tuple, not just record it.
+) -> dict[str, Any]:
+    """The final engine must resolve the tuple and have no legacy owner.
 
     The composition owns `program-tuple.yaml`; the pinned engine owns the
-    concrete role pins. Four engine legs consume `ags-platform`: the platform
-    role, the legacy monorepo's per-unit shortcut, and both verify mirrors. A
-    half-adoption (tuple v0.3.0, engine still v0.2.0) would install two platform
-    generations and break the one-tuple rule, so the composition gate fails
-    naming the leg that disagrees.
+    concrete role pins. The platform role and verify mirror must resolve the
+    tuple's `ags-platform` tag, the assets role/verify must resolve its
+    `dotfiles-assets` tag, and the retired `ags_apps` role/playbook must be
+    absent. A half-adoption would install two platform generations or leave an
+    app with no installer.
     """
     expected_platform = tuple_data["ags-platform"]
-    apps_vars = _engine_data(engine_root, ENGINE_AGS_APPS_VARS)
     platform_vars = _engine_data(engine_root, ENGINE_AGS_PLATFORM_VARS)
     verify_vars = _engine_data(engine_root, ENGINE_VERIFY_VARS)
+    assets_vars = _engine_data(engine_root, ENGINE_ASSETS_VARS)
 
-    legs = (
-        (ENGINE_AGS_APPS_VARS, "ags_apps_platform_version", apps_vars),
+    for relative, key, data in (
         (ENGINE_AGS_PLATFORM_VARS, "ags_platform_version", platform_vars),
         (ENGINE_VERIFY_VARS, "verify_ags_platform_version", verify_vars),
-        (ENGINE_VERIFY_VARS, "verify_ags_apps_platform_version", verify_vars),
-    )
-    for relative, key, data in legs:
+    ):
         value = data.get(key)
         if value != expected_platform:
             raise ValueError(
                 f"{PROGRAM_TUPLE}: ags-platform {expected_platform!r} is not "
-                f"resolved by {relative} `{key}` = {value!r} — finish the "
-                f"adoption re-pin before any cutover"
+                f"resolved by {relative} `{key}` = {value!r}"
             )
 
-    apps_version = apps_vars.get("ags_apps_version")
-    if not isinstance(apps_version, str) or not _TAG_RE.fullmatch(apps_version):
+    if assets_vars.get("assets_pinned_tag") != tuple_data["dotfiles-assets"]:
         raise ValueError(
-            f"{ENGINE_AGS_APPS_VARS}: ags_apps_version must be an immutable "
-            f"semver tag; got {apps_version!r}"
-        )
-    verify_apps_version = verify_vars.get("verify_ags_apps_version")
-    if verify_apps_version != apps_version:
-        raise ValueError(
-            f"{ENGINE_VERIFY_VARS}: verify_ags_apps_version "
-            f"{verify_apps_version!r} does not mirror ags_apps_version "
-            f"{apps_version!r}"
+            f"{ENGINE_ASSETS_VARS}: assets_pinned_tag "
+            f"{assets_vars.get('assets_pinned_tag')!r} does not mirror the "
+            f"program tuple dotfiles-assets {tuple_data['dotfiles-assets']!r}"
         )
     if verify_vars.get("verify_assets_pinned_tag") != tuple_data["dotfiles-assets"]:
         raise ValueError(
@@ -455,6 +492,19 @@ def assert_engine_adoption_tuple(
             f"{verify_vars.get('verify_assets_pinned_tag')!r} does not mirror the "
             f"program tuple dotfiles-assets {tuple_data['dotfiles-assets']!r}"
         )
+
+    for retired in (ENGINE_AGS_ROLE_DIR, ENGINE_AGS_PLAYBOOK):
+        _require_absent(engine_root, retired)
+    for retired_key in (
+        "verify_ags_apps_version",
+        "verify_ags_apps_platform_version",
+        "verify_ags_apps_unit_dir",
+    ):
+        if retired_key in verify_vars:
+            raise ValueError(
+                f"{ENGINE_VERIFY_VARS}: retired legacy mirror {retired_key!r} "
+                f"is still present — the old monorepo owner must be gone"
+            )
 
     units_vars = _engine_text(engine_root, ENGINE_AGS_APPS_UNITS_VARS)
     if "program-tuple.yaml" not in units_vars or (
@@ -465,17 +515,20 @@ def assert_engine_adoption_tuple(
             f"shared program-tuple.yaml and resolve ags-platform from it, not "
             f"carry a second platform pin"
         )
-    return str(apps_version)
+    return {
+        "platform": expected_platform,
+        "assets": tuple_data["dotfiles-assets"],
+        "legacy_role": "absent",
+    }
 
 
 def assert_engine_verify_mirror(engine_root: Path) -> None:
     """The engine's verify role must mirror the installer's app-list surfaces.
 
-    This is the composition-side half of OpenSpec task 2.2: the generic
-    installer (`ags_apps_units`) and `verify` read the SAME apps.yaml /
-    program-tuple.yaml, and every ownership surface the installer creates is
-    asserted again by verify. The task text below is deliberately token-level,
-    not a second app list.
+    The generic installer (`ags_apps_units`) and `verify` read the SAME
+    apps.yaml / program-tuple.yaml, and every ownership surface the installer
+    creates is asserted again by verify. The task text below is deliberately
+    token-level, not a second app list.
     """
     verify_vars = _engine_data(engine_root, ENGINE_VERIFY_VARS)
     expected = {
@@ -513,7 +566,7 @@ def assert_engine_verify_mirror(engine_root: Path) -> None:
         "manifests_dir",
         "apps.yaml",
         "program-tuple.yaml",
-        "selectattr('owner', 'equalto', 'standalone')",
+        "difference(['standalone'])",
         "node_modules",
     ):
         if token not in installer_main:
@@ -586,12 +639,12 @@ def assert_engine_verify_mirror(engine_root: Path) -> None:
 
 
 def assert_engine_cutover_fixture(engine_root: Path) -> None:
-    """Require the pinned engine's quiesce → flip → verify → rollback fixture.
+    """Require the pinned engine's final all-standalone cutover fixture.
 
     The engine owns the executable cutover; the composition gate locks that the
     pinned tag actually ships it rather than only documenting it. The fake-app
     tests are GUI-free and run with a fake `ags` CLI; this gate checks the
-    structure and one-owner fixtures they consume.
+    structure and the seven-app fixture they consume.
     """
     task_dir = engine_root / ENGINE_AGS_APPS_UNITS_TASKS
     required_tasks = (
@@ -651,15 +704,17 @@ def assert_engine_cutover_fixture(engine_root: Path) -> None:
 
     test_text = _engine_text(engine_root, ENGINE_UNITS_TEST)
     for name in (
-        "test_every_fixture_has_exactly_one_owner",
-        "test_owner_flip_quiesces_the_old_instance_then_installs_and_starts",
+        "test_fixture_declares_the_seven_final_apps",
+        "test_every_app_has_exactly_one_owner_and_unique_surfaces",
+        "test_all_seven_apps_install_the_full_topology",
+        "test_second_run_does_not_write_inside_installed_tags",
         "test_failure_rolls_back_links_and_restarts_the_previous_instance",
-        "test_all_standalone_installs_full_topology_and_tags_stay_immutable",
+        "test_tag_bump_repoints_links_and_preserves_external_state",
     ):
         if name not in test_text:
             raise ValueError(
                 f"{ENGINE_UNITS_TEST} is missing {name!r} — the pinned engine's "
-                f"fake cutover/one-owner fixture is incomplete"
+                f"final cutover/one-owner fixture is incomplete"
             )
 
     fixture_dir = engine_root / ENGINE_FAKE_APP_FIXTURE
@@ -677,126 +732,154 @@ def assert_engine_cutover_fixture(engine_root: Path) -> None:
             )
 
 
-def assert_engine_fixtures(engine_root: Path) -> int:
-    """Revalidate the engine's one-owner fixtures with the composition rules."""
-    fixture_dir = engine_root / ENGINE_APP_LIST_FIXTURES
-    expected = {
-        "legacy.apps.yaml": {"legacy": 2, "standalone": 0},
-        "mixed.apps.yaml": {"legacy": 1, "standalone": 1},
-        "all-standalone.apps.yaml": {"legacy": 0, "standalone": 2},
-    }
-    for name, counts in expected.items():
-        source = f"{ENGINE_APP_LIST_FIXTURES}/{name}"
-        path = fixture_dir / name
-        if not path.is_file():
-            raise ValueError(f"the pinned engine is missing {source}")
-        entries = validate_app_list(_load_yaml(path), source)
-        got = Counter(entry["owner"] for entry in entries)
-        if {owner: got.get(owner, 0) for owner in OWNERS} != counts:
+def assert_final_releases(entries: list[dict[str, Any]]) -> None:
+    """Pin the composition list to the released repo/tag of the final epoch."""
+    by_app = {entry["app"]: entry for entry in entries}
+    if set(by_app) != set(FINAL_APP_RELEASES):
+        raise ValueError(
+            f"{APPS_MANIFEST}: app inventory {sorted(by_app)} does not match the "
+            f"final release inventory {sorted(FINAL_APP_RELEASES)}"
+        )
+    for app, (repo, tag) in FINAL_APP_RELEASES.items():
+        entry = by_app[app]
+        if entry["repo"] != repo:
             raise ValueError(
-                f"{source}: owner partition "
-                f"{ {owner: got.get(owner, 0) for owner in OWNERS} } does not "
-                f"match {counts}"
+                f"{APPS_MANIFEST}: app {app!r} repo {entry['repo']!r} is not the "
+                f"final released repo {repo!r}"
             )
-    return len(expected)
+        if entry["tag"] != tag:
+            raise ValueError(
+                f"{APPS_MANIFEST}: app {app!r} tag {entry['tag']!r} is not the "
+                f"final released tag {tag!r}"
+            )
 
 
-def assert_engine_surfaces(
+def assert_engine_fixtures(
+    entries: list[dict[str, Any]], engine_root: Path
+) -> int:
+    """Compare the composition list to the engine's final seven-app fixture."""
+    source = f"{ENGINE_APP_LIST_FIXTURES}/all-standalone.apps.yaml"
+    path = engine_root / ENGINE_APP_LIST_FIXTURES / "all-standalone.apps.yaml"
+    if not path.is_file():
+        raise ValueError(f"the pinned engine is missing {source}")
+    engine_entries = validate_app_list(_load_yaml(path), source)
+    owner_counts = Counter(entry["owner"] for entry in engine_entries)
+    if owner_counts != Counter({"standalone": len(EXPECTED_APPS)}):
+        raise ValueError(
+            f"{source}: must be the seven-app all-standalone fixture; got "
+            f"{dict(owner_counts)}"
+        )
+    engine_by_app = {entry["app"]: entry for entry in engine_entries}
+    if set(engine_by_app) != set(EXPECTED_APPS):
+        raise ValueError(
+            f"{source}: app set {sorted(engine_by_app)} does not match the final "
+            f"seven {sorted(EXPECTED_APPS)}"
+        )
+    compared_fields = (
+        "installDir",
+        "instance",
+        "configDir",
+        "configLink",
+        "spineLink",
+        "xdgLink",
+        "binLink",
+        "launcher",
+        "autostart",
+        "launch",
+        "barPalettePointer",
+        "cutoverId",
+    )
+    for entry in entries:
+        counterpart = engine_by_app[entry["app"]]
+        for field in compared_fields:
+            if entry.get(field) != counterpart.get(field):
+                raise ValueError(
+                    f"{APPS_MANIFEST}: app {entry['app']!r} field {field!r} is "
+                    f"{entry.get(field)!r}, but the pinned engine's final "
+                    f"all-standalone fixture declares "
+                    f"{counterpart.get(field)!r} — the composition and engine "
+                    f"surfaces disagree"
+                )
+    return len(entries)
+
+
+def assert_engine_standalone_surfaces(
     entries: list[dict[str, Any]], engine_root: Path
 ) -> None:
-    """Prove every legacy entry names a surface the pinned engine deploys."""
-    source = APPS_MANIFEST
+    """Prove the final launcher/autostart/bin surfaces have one owner."""
     config_links = _engine_data(engine_root, ENGINE_CONFIG_LINKS_VARS)
     managed_dirs = set(config_links.get("config_links_managed_dirs") or [])
-    if not managed_dirs:
-        raise ValueError(
-            f"{ENGINE_CONFIG_LINKS_VARS} has no `config_links_managed_dirs` list"
-        )
-
-    gui_tools = _engine_data(engine_root, ENGINE_GUI_TOOLS_VARS)
-    instances = {
-        str(entry.get("name")): bool(entry.get("always_on"))
-        for entry in gui_tools.get("gui_tools_ags_instances") or []
-        if isinstance(entry, dict) and entry.get("name")
-    }
-    if not instances:
-        raise ValueError(
-            f"{ENGINE_GUI_TOOLS_VARS} has no `gui_tools_ags_instances` entries"
-        )
-
-    ags_apps = _engine_data(engine_root, ENGINE_AGS_APPS_VARS)
-    old_links = {
-        _basename(value)
-        for key, value in ags_apps.items()
-        if key.startswith("ags_apps_live_")
-        and key.endswith("_link")
-        and isinstance(value, str)
-    }
-    old_bin_links = {
-        _basename(value)
-        for key, value in ags_apps.items()
-        if key.endswith("_bin_link") and isinstance(value, str)
-    }
-
-    tasks_path = engine_root / ENGINE_CLI_TOOLS_TASKS
-    if not tasks_path.is_file():
-        raise ValueError(f"the pinned engine is missing {ENGINE_CLI_TOOLS_TASKS}")
-    tasks_text = tasks_path.read_text(encoding="utf-8")
-    templates_dir = engine_root / ENGINE_CLI_TOOLS_TEMPLATES
-
     for entry in entries:
-        app = entry["app"]
-        if entry["owner"] != "legacy":
-            continue
-        if entry["configDir"] not in managed_dirs:
-            raise ValueError(
-                f"{source}: app {app!r} configDir {entry['configDir']!r} is not "
-                f"managed by {ENGINE_CONFIG_LINKS_VARS}; the XDG link would "
-                f"dangle"
-            )
-        if entry["xdgLink"] not in managed_dirs:
-            raise ValueError(
-                f"{source}: app {app!r} xdgLink {entry['xdgLink']!r} is not "
-                f"managed by {ENGINE_CONFIG_LINKS_VARS}"
-            )
-        if entry["spineLink"] not in old_links:
-            raise ValueError(
-                f"{source}: app {app!r} spineLink {entry['spineLink']!r} is not "
-                f"one of the legacy unit's live links {sorted(old_links)} — the "
-                f"entry describes a surface no role owns"
-            )
-        instance = entry["instance"]
-        if instance not in instances:
-            raise ValueError(
-                f"{source}: app {app!r} instance {instance!r} is not managed by "
-                f"{ENGINE_GUI_TOOLS_VARS}"
-            )
-        expected_always = entry["launch"] == "always"
-        if instances[instance] != expected_always:
-            raise ValueError(
-                f"{source}: app {app!r} launch {entry['launch']!r} disagrees "
-                f"with gui_tools always_on={instances[instance]} for "
-                f"{instance!r}"
-            )
+        for field in ("configDir", "spineLink", "xdgLink"):
+            if entry[field] in managed_dirs:
+                raise ValueError(
+                    f"{ENGINE_CONFIG_LINKS_VARS}: {entry[field]!r} is an AGS app "
+                    f"surface and must be owned by `ags_apps_units`, not "
+                    f"config_links — two owners for {entry['app']!r}"
+                )
+
+    cli_tasks = _engine_text(engine_root, ENGINE_CLI_TOOLS_TASKS)
+    cli_task_code = "\n".join(
+        line for line in cli_tasks.splitlines() if not line.lstrip().startswith("#")
+    )
+    templates_dir = engine_root / ENGINE_CLI_TOOLS_TEMPLATES
+    for entry in entries:
         launcher = entry.get("launcher")
-        if launcher is not None:
-            if not (templates_dir / f"{launcher}.j2").is_file():
-                raise ValueError(
-                    f"{source}: app {app!r} launcher {launcher!r} has no "
-                    f"{ENGINE_CLI_TOOLS_TEMPLATES}/{launcher}.j2 in the pinned "
-                    f"engine"
-                )
-            if f"{{{{ cli_tools_bin_dir }}}}/{launcher}" not in tasks_text:
-                raise ValueError(
-                    f"{source}: app {app!r} launcher {launcher!r} is not installed "
-                    f"by {ENGINE_CLI_TOOLS_TASKS}"
-                )
-        bin_link = entry.get("binLink")
-        if bin_link is not None and bin_link not in old_bin_links:
+        if launcher is None:
+            continue
+        if (templates_dir / f"{launcher}.j2").exists() or launcher in cli_task_code:
             raise ValueError(
-                f"{source}: app {app!r} binLink {bin_link!r} is not one of the "
-                f"legacy unit's bin links {sorted(old_bin_links)}"
+                f"{entry['app']!r} launcher {launcher!r} is still owned by "
+                f"cli_tools; the generic `ags_apps_units` role must be the only "
+                f"renderer of app-list launchers"
             )
+
+    launcher_template = _engine_text(engine_root, ENGINE_LAUNCHER_TEMPLATE)
+    for token in (
+        "ags-run-locked",
+        "app.launcher",
+        "app.instance",
+        "request toggle",
+        "ags toggle",
+    ):
+        if token not in launcher_template:
+            raise ValueError(
+                f"{ENGINE_LAUNCHER_TEMPLATE}: missing {token!r} — the generic "
+                f"launcher lost its lock/toggle behavior"
+            )
+
+    autostart = _engine_text(engine_root, ENGINE_AUTOSTART_FIXTURE)
+    if "ags-run-locked" not in autostart:
+        raise ValueError(
+            f"{ENGINE_AUTOSTART_FIXTURE}: the assets autostart corpus does not "
+            f"route through the shared launch lock"
+        )
+    for entry in entries:
+        identity = entry.get("autostart")
+        needle = f"--expect-instance {identity}" if identity else ""
+        if identity is not None:
+            count = autostart.count(needle)
+            if count != 1:
+                raise ValueError(
+                    f"{ENGINE_AUTOSTART_FIXTURE}: {entry['app']!r} declares "
+                    f"autostart {identity!r}, but the corpus starts it {count} "
+                    f"time(s) — exactly once is required"
+                )
+        else:
+            unexpected = f"--expect-instance {entry['instance']}"
+            if unexpected in autostart:
+                raise ValueError(
+                    f"{ENGINE_AUTOSTART_FIXTURE}: on-demand app "
+                    f"{entry['app']!r} has no autostart field, but the corpus "
+                    f"still starts {entry['instance']!r}"
+                )
+
+    bin_links = [entry["app"] for entry in entries if entry.get("binLink")]
+    if bin_links != ["capture"]:
+        raise ValueError(
+            f"{APPS_MANIFEST}: only capture owns an app bin link "
+            f"(capture-tool); got {bin_links}"
+        )
 
 
 def _assert_app_fixture(root: Path, name: str, spec: dict[str, Any]) -> None:
@@ -877,6 +960,14 @@ def run_checks(root: Path, engine_root: Path) -> dict[str, Any]:
             f"{APPS_MANIFEST}: app inventory mismatch — missing {missing}, "
             f"unexpected {extra}"
         )
+    assert_final_releases(entries)
+    owner_counts = Counter(entry["owner"] for entry in entries)
+    if owner_counts != Counter({"standalone": len(entries)}):
+        raise ValueError(
+            f"{APPS_MANIFEST}: the final topology is all-standalone; got "
+            f"{dict(owner_counts)}. The retired `ags_apps` role no longer "
+            f"exists, so a legacy entry has no installer"
+        )
 
     tuple_path = root / PROGRAM_TUPLE
     if not tuple_path.is_file():
@@ -898,19 +989,18 @@ def run_checks(root: Path, engine_root: Path) -> dict[str, Any]:
             f"does not agree with {ASSETS_MANIFEST} assets.tag {assets_tag!r}"
         )
 
-    assert_engine_surfaces(entries, engine_root)
-    engine_apps_version = assert_engine_adoption_tuple(tuple_data, engine_root)
+    assert_engine_standalone_surfaces(entries, engine_root)
+    engine_summary = assert_engine_adoption_tuple(tuple_data, engine_root)
     assert_engine_verify_mirror(engine_root)
     assert_engine_cutover_fixture(engine_root)
-    engine_fixture_count = assert_engine_fixtures(engine_root)
+    engine_fixture_count = assert_engine_fixtures(entries, engine_root)
     fixture_summary = assert_fixtures(root)
 
-    owner_counts = Counter(entry["owner"] for entry in entries)
     return {
         "apps": len(entries),
         "owners": {owner: owner_counts.get(owner, 0) for owner in sorted(OWNERS)},
         "tuple": dict(tuple_data),
-        "engine_apps_version": engine_apps_version,
+        "engine": engine_summary,
         "engine_fixtures": engine_fixture_count,
         **fixture_summary,
     }

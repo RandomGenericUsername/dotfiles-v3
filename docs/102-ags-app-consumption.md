@@ -1,16 +1,15 @@
 # 102 — AGS app consumption (one list, one tuple, one owner)
 
-> **Status:** composition-side activation (2026-10-27). Engine `v0.1.19`
-> activates the adoption tuple (`ags-apps v0.5.0` + `ags-platform v0.3.0`); the
-> app list and program tuple exist and the composition gate validates them plus
-> the engine's verify mirror and fake cutover fixtures. All seven apps are still
-> `owner: legacy`; no app has cut over. The per-app cutovers and the final
-> `ags-apps` removal are later tickets.
+> **Status:** final all-standalone composition (2026-10-28). Engine `v0.1.22`
+> installs the seven released app repos from the single list; the old
+> `ags-apps` monorepo role/playbook is gone. `dotfiles-assets` is `v0.6.2`.
+> **Runtime caveat:** the engine `v0.1.22` release still mirrors
+> `dotfiles-runtime v0.2.3`; the separate local `v0.3.0` runtime release is not
+> consumed until an engine release mirrors it in `cli_tools` + `verify`.
+> No host provision or GitHub publish/archive has been run.
 
 This is the composition owner's guide to the per-app AGS program defined by
-`ags-apps` EPIC-002 / REQ-008 and AD-31/AD-32. It replaces the "one monorepo
-tag installs every app" assumption at the composition boundary without removing
-the old role before the last cutover.
+`ags-apps` EPIC-002 / REQ-008 and AD-31/AD-32.
 
 ## Sources of truth
 
@@ -19,58 +18,51 @@ the old role before the last cutover.
 | Which app exists, who owns it, and every deployment surface | `dotfiles/provisioning/apps.yaml` | `dotfiles-v3` |
 | The one `ags-platform` / `contracts` / `dotfiles-assets` tag triple | `dotfiles/provisioning/program-tuple.yaml` | `dotfiles-v3` |
 | App-list and tuple schema | `contracts` v0.3.0 `schemas/ags-apps-install-list.schema.json`, `schemas/program-tuple.schema.json` | `contracts` |
-| Install/cutover/verify behavior | `dotfiles-provision` REQ-008 (engine `v0.1.19`) | `dotfiles-provision` |
-| Manifest discovery, ledger, refresh lanes | `dotfiles-runtime` REQ-002 | `dotfiles-runtime` |
-| Launcher/autostart/keybind surfaces | `dotfiles-provision` `cli_tools`/`gui_tools`, `dotfiles-assets` | those repos |
+| Install/cutover/verify behavior | `dotfiles-provision` REQ-008 (engine `v0.1.22`) | `dotfiles-provision` |
+| Manifest discovery, ledger, refresh lanes | `dotfiles-runtime` REQ-002 (`v0.3.0` local; engine still mirrors `v0.2.3`) | `dotfiles-runtime` |
+| Launcher/autostart/keybind surfaces | `dotfiles-provision` `ags_apps_units`, `dotfiles-assets` | those repos |
 
-There is **no second per-app list**. A role filters the one list by `owner`; a
-cutover edits that entry's owner and nothing else in the composition data. The
-`deploy-coverage` gate validates the list, the tuple and the legacy surfaces
-against the pinned engine on every run.
+There is **no second per-app list**. `ags_apps_units` owns every app surface;
+`verify` reads the same `apps.yaml` / `program-tuple.yaml`.
 
 ## Current app list
 
-All seven entries are legacy. The old `ags_apps` monorepo role remains the only
-owner; the per-app standalone role does not act on any of them yet.
+All seven entries are `owner: standalone`; `ags_apps_units` is the only owner.
 
-| app | owner | installDir | instance | configDir / links | launcher | autostart | launch | binLink | cutover |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `bar` | legacy | `bar` | `ags` | `ags` | — | `ags` | always | — | REQ-015 |
-| `hypr-pano` | legacy | `hypr-pano` | `hypr-pano` | `ags-hypr-pano` | `hypr-pano-ui` | `hypr-pano` | on-demand | — | REQ-009 |
-| `notifications` | legacy | `notifications` | `notifications` | `ags-notifications` | — | `notifications` | always | — | REQ-012 |
-| `capture` | legacy | `capture` | `capture` | `ags-capture` | `capture-ui` | `capture` | on-demand | `capture-tool` | REQ-011 |
-| `wallpaper-selector` | legacy | `wallpaper-selector` | `wallpaper-selector` | `ags-wallpaper-selector` | `wallpaper-selector-ui` | — | on-demand | — | REQ-013 |
-| `icme` | legacy | `icme` | `icon-color-mapping-editor` | `ags-icme` | `icon-color-mapping-editor` | — | on-demand | — | REQ-014 |
-| `btop-theme-studio` | legacy | `btop-theme-studio` | `btop-theme-studio` | `ags-btop-studio` | `btop-theme-studio` | — | on-demand | — | REQ-010 |
+| app | repo | tag | installDir | instance | configDir / links | launcher | autostart | launch | binLink | cutover |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `bar` | `ags-bar` | v0.1.1 | `bar` | `ags` | `ags` | — | `ags` | always | — | REQ-015 |
+| `notifications` | `ags-notifications` | v0.1.0 | `notifications` | `notifications` | `ags-notifications` | — | `notifications` | always | — | REQ-012 |
+| `capture` | `ags-capture-tool` | v0.1.0 | `capture` | `capture` | `ags-capture` | `capture-ui` | `capture` | on-demand | `capture-tool` | REQ-011 |
+| `clipboard` | `ags-clipboard` | v0.1.0 | `clipboard` | `clipboard` | `ags-clipboard` | `clipboard-ui` | `clipboard` | on-demand | — | REQ-009 |
+| `wallpaper-selector` | `ags-wallpaper-selector` | v0.1.0 | `wallpaper-selector` | `wallpaper-selector` | `ags-wallpaper-selector` | `wallpaper-selector-ui` | — | on-demand | — | REQ-013 |
+| `icme` | `ags-icme` | v0.1.0 | `icme` | `icon-color-mapping-editor` | `ags-icme` | `icon-color-mapping-editor` | — | on-demand | — | REQ-014 |
+| `btop-theme-studio` | `ags-btop-theme-studio` | v0.1.0 | `btop-theme-studio` | `btop-theme-studio` | `ags-btop-studio` | `btop-theme-studio` | — | on-demand | — | REQ-010 |
 
-The clipboard entry keeps its **current** names (`hypr-pano` / `ags-hypr-pano`);
-the REQ-009 pilot changes them to `clipboard` / `ags-clipboard` as part of its
-cutover, not before. `capture` is the app id while `capture-tool` remains both
-the legacy unit subdir and the app-owned bin command.
+The bar's `v0.1.1` tag is the state-migration release (`colors.css` points at
+the runtime-owned `$XDG_STATE_HOME/dotfiles/current/colors.gtk.css`; `icons.json`
+is the platform artifact). `capture` is the app id while `capture-tool` is its
+bin command; `installDir` is `capture`, not the repo stem.
 
 ### Field semantics
 
 | Field | Meaning |
 | --- | --- |
 | `app` | Manifest app id; one lowercase path segment. |
-| `installDir` | Standalone install directory: `<install>/apps/<installDir>/<tag>/`. Legacy entries keep living at `<install>/ags-apps/<tag>/<subdir>/` until cutover. |
-| `owner` | `legacy` = old monorepo role; `standalone` = per-app role. Exactly one role acts on an entry. |
-| `repo`, `tag` | Required for `standalone`; forbidden for `legacy`. Tags are immutable annotated tags. |
+| `installDir` | Per-app install directory: `<install>/apps/<installDir>/<tag>/`. |
+| `owner` | `standalone` is the only owner in the final topology. |
+| `repo`, `tag` | Immutable app repo + annotated tag. |
 | `instance` | AGS bus name: `manifest.instance == app.tsx instanceName == ags list`. |
 | `configDir` | Deployed config dir and manifest `configDir`; must equal the config-link basename. |
 | `configLink` | Deployed config-link basename (AD-26 identity field). |
 | `spineLink` | Link basename under `<install>/config`. |
 | `xdgLink` | Link basename under `$XDG_CONFIG_HOME` (`~/.config/<xdgLink>`). |
-| `binLink` | Optional app-owned command in the user bin dir (capture's Python backend only). |
+| `binLink` | Optional app-owned command in the user bin dir (capture's `capture-tool`). |
 | `launcher` | Optional provisioned launcher command that starts/toggles the app. |
-| `autostart` | Autostart identity; today it is the app's own instance name. |
-| `launch` | `always` = session-critical, provisioning restarts it; `on-demand` = the launcher starts it. |
+| `autostart` | Autostart identity in the assets-owned `autostart.lua`; must appear exactly once. |
+| `launch` | `always` = installer-started; `on-demand` = launcher starts it. |
 | `barPalettePointer` | `true` only for the bar entry that owns the stable palette pointer. |
 | `cutoverId` | The per-app cutover ticket/epoch. |
-
-The config/spine/XDG link names are deliberately explicit even though they are
-equal in today's layout. The provision role derives every link from these
-fields, so moving a link name is one list edit, not a role edit.
 
 ## Program tuple
 
@@ -80,24 +72,18 @@ fields, so moving a link name is one list edit, not a role edit.
 schemaVersion: 1
 ags-platform: v0.3.0
 contracts: v0.3.0
-dotfiles-assets: v0.6.1
+dotfiles-assets: v0.6.2
 ```
 
-- One tuple per install. Every standalone app and the remaining legacy unit
-  must resolve it; app repos build/test against it.
-- Engine `v0.1.19` activates the tuple: `ags_platform`, the legacy per-unit
-  shortcut (`ags_apps_platform_version`) and both verify mirrors all resolve
-  `ags-platform v0.3.0`; the legacy monorepo is `ags-apps v0.5.0` with per-app
-  manifests and `palette-refresh` handlers.
-- A tuple bump is a program-wide revalidation event. It is **never** part of a
-  single-app cutover.
+- One tuple per install. Every standalone app resolves its `ags-platform` from
+  the ONE `<install>/apps/node_modules/ags-platform` shortcut.
+- A tuple bump is a program-wide revalidation event, never part of a single-app
+  cutover.
 - The composition gate requires `dotfiles-assets` to equal `assets.tag`, and
-  requires every engine leg above to resolve the tuple's `ags-platform` tag. A
-  half-re-pin (tuple v0.3.0, engine still v0.2.0) fails before any cutover.
+  requires `ags_platform`, assets and the verify mirrors to resolve the tuple.
 - The pinned engine's `ags_apps_units` role and `verify` mirror read the same
-  `apps.yaml`/`program-tuple.yaml`; its fake-app fixture covers quiesce →
-  install/start → verify → rollback and the legacy/mixed/all-standalone
-  one-owner lists.
+  `apps.yaml`/`program-tuple.yaml`; its seven-app fixture covers quiesce →
+  install/start → verify → rollback.
 
 ## One-owner rule
 
@@ -105,62 +91,31 @@ For every app, exactly one entry and one role own every surface:
 
 1. `apps.yaml` is the only app list. Duplicate `app`, `instance`, `configDir`,
    `configLink`, `spineLink`, `xdgLink` or `installDir` is a gate failure.
-2. `owner` is `legacy` or `standalone`; a legacy entry cannot carry `repo`/`tag`
-   and a standalone entry must carry both.
-3. The role for the other owner creates nothing for that entry. There is no
-   deny-list and no second metadata file.
+2. Every entry is `owner: standalone`; a legacy entry has no installer and is
+   rejected by the engine.
+3. `config_links`, `cli_tools`, `gui_tools` and `compositor_configs` own no AGS
+   app surface; `ags_apps_units` owns the install, links, launcher and start.
 4. Exactly one entry owns `barPalettePointer`, and it must be the bar.
 5. A `launcher` or `binLink` name cannot be claimed by two apps.
-6. `autostart` must name the app's own instance.
+6. The assets-owned autostart corpus starts each declared identity exactly once
+   through `ags-run-locked`; on-demand apps without `autostart` are absent.
 
-`make deploy-coverage` checks all of the above, cross-checks legacy config
-links/instances/launchers/bin links against the pinned engine roles, and runs
-the committed legacy/mixed/all-standalone fixtures plus the negative fixtures
-on every invocation. It also requires the pinned engine's `verify` mirror to
-read the same `apps.yaml`/`program-tuple.yaml`, assert the same standalone
-surfaces, and ship the fake-app quiesce → install/start → verify → rollback
-fixture and the engine's one-owner app-list fixtures.
+`make deploy-coverage` checks all of the above, compares the composition list to
+the engine's seven-app fixture, checks the final launcher/autostart/bin
+surfaces, and runs the legacy/mixed/all-standalone and negative fixtures.
 
-## Per-app cutover checklist
+## Closeout / follow-up
 
-Prerequisites (all must be true before starting an epoch):
+The composition-side closeout is done when the app list, tuple, engine pin,
+assets pin and docs are committed and the gates are green. The remaining
+external steps are **not** performed here:
 
-- [ ] The app repo/tag exists and builds/tests against the current program
-      tuple; its `app.manifest.json` passes schema and template conformance.
-- [ ] `dotfiles-runtime` manifest/discovery support and the per-app provision
-      role/verify mirror are pinned (engine `v0.1.19` provides the role, verify
-      mirror and fake cutover fixture; see `dotfiles-provision` REQ-008).
-- [ ] The app repo's source is absent from `ags-apps` (or is removed in the same
-      epoch), so there is no second source.
-- [ ] The expected launcher/autostart/keybind surface is understood and updated
-      in the same epoch (REQ-009 also renames `hypr-pano` end to end).
-
-Cutover (one app per epoch):
-
-1. **Quiesce:** quit the old AGS instance, wait for the process to exit, confirm
-   no `ags list` entry and no D-Bus name remains. Never hot-swap a link under a
-   running process.
-2. **Flip:** change that entry's `owner` from `legacy` to `standalone` in one
-   composition commit. The old role stops acting; the new role starts acting.
-   Do not flip two apps in one commit.
-3. **Install/start:** install the app's tag at
-   `<install>/apps/<installDir>/<tag>/`, repoint the declared spine/config/XDG
-   links, update the launcher/autostart/assets surface, and start the new
-   instance through the shared launch lock.
-4. **Verify:** prove manifest identity (`instance == app.tsx == ags list`,
-   `configDir == deployed link basename`) and exactly one owner on every listed
-   surface: install dir, config link, spine link, XDG link, optional bin link,
-   launcher, autostart entry, running process and D-Bus name. Run
-   `make deploy-coverage` and the provision verify role.
-5. **Test:** exercise the app end to end (and its `palette-refresh` handler if
-   `mode: live`). Record the cutover evidence on the app ticket.
-6. **Rollback (if verification fails):** quiesce the new instance, flip the
-   entry back to `legacy`, reinstall/start the old unit, and re-run the same
-   audit. Rollback must leave zero duplicate and zero missing surfaces.
-
-Do not bump the app tag, engine pin or program tuple as part of an unrelated
-cutover. The old role may only shrink; when the last app moves, remove the
-`ags-apps` pin/role and archive the repo (final closeout ticket).
+1. Publish the seven local app tags, the engine `v0.1.22`, assets `v0.6.2`
+   (and runtime `v0.3.0` once an engine release mirrors it) to their remotes.
+2. Apply the composition on the host (`bootstrap`/`provision`) and run `verify`.
+3. Verify `ags list`, the XDG/spine/app links, launcher toggles, autostart
+   identity, bar `colors.css`, and the absence of `<install>/ags-apps/`.
+4. Archive the retired `ags-apps` repository after publish.
 
 ## Related tickets
 

@@ -24,7 +24,7 @@ provision:
 # verify), not by running its test suite.
 #
 # The capture-tool GUI gates were RETIRED with the in-repo GUI (slice 5): the
-# GUI moved into the `ags-apps` unit and its own gates live there. What remains
+# GUI moved into the the standalone app repos and its own gates live there. What remains
 # here for capture-tool is the Python backend (installed by cli_tools) and the
 # provisioning SHAPE, which `deploy-coverage` asserts.
 #
@@ -124,9 +124,9 @@ hermetic:
 
 # The capture-tool GUI gates (capture-types / capture-typecheck / capture-test /
 # capture-test-deps / capture-hexagonal-gate) were RETIRED with the in-repo GUI
-# (ags-apps-bar-first slice 5): the AGS GUI moved into the `ags-apps` unit and
+# (ags-apps-bar-first slice 5): the AGS GUI moved into the the standalone app repos and
 # its own gates (typecheck, domain tests, hexagonal structure) live there now.
-# The Python backend moved into the same unit at ags-apps v0.4.0 (with its
+# The Python backend moved into the standalone app release (with its
 # `capture-tool/tests/python/` suite), so this repo owns NO capture-tool source
 # at all; only the provisioning SHAPE is asserted here, by `deploy-coverage`.
 # Do NOT re-add a per-file capture gate: it would read a tree this repo no
@@ -152,10 +152,10 @@ hermetic:
 # app itself — ags-apps-bar-first slice 3 — and is run there; the wallpaper
 # selector's drift suite moved to the ags-apps unit with the selector — slice 6 —
 # and is run there; the ICME editor's drift suite moved with the editor — slice 7
-# — and is run by the ags-apps repo's `icme-drift-test` gate.)
+# — and is run by the ags-icme repo's `icme-drift-test` gate.)
 #
 # EMPTY IS A VALID, GREEN STATE. With the last in-repo app moved into the
-# `ags-apps` unit, this repo owns no drift suite: the list is intentionally
+# the standalone app repos, this repo owns no drift suite: the list is intentionally
 # empty and the target reports that instead of failing (an empty `for` loop is
 # already a no-op, but the explicit guard makes the green result legible). A new
 # in-repo suite only needs to be added here — the platform-dev shortcut dependency
@@ -169,7 +169,7 @@ PER_APP_SUITES :=
 per-app-drift-symbol-suites: $(if $(strip $(PER_APP_SUITES)),ags-platform-dev,)
 	@suites="$(strip $(PER_APP_SUITES))"; \
 	if [ -z "$$suites" ]; then \
-		echo "    OK: per-app contract drift + symbol suites green (no in-repo suites; all moved to ags-apps)"; \
+		echo "    OK: per-app contract drift + symbol suites green (no in-repo suites; all moved to the standalone app repos)"; \
 		exit 0; \
 	fi; \
 	command -v node >/dev/null || { echo "FAIL: per-app-drift-symbol-suites: node is not on PATH" >&2; exit 1; }; \
@@ -188,7 +188,7 @@ per-app-drift-symbol-suites: $(if $(strip $(PER_APP_SUITES)),ags-platform-dev,)
 # <install>/config/node_modules/ags-platform (provisioning role `ags_platform`).
 # The DEV tree needs the same shortcut for any plain `node` script over the
 # platform (the per-app drift suites used it while they lived in this repo; those
-# suites moved to the `ags-apps` unit, so the target is now kept for the next
+# suites moved to the the standalone app repos, so the target is now kept for the next
 # in-repo suite — `per-app-drift-symbol-suites` depends on it only when the list
 # is non-empty).
 #
@@ -203,7 +203,7 @@ per-app-drift-symbol-suites: $(if $(strip $(PER_APP_SUITES)),ags-platform-dev,)
 # "declare the dependency, fetch it on demand" shape as the typescript and
 # @types/node installs. Override AGS_PLATFORM_DEV=/path/to/ags-platform to test
 # against a local checkout while iterating on the platform itself.
-AGS_PLATFORM_VERSION := v0.1.0
+AGS_PLATFORM_VERSION := v0.3.0
 AGS_PLATFORM_REPO := https://github.com/RandomGenericUsername/ags-platform.git
 AGS_PLATFORM_DEV ?=
 AGS_PLATFORM_FETCH_DIR := $(CURDIR)/.dev/ags-platform/$(AGS_PLATFORM_VERSION)
@@ -254,16 +254,16 @@ ags-platform-dev:
 ansible-embedded-template-lint:
 	uv run --no-project --with pyyaml python scripts/ansible-embedded-template-lint.py
 
-# The AGS bar deploys WHOLE as the pinned external `ags-apps` unit (the
-# `ags_apps` role symlinks the unit's bar/ subdir as the live
-# <install>/config/ags), and the platform is the external `ags-platform` bare
-# specifier (spine AD-17). This gate asserts that provisioning SHAPE: no stale
-# per-file `dotfiles/config/ags/` entry may remain in
-# `compositor_configs_skeleton_files` (a stale one templates INTO the unit tree
-# through the live-bar link and silently diverges the live bar from the pinned
-# tag), the retired in-place `platform/` dir must not exist, and both the
-# `ags_platform` and `ags_apps` roles must install their pinned unit + shortcut
-# (shared-ancestor for the platform, live-bar link + per-unit for the bar).
+# The AGS bar and six sibling apps deploy as standalone immutable tags from
+# `dotfiles/provisioning/apps.yaml`; `ags_apps_units` owns every app's install,
+# spine/XDG links, launcher and start, and the platform is the external
+# `ags-platform` bare specifier (spine AD-17). This gate asserts that
+# provisioning SHAPE: no stale per-file `dotfiles/config/ags/` entry may remain
+# in `compositor_configs_skeleton_files` (a stale one templates INTO the app
+# tree through its live link and silently diverges the deployed app from the
+# pinned tag), the retired in-place `platform/` dir must not exist, and the
+# `ags_platform`/`ags_apps_units` roles must install the pinned platform unit +
+# the ONE shared `apps/node_modules` shortcut.
 #
 # THE IN-REPO TREE IS NOT REQUIRED. `dotfiles/config/ags/` is the dev/typecheck/
 # test bridge and is being retired, so the gate does not require it. When it IS

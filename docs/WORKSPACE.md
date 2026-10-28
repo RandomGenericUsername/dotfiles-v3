@@ -11,8 +11,15 @@ and **which tag each consumer pins**. It is the cross-project companion to each 
 ├── dotfiles-provision          installer engine: Ansible tree + Python orchestrator
 ├── dotfiles-runtime            host runtime: wallpaper/state/cache, daemon, clipboard
 ├── dotfiles-assets             pinned corpus: icons, templates, configs, content, desktop
-├── ags-apps                    migration workshop: monorepo apps until each repo moves
 ├── ags-platform                pinned AGS platform: ports, shared adapters, event client
+├── ags-bar                     standalone AGS bar (AGS instance `ags`)
+├── ags-notifications           standalone notification overlay
+├── ags-capture-tool            standalone capture tool (+ capture-tool backend)
+├── ags-clipboard               standalone clipboard overlay
+├── ags-wallpaper-selector      standalone wallpaper selector
+├── ags-icme                    standalone icon color mapping editor
+├── ags-btop-theme-studio       standalone btop Theme Studio
+├── ags-apps                    retired migration workshop (archive after publish)
 ├── contracts                   event contract + state/app schemas
 ├── cli-output                  shared CLI rendering package
 ├── color-scheme-generator      `csg`
@@ -26,12 +33,13 @@ and **which tag each consumer pins**. It is the cross-project companion to each 
 
 | Repo | Owns | Does **not** own |
 | --- | --- | --- |
-| `dotfiles-v3` | app list + program tuple, manifests, composition gates, `bootstrap.sh` | engine roles, runtime, corpus bytes, bar/apps source, CLI source |
+| `dotfiles-v3` | app list + program tuple, manifests, composition gates, `bootstrap.sh` | engine roles, runtime, corpus bytes, app source, CLI source |
 | `dotfiles-provision` | Ansible roles/playbooks/inventory, Python orchestrator, engine tests | composition manifests, runtime, corpus, app source |
-| `dotfiles-runtime` | host runtime: wallpaper/state/cache, daemon, clipboard, contract conformance | composition manifests, installer roles, corpus, app/CLI source |
+| `dotfiles-runtime` | host runtime: wallpaper/state/cache, daemon, clipboard, manifest-driven refresh | composition manifests, installer roles, corpus, app/CLI source |
 | `dotfiles-assets` | the five corpus classes and their validators | destinations, consumers, runtime state |
-| `ags-apps` | the migration workshop until the last app moves; then archived | platform ports/adapters, dotfiles provisioning |
 | `ags-platform` | reusable ports, shared adapters, event-contract client | app policy, dotfiles paths |
+| `ags-bar` / the six `ags-*` app repos | their app package, manifest, `palette-refresh` handler and tests | platform ports/adapters, dotfiles provisioning |
+| `ags-apps` | retired migration workshop; archive after the local tags are published | any live deployment surface |
 | `contracts` | event contract JSON/XML/spec + state/app schemas | consumers |
 | `cli-output` | CLI rendering views/adapters | tool policy |
 | `csg` / `weg` / `itr` | their CLI + container/backend logic | composition pins |
@@ -40,48 +48,49 @@ and **which tag each consumer pins**. It is the cross-project companion to each 
 
 | Consumer | Pinned artifact | Tag | Declared in |
 | --- | --- | --- | --- |
-| `dotfiles-v3` | installer engine `dotfiles-provision` | `v0.1.19` | `dotfiles/provisioning/installer.pin` |
-| `dotfiles-v3` | corpus `dotfiles-assets` | `v0.6.1` | `dotfiles/provisioning/assets.yaml` |
+| `dotfiles-v3` | installer engine `dotfiles-provision` | `v0.1.22` | `dotfiles/provisioning/installer.pin` |
+| `dotfiles-v3` | corpus `dotfiles-assets` | `v0.6.2` | `dotfiles/provisioning/assets.yaml` |
 | `dotfiles-v3` | CLIs `csg`/`weg`/`itr` + runtime `dotfiles-runtime` | `csg v0.2.1` / `weg/itr v0.2.0` / `runtime v0.2.3` | `dotfiles/provisioning/cli-tools.yaml` |
-| `dotfiles-v3` | program tuple `ags-platform` / `contracts` / `dotfiles-assets` (active adoption tuple) | `v0.3.0` / `v0.3.0` / `v0.6.1` | `dotfiles/provisioning/program-tuple.yaml` |
+| `dotfiles-v3` | program tuple `ags-platform` / `contracts` / `dotfiles-assets` | `v0.3.0` / `v0.3.0` / `v0.6.2` | `dotfiles/provisioning/program-tuple.yaml` |
+| `dotfiles-v3` | seven AGS app units (bar + notifications/capture/clipboard/wallpaper-selector/icme/btop-theme-studio) | `ags-bar v0.1.1`; other six `v0.1.0` | `dotfiles/provisioning/apps.yaml` |
 | `dotfiles-runtime` | `cli-output` | `v0.1.0` | runtime `pyproject.toml` |
 | `dotfiles-runtime` | `contracts` | `v0.2.0` | runtime `pyproject.toml` |
-| `dotfiles-provision` | `ags-apps` adoption unit (legacy, until the last cutover) | `v0.5.0` | `ansible/roles/ags_apps/vars/main.yml` |
-| `dotfiles-provision` | `ags-platform` unit (legacy shortcut + shared tuple) | `v0.3.0` | `ansible/roles/ags_apps/vars/main.yml`, `ansible/roles/ags_platform/vars/main.yml` |
-| `ags-apps` | `ags-platform` | `v0.3.0` | `Makefile` (`AGS_PLATFORM_VERSION`) |
-| `dotfiles-assets` repo | its own release | `v0.6.1` | git tag (composition consumes the same) |
+| `dotfiles-provision` | `ags-platform` unit | `v0.3.0` | `ansible/roles/ags_platform/vars/main.yml` |
+| `dotfiles-assets` repo | its own release | `v0.6.2` | git tag (composition consumes the same) |
 
 A tag is never moved. A fix ships as a new tag. Consumer pin bumps edit the declared file first,
 then the mirrors; `make deploy-coverage` fails on a half-edit.
 
+Runtime note: the engine `v0.1.22` release still mirrors `dotfiles-runtime v0.2.3`; the
+composition has not claimed the separate local `v0.3.0` release until an engine release
+mirrors it in `cli_tools` and `verify`.
+
 ## AGS app ownership and cutover
 
 `dotfiles/provisioning/apps.yaml` is the **single** AGS app list and ownership
-source (AD-31/AD-32). Each app appears once with `owner: legacy|standalone` and
-every surface it owns (install dir, config/spine/XDG links, optional bin link,
-launcher, autostart, launch policy, bar palette pointer, cutover id).
+source (AD-31/AD-32). Each app appears once with `owner: standalone` and every
+surface it owns (install dir, config/spine/XDG links, optional bin link,
+launcher, autostart, launch policy, palette pointer, cutover id).
 `dotfiles/provisioning/program-tuple.yaml` names the one
 `ags-platform`/`contracts`/`dotfiles-assets` tag triple for the install.
 
-- **One owner per app.** The old monorepo role filters `owner: legacy`; the
-  per-app role filters `owner: standalone`. No second per-app list and no
-  deny-list.
-- **All seven apps are legacy today.** `make deploy-coverage` validates the list,
-  the tuple, the one-owner invariant and the current legacy surfaces against the
-  pinned engine; it also runs legacy/mixed/all-standalone fixtures.
-- **The adoption tuple is active in engine `v0.1.19`.** The legacy monorepo is
-  `ags-apps v0.5.0` (manifests + handlers), the shared platform is
-  `ags-platform v0.3.0`, and the `ags_platform`, legacy-shortcut and verify
-  mirrors all resolve the same tuple. The generic `ags_apps_units` role and its
-  `verify` mirror consume the same `apps.yaml` / `program-tuple.yaml`; the
-  cutover/rollback fixture lives in the pinned engine's tests.
+- **Final all-standalone topology.** All seven entries are `owner: standalone`;
+  `ags_apps_units` is the only installer/owner. The retired `ags_apps` monorepo
+  role/playbook no longer exists.
+- **One owner per app.** Each app installs at
+  `<install>/apps/<installDir>/<tag>/` and resolves the ONE shared
+  `<install>/apps/node_modules/ags-platform` shortcut. No second per-app list,
+  deny-list or legacy role.
+- **Surfaces come from the list.** The engine's `ags_apps_units` role creates
+  the spine/XDG links, optional bin link and launcher; the assets-owned
+  `autostart.lua` starts only the declared identities, exactly once, through
+  `ags-run-locked`.
 - **Cutover is an epoch**, one app per composition commit: quiesce the old
   instance (confirmed quit, no process, no D-Bus name) → flip `owner` →
   install/repoint/start → verify identity and every surface → rollback is the
-  reverse. See [`102-ags-app-consumption.md`](./102-ags-app-consumption.md) for
-  the checklist and field semantics.
-- **No permanent meta repo.** The old `ags-apps` pin/role is removed and the
-  repo archived only after the last app moves.
+  reverse. See [`102-ags-app-consumption.md`](./102-ags-app-consumption.md).
+- **No permanent meta repo.** `ags-apps` is retired; publish the local tags and
+  archive the repo as the external closeout step.
 
 ## Direction rules
 

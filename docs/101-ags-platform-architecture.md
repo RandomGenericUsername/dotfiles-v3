@@ -9,12 +9,13 @@
 > conversation. It is deliberately honest about what is verified, what is
 > decided, and what is still open.
 
-> **Note (bar source moved):** the AGS bar source now lives in the external
-> `ags-apps` repo and deploys as the pinned `v0.4.1` monorepo unit — the `ags_apps`
-> provisioning role symlinks its `bar/` subdir as the live `<install>/config/ags`.
-> The in-repo `dotfiles/config/ags/` tree was retired; the `dotfiles/config/ags/`
-> paths below are historical. The deployed consumer path `~/.config/ags/...` is
-> unchanged.
+> **Note (bar source moved):** the AGS bar source lives in the external
+> `ags-bar` repo and deploys as the standalone `v0.1.1` tag; the `ags_apps_units`
+> provisioning role installs it at `<install>/apps/bar/<tag>` and links the
+> app-list `spineLink` as `<install>/config/ags`. The in-repo
+> `dotfiles/config/ags/` tree and the old `ags-apps` monorepo role are retired;
+> the paths below are historical. The deployed consumer path `~/.config/ags/...`
+> is unchanged.
 
 ---
 
@@ -35,9 +36,10 @@
    key** is the boundary object between the two. The runtime changes **state**,
    never **layout**.
 
-Two repos for now: **`ags-platform`** (the reusable seams) and **`ags-apps`**
-(the six apps). A `contracts` repo is promoted later, when the Python runtime
-needs the event contract independently.
+Final layout: **`ags-platform`** (the reusable seams) plus seven standalone
+app repos (`ags-bar`, `ags-notifications`, `ags-capture-tool`, `ags-clipboard`,
+`ags-wallpaper-selector`, `ags-icme`, `ags-btop-theme-studio`). `contracts` is
+the shared event/app-schema repo; the Python runtime consumes it independently.
 
 ---
 
@@ -103,13 +105,16 @@ Three consequences that everything below assumes:
 ```
 ags-platform/   ports + shared adapters (icons, events, preferences, notifier)
                 + the event-contract client. Versioned, reusable.
-ags-apps/       bar, notifications, capture-tool, hypr-pano,
-                wallpaper-selector, icon-color-mapping-editor.
+ags-bar/        the status bar (instance `ags`)
+ags-notifications/        notification overlay
+ags-capture-tool/         capture UI + capture-tool backend
+ags-clipboard/            clipboard overlay (instance `clipboard`)
+ags-wallpaper-selector/   wallpaper selector
+ags-icme/                 icon color mapping editor
+ags-btop-theme-studio/    btop Theme Studio
                 RULE: apps depend on the platform, never on each other.
-contracts/      the event contract (JSON/XML) + generated bindings.
-                Consumed by the Python runtime AND ags-platform.
-                (Starts inside ags-platform; promoted to its own repo the moment
-                 the Python runtime needs it independently.)
+contracts/      the event contract (JSON/XML) + generated bindings and the
+                AGS app schemas. Consumed by the Python runtime AND ags-platform.
 ```
 
 Rationale: the decoupling value comes from **dependency direction** (apps →
@@ -118,14 +123,13 @@ apps repo gives ~90% of the benefit; individual apps can be split out later
 mechanically (copy the folder, depend on the published platform). Per-app repos
 now would pay the multi-repo/version-skew tax before it is earned.
 
-> **Update 2026-10-26 — per-app split activated.** EPIC-002 / REQ-008
+> **Update 2026-10-28 — per-app split complete.** EPIC-002 / REQ-008
 > (AD-25/31/32) supersedes the “one apps repo” end state: the bar and six apps
-> each get their own repo, installed from one `dotfiles-v3` app list
+> each have their own repo, installed from one `dotfiles-v3` app list
 > (`dotfiles/provisioning/apps.yaml`) against one program tuple
-> (`dotfiles/provisioning/program-tuple.yaml`). The `ags-apps` monorepo is the
-> migration workshop and is archived after the last cutover; all seven apps
-> still ship from it today. Composition details and the cutover checklist:
-> [`102-ags-app-consumption.md`](./102-ags-app-consumption.md).
+> (`dotfiles/provisioning/program-tuple.yaml`). Engine `v0.1.22` retires the
+> `ags-apps` monorepo role; only external publish/archive and host apply remain.
+> Composition details: [`102-ags-app-consumption.md`](./102-ags-app-consumption.md).
 
 ### 3.2 Distribution (verified on the host)
 
@@ -663,8 +667,9 @@ Each step independently shippable and gated (`bar-typecheck`, `ags-typecheck`,
     `dotfiles/config/ags/lib/event-bus-core.ts`
   - capture/recording: `dotfiles/config/ags/bar/widgets/recording.tsx`,
     `src/runtime/src/runtime/application/{capture,capture_host,jobs}.py`
-  - notifications app: the `ags-apps` unit's `notifications/` subdir (linked as
-    `~/.config/ags-notifications` via the `ags_apps` role)
+  - notifications app: the standalone `ags-notifications` repo, installed at
+    `<install>/apps/notifications/<tag>` and linked as
+    `~/.config/ags-notifications` by `ags_apps_units`
 
 ## Appendix B — relation to doc 100
 

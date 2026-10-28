@@ -6,14 +6,14 @@
 > `docs/101-ags-platform-architecture.md` §3 + `ARCHITECTURE-SPINE.md` (AD-1/17/20);
 > this guide and `docs/HANDOFF-ags-platform.md` §2 are pointers, not competing sources.
 >
-> **Update 2026-10-26 — the deferred per-app split is now active.** The
-> `ags-apps` EPIC-002 / REQ-008 architecture (AD-25/31/32) activates the split
-> through the REQ-009 pilot and replaces the three-repo end state with one repo
-> per app. The composition side (single app list, one program tuple, one-owner
-> gate, cutover checklist) is recorded in
-> [`102-ags-app-consumption.md`](./102-ags-app-consumption.md). All seven apps
-> still ship from `ags-apps` until their individual cutovers; §7 below remains
-> the historical decision that the pilot gate supersedes.
+> **Update 2026-10-28 — the split is complete.** The `ags-apps` EPIC-002 /
+> REQ-008 architecture (AD-25/31/32) moved all seven apps to standalone repos;
+> engine `v0.1.22` retires the monorepo role and installs them from
+> `dotfiles/provisioning/apps.yaml`. The composition side (single app list, one
+> program tuple, one-owner gate) is recorded in
+> [`102-ags-app-consumption.md`](./102-ags-app-consumption.md). Only external
+> publish/archive and host apply remain; §7 below is the historical decision
+> that the pilot gate superseded.
 >
 > Original discussion framing is preserved below for provenance. Only §1 + §7 are normative.
 

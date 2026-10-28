@@ -2,8 +2,9 @@
 
 Canonical agent instructions for this repo (Claude, OpenCode, and any BMAD/OpenSpec
 skill must follow this). This repo is the dotfiles composition: the manifests + pinned installer
-engine, the Python runtime, and the composition gates. The AGS bar/apps live in the pinned
-`ags-apps` unit; the CLI tools (csg / weg / itr) live in their own repos. The workspace map is
+engine, the Python runtime, and the composition gates. The AGS bar/apps live in
+their seven standalone `ags-*` repos and deploy from the single app list; the
+CLI tools (csg / weg / itr) live in their own repos. The workspace map is
 [`docs/WORKSPACE.md`](docs/WORKSPACE.md).
 
 ## 1. Worktree discipline — NEVER work on `master`
@@ -23,9 +24,9 @@ in a sibling directory, never on `master`.
 Run them:
 
 - `make gates-ci`, `make deploy-coverage`, and the per-file gate the change
-  touches. The bar's own gates (`bar-typecheck`, `ags-test`) now live in the
-  `ags-apps` repo; this repo keeps `gates-ci` (provisioning shape, per-app drift,
-  capture) and `deploy-coverage`.
+  touches. The bar's own gates (`bar-typecheck`, `ags-test`) live in the
+  `ags-bar` repo; each app repo owns its own gates. This repo keeps `gates-ci`
+  (provisioning shape, per-app drift) and `deploy-coverage`.
 
 **New skeleton source files MUST be registered** in the pinned installer engine
 repo's `ansible/roles/compositor_configs/vars/main.yml`
@@ -34,30 +35,27 @@ a fresh provision deploys an unresolvable import. This repo no longer authors th
 Ansible tree: the engine is the pinned external `dotfiles-provision` repo
 (`dotfiles/provisioning/installer.pin`), so register the file there, bump the pin,
 and let `make deploy-coverage` read the cached engine checkout. This applies to
-the **non-bar** skeletons (hypr / hyprpaper / rofi). Every GUI app now deploys
-WHOLE from the `ags-apps` unit, so this repo has NO in-repo GUI per-app source
-manifests (the old `gui_tools_*_app_files` lists are retired and
-`src/gui-tools/` is gone): extend the unit instead of re-adding a per-file GUI
-list.
+the **non-bar** skeletons (hypr / hyprpaper / rofi). Every AGS app is a standalone
+immutable tag installed from `apps.yaml`, so this repo has NO in-repo GUI per-app
+source manifests (the old per-file GUI lists are retired and `src/gui-tools/` is
+gone): extend the app repo and tag instead of re-adding a per-file GUI list.
 
-The **bar is exempt**: it deploys **whole** as the pinned external `ags-apps`
-unit (the `ags_apps` role symlinks the unit's `bar/` subdir as the live
-`<install>/config/ags`), so there are no per-file bar sources to register.
-`make deploy-coverage` asserts that provisioning shape instead — it catches a
-**stale per-file bar entry** (which would template into the unit tree through the
-live-bar link and diverge the live bar from the pinned tag) plus a missing unit /
-live-bar link / resolution shortcut. It is not optional.
+The **bar is not exempt from the one list**: its standalone `ags-bar` tag is
+installed at `<install>/apps/bar/<tag>/` by `ags_apps_units`, and its
+`<install>/config/ags` spine link comes from the app-list `spineLink`. There are
+no per-file bar sources to register. `make deploy-coverage` catches a stale
+per-file bar entry plus a missing app unit/link/shortcut; it is not optional.
 
 **The AGS app inventory is the composition's.** `dotfiles/provisioning/apps.yaml`
 is the single app list and ownership source (AD-31/AD-32): one entry per app with
-`owner: legacy|standalone` and every surface (install dir, config/spine/XDG
+`owner: standalone` and every surface (install dir, repo/tag, config/spine/XDG
 links, optional bin link, launcher, autostart, launch policy, bar palette
 pointer, cutover id). `dotfiles/provisioning/program-tuple.yaml` is the one
 `ags-platform`/`contracts`/`dotfiles-assets` tuple. Do NOT add a second per-app
-list or a per-app pin to the composition. All seven apps are `owner: legacy`
-today; a cutover flips exactly one entry after quiescing the old instance. See
+list or a per-app pin to the composition. All seven apps are standalone; the
+retired `ags_apps` monorepo role/pin is gone. See
 `docs/102-ags-app-consumption.md`; `make deploy-coverage` validates the list,
-tuple, one-owner rule, legacy surfaces and fixtures on every run.
+tuple, one-owner rule, final surfaces and fixtures on every run.
 
 **CLI tools, the runtime, the installer engine and shared libraries deploy from
 pinned repos — this repo authors NO in-repo package sources.** `csg`, `weg`, `itr`

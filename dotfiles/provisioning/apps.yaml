@@ -1,20 +1,23 @@
 # The single AGS app list and ownership source (AD-31/AD-32).
 #
-# Every AGS app is declared exactly once. The old monorepo role acts only on
-# `owner: legacy`; the per-app installer role acts only on
-# `owner: standalone`. A cutover is one composition commit that flips one
-# entry's owner, so there is never a deny-list or a second app metadata list.
+# Final all-standalone topology: every AGS app is installed by the generic
+# `ags_apps_units` role from its own immutable tag at
+# <install>/apps/<installDir>/<tag>/ and resolves the ONE shared
+# <install>/apps/node_modules/ags-platform shortcut. The retired `ags_apps`
+# monorepo role/pin no longer exists, so a `legacy` entry would have no
+# installer.
 #
 # The contracts repo owns the schema (v0.3.0,
 # schemas/ags-apps-install-list.schema.json). `make deploy-coverage` validates
 # this file against the same structural rules and the fixture set, then checks
-# the legacy entry surfaces against the pinned engine's roles.
+# the final surfaces against the pinned engine's `ags_apps_units` and `verify`
+# roles.
 #
 # Field notes:
 #   app          manifest app id (one lowercase path segment)
-#   installDir   future per-app install dir: <install>/apps/<installDir>/<tag>;
-#                legacy entries still live under <install>/ags-apps/<tag>/
-#   owner        legacy = old `ags_apps` monorepo role; standalone = per-app role
+#   installDir   per-app install dir: <install>/apps/<installDir>/<tag>
+#   owner        standalone = the only owner (`ags_apps_units`)
+#   repo, tag    immutable app repo + annotated tag
 #   instance     AGS bus name (`ags list`)
 #   configDir    deployed config dir / manifest configDir
 #   configLink   config-link basename (must equal configDir)
@@ -22,20 +25,15 @@
 #   xdgLink      link basename under $XDG_CONFIG_HOME
 #   binLink      optional app-owned command in the user bin dir
 #   launcher     optional provisioned launcher command
-#   autostart    autostart identity (today the AGS instance name)
-#   launch       always = session-critical, restarted by provisioning;
-#                on-demand = launcher starts it
+#   autostart    autostart identity in the assets-owned autostart.lua
+#   launch       always = installer-started; on-demand = launcher starts it
 #   cutoverId    the per-app cutover ticket/epoch
-#
-# All seven entries are `legacy` today: the pinned engine v0.1.19 installs the
-# whole `ags-apps v0.5.0` monorepo and the generic per-app role is dormant. The
-# adoption tuple and generic role are ready; do not flip an entry until its app
-# repo/tag, runtime support and the per-app cutover prerequisites are green
-# (see docs/102-ags-app-consumption.md).
 apps:
   - app: bar
     installDir: bar
-    owner: legacy
+    owner: standalone
+    repo: https://github.com/RandomGenericUsername/ags-bar.git
+    tag: v0.1.1
     instance: ags
     configDir: ags
     configLink: ags
@@ -46,22 +44,11 @@ apps:
     barPalettePointer: true
     cutoverId: REQ-015
 
-  - app: hypr-pano
-    installDir: hypr-pano
-    owner: legacy
-    instance: hypr-pano
-    configDir: ags-hypr-pano
-    configLink: ags-hypr-pano
-    spineLink: ags-hypr-pano
-    xdgLink: ags-hypr-pano
-    launcher: hypr-pano-ui
-    autostart: hypr-pano
-    launch: on-demand
-    cutoverId: REQ-009
-
   - app: notifications
     installDir: notifications
-    owner: legacy
+    owner: standalone
+    repo: https://github.com/RandomGenericUsername/ags-notifications.git
+    tag: v0.1.0
     instance: notifications
     configDir: ags-notifications
     configLink: ags-notifications
@@ -73,7 +60,9 @@ apps:
 
   - app: capture
     installDir: capture
-    owner: legacy
+    owner: standalone
+    repo: https://github.com/RandomGenericUsername/ags-capture-tool.git
+    tag: v0.1.0
     instance: capture
     configDir: ags-capture
     configLink: ags-capture
@@ -85,9 +74,26 @@ apps:
     launch: on-demand
     cutoverId: REQ-011
 
+  - app: clipboard
+    installDir: clipboard
+    owner: standalone
+    repo: https://github.com/RandomGenericUsername/ags-clipboard.git
+    tag: v0.1.0
+    instance: clipboard
+    configDir: ags-clipboard
+    configLink: ags-clipboard
+    spineLink: ags-clipboard
+    xdgLink: ags-clipboard
+    launcher: clipboard-ui
+    autostart: clipboard
+    launch: on-demand
+    cutoverId: REQ-009
+
   - app: wallpaper-selector
     installDir: wallpaper-selector
-    owner: legacy
+    owner: standalone
+    repo: https://github.com/RandomGenericUsername/ags-wallpaper-selector.git
+    tag: v0.1.0
     instance: wallpaper-selector
     configDir: ags-wallpaper-selector
     configLink: ags-wallpaper-selector
@@ -99,7 +105,9 @@ apps:
 
   - app: icme
     installDir: icme
-    owner: legacy
+    owner: standalone
+    repo: https://github.com/RandomGenericUsername/ags-icme.git
+    tag: v0.1.0
     instance: icon-color-mapping-editor
     configDir: ags-icme
     configLink: ags-icme
@@ -111,7 +119,9 @@ apps:
 
   - app: btop-theme-studio
     installDir: btop-theme-studio
-    owner: legacy
+    owner: standalone
+    repo: https://github.com/RandomGenericUsername/ags-btop-theme-studio.git
+    tag: v0.1.0
     instance: btop-theme-studio
     configDir: ags-btop-studio
     configLink: ags-btop-studio

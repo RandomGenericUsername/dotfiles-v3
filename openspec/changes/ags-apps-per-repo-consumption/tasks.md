@@ -16,7 +16,7 @@
 
 - [x] 3.1 Update `docs/WORKSPACE.md`, the provisioning shape docs and the app-consumption notes; verify every link/path resolves and the docs name the one-owner rule.
 - [x] 3.2 Record the per-app cutover checklist and the prerequisite ticket links; verify the checklist names quiesce, owner flip, installation/start, identity and rollback.
-- [ ] 3.3 Add the final closeout task: remove the `ags-apps` pin/role, archive the repo, and verify no legacy/duplicate surface remains.
+- [x] 3.3 Add the final closeout task: remove the `ags-apps` pin/role, archive the repo, and verify no legacy/duplicate surface remains. (Composition role/pin removed; GitHub publish/archive is the external follow-up.)
 
 ## 4. Integration
 

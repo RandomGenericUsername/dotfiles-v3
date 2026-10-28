@@ -22,15 +22,14 @@ authors neither: it owns the manifests, the runtime and the gates. The full pin
 set is `ARCHITECTURE.md` §4.1.
 
 **AGS app surfaces are list-driven (AD-31/AD-32).** The seven AGS apps are
-declared once in `dotfiles/provisioning/apps.yaml`; the install dir,
+declared once in `dotfiles/provisioning/apps.yaml`; the install dir, repo/tag,
 config/spine/XDG links, optional bin link, launcher, autostart and launch policy
-all come from that entry. `config_links_managed_dirs` must cover every declared
-config/XDG link, and `make deploy-coverage` fails if an entry names a link or
-instance the pinned roles do not manage. All seven entries are `owner: legacy`
-today; the per-app cutover flips one entry and never hot-swaps a link under a
-running app. The field semantics, one-owner rule and cutover checklist are in
-[`102-ags-app-consumption.md`](./102-ags-app-consumption.md). The provision mirror
-that consumes the same list is `dotfiles-provision` REQ-008, a separate ticket.
+all come from that entry. `ags_apps_units` is the only owner; `config_links`
+must NOT expose an AGS basename, and `make deploy-coverage` fails if the engine
+and list disagree. All seven entries are `owner: standalone`; each app installs
+as an immutable tag and the cutover never hot-swaps a link under a running app.
+The field semantics and one-owner rule are in
+[`102-ags-app-consumption.md`](./102-ags-app-consumption.md).
 
 ## Motivation
 
@@ -74,7 +73,9 @@ mechanism.
 $XDG_DATA_HOME/dotfiles/                          ← install target
 ├── config/                                       ← ALL managed configs
 │   ├── hypr/                    13 Lua modules (12 static + hyprland.lua's one rendered path)
-│   ├── ags/                     LIVE LINK → <install>/ags-apps/<tag>/bar/ (the pinned ags-apps unit; no source here)
+│   ├── ags/                     LIVE LINK → <install>/apps/bar/<tag>/ (the standalone ags-bar unit; no source here)
+│   ├── ags-notifications/ …     LIVE LINKS → each app's <install>/apps/<installDir>/<tag>/
+│   ├── theme-producer/          settings.toml + templates/ (the pinned tpr producer)
 │   ├── hyprpaper/               hyprpaper.conf
 │   ├── nvim/                    (pinned dotfiles-assets configs/nvim copy)
 │   ├── starship/                starship.toml

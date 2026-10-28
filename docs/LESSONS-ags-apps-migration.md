@@ -171,8 +171,8 @@ content signature and a deferred tick to save nothing.
 - Fresh-host verification of the unit (`verify` + `ags bundle`) was **not**
   re-run in this pass; the shape is asserted by `deploy-coverage`, runtime
   health by the gates. Unverified ≠ verified.
-- Per-app repo split: **activated 2026-10-26** by `ags-apps` EPIC-002 /
-  REQ-008 (AD-25/31/32), conditional on the REQ-009 pilot exit gate. The
-  composition-side list/tuple/cutover rules are in
-  [`102-ags-app-consumption.md`](./102-ags-app-consumption.md); all seven apps
-  still ship from `ags-apps` until their individual cutovers.
+- Per-app repo split: **complete in the composition (2026-10-28)** by
+  `ags-apps` EPIC-002 / REQ-008 (AD-25/31/32). The standalone app units and
+  composition-side list/tuple rules are in
+  [`102-ags-app-consumption.md`](./102-ags-app-consumption.md); `ags-apps` is
+  retired and only external publish/archive plus host apply remain.

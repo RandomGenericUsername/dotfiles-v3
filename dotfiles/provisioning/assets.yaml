@@ -17,7 +17,7 @@ kind: assets
 
 assets:
   repo: https://github.com/RandomGenericUsername/dotfiles-assets
-  tag: v0.6.1
+  tag: v0.6.2
   classes:
     icons:     { dest: icons,     schema: icons/schema.json }
     templates: { dest: templates, schema: "**/*.vars.schema.json" }
@@ -28,13 +28,13 @@ assets:
 entries:
   - name: wallpapers
     kind: wallpaper
-    source: "{{ install_dir | trim }}/assets/v0.6.1/content/wallpapers/wallpapers.tar.gz"
+    source: "{{ install_dir | trim }}/assets/v0.6.2/content/wallpapers/wallpapers.tar.gz"
   - name: icon-templates
     kind: icon-template
-    source: "{{ install_dir | trim }}/assets/v0.6.1/icons/templates/"
+    source: "{{ install_dir | trim }}/assets/v0.6.2/icons/templates/"
   - name: icon-mappings
     kind: icon-mapping
-    source: "{{ install_dir | trim }}/assets/v0.6.1/icons/mappings/"
+    source: "{{ install_dir | trim }}/assets/v0.6.2/icons/mappings/"
   - name: csg-templates
     kind: csg-template
     # ABSOLUTE install-spine path INTO the pinned csg checkout (spine AD-10):

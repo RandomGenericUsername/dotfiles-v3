@@ -1,14 +1,15 @@
 # One program tuple per install (AD-31/AD-34).
 #
-# The composition owns this record; every standalone app repo and the remaining
-# legacy unit build/test against these exact tags for the adoption generation.
-# Engine v0.1.19 activates the tuple: the legacy unit, the generic per-app role
-# and the verify mirror all resolve `ags-platform` from this record. A tuple
-# bump is a program-wide revalidation event, never part of a single-app cutover.
+# The final all-standalone generation: every app repo and the composition build
+# against these exact tags. The engine installs the shared `ags-platform` unit
+# from this record; apps resolve it through the one
+# <install>/apps/node_modules/ags-platform shortcut. A tuple bump is a
+# program-wide revalidation event, never part of a single-app cutover.
+#
 # The contracts repo owns the schema (v0.3.0,
 # schemas/program-tuple.schema.json) and `make deploy-coverage` validates the
-# shape plus the assets-pin agreement.
+# shape plus the engine/assets pin agreement.
 schemaVersion: 1
 ags-platform: v0.3.0
 contracts: v0.3.0
-dotfiles-assets: v0.6.1
+dotfiles-assets: v0.6.2

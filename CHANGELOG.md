@@ -15,6 +15,37 @@ this summary:
 
 ## [Unreleased]
 
+## [0.6.10] - 2026-10-28 — final all-standalone AGS cutover (engine v0.1.22)
+
+### Changed
+
+- Installer engine pin `v0.1.19` → `v0.1.22`: the engine removes the legacy
+  `ags_apps` role/playbook, installs all seven AGS apps from
+  `dotfiles/provisioning/apps.yaml` as immutable `<install>/apps/<installDir>/<tag>/`
+  units, owns the ONE `<install>/apps/node_modules/ags-platform` shortcut, and
+  adds the tpr palette-producer support.
+- All seven app-list entries are now `owner: standalone` with released repos:
+  `ags-bar v0.1.1` (state migration) and `ags-notifications` /
+  `ags-capture-tool` / `ags-clipboard` / `ags-wallpaper-selector` / `ags-icme` /
+  `ags-btop-theme-studio` at `v0.1.0`. The old `hypr-pano` entry is replaced by
+  `clipboard`/`ags-clipboard`; launcher and autostart names follow the rename.
+- Program tuple `dotfiles-assets` `v0.6.1` → `v0.6.2`; assets corpus pin and
+  source paths move to `v0.6.2` (launch-lock autostart + clipboard rename).
+- `deploy-coverage` now asserts the final all-standalone topology: every app is
+  standalone, the released repo/tag inventory is exact, the composition list
+  matches the engine's seven-app fixture, launcher/autostart/bin surfaces have
+  one owner, the tuple/platform/assets mirrors agree, the legacy role is absent,
+  and the fake cutover/rollback fixture is present.
+
+### Blocked / not claimed
+
+- `dotfiles-runtime` remains `v0.2.3`: engine `v0.1.22` still mirrors `v0.2.3`
+  in `cli_tools` and `verify`; the separate local runtime `v0.3.0` release
+  requires an engine re-pin before the composition can consume it. No host
+  provision was run.
+- No app tag, engine tag, assets tag or repo was published; no `ags-apps`
+  archive was performed. Those are external follow-ups.
+
 ## [0.6.9] - 2026-10-27 — AGS adoption tuple active (engine v0.1.19)
 
 ### Changed
