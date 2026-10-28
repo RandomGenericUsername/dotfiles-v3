@@ -3,8 +3,9 @@
 > **Status:** final all-standalone composition (2026-10-28). Engine `v0.1.24`
 > installs the seven released app repos from the single list; the old
 > `ags-apps` monorepo role/playbook is gone. `dotfiles-assets` is `v0.6.2` and
-> `dotfiles-runtime` is `v0.3.0` (manifest-driven refresh). No host provision or
-> GitHub publish/archive has been run.
+> `dotfiles-runtime` is `v0.3.0` (manifest-driven refresh). The seven app tags
+> and engine `v0.1.24` are published; the retired `ags-apps` repository is
+> archived. Only the host bootstrap + `verify` pass remains.
 
 This is the composition owner's guide to the per-app AGS program defined by
 `ags-apps` EPIC-002 / REQ-008 and AD-31/AD-32.
@@ -110,11 +111,13 @@ assets pin and docs are committed and the gates are green. The remaining
 external steps are **not** performed here:
 
 1. Publish the seven local app tags, the engine `v0.1.24`, assets `v0.6.2`
-   and runtime `v0.3.0` to their remotes.
+   and runtime `v0.3.0` to their remotes. **Done.**
 2. Apply the composition on the host (`bootstrap`/`provision`) and run `verify`.
+   **Pending.**
 3. Verify `ags list`, the XDG/spine/app links, launcher toggles, autostart
    identity, bar `colors.css`, and the absence of `<install>/ags-apps/`.
-4. Archive the retired `ags-apps` repository after publish.
+   **Pending.**
+4. Archive the retired `ags-apps` repository after publish. **Done.**
 
 ## Related tickets
 
