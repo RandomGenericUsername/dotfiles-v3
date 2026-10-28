@@ -15,6 +15,36 @@ this summary:
 
 ## [Unreleased]
 
+## [0.6.9] - 2026-10-27 — AGS adoption tuple active (engine v0.1.19)
+
+### Changed
+
+- Installer engine pin `v0.1.17` → `v0.1.19`: the engine activates the AGS
+  adoption tuple (`ags-apps v0.5.0` + `ags-platform v0.3.0`), keeps the
+  `dotfiles-assets v0.6.1` and `dotfiles-runtime v0.2.3` pins unchanged, and
+  ships the generic `ags_apps_units` install/cutover role plus the `verify`
+  mirror and fake-app one-owner fixtures. No app cuts over; all seven
+  `apps.yaml` entries remain `owner: legacy`.
+- `deploy-coverage` now asserts the adoption tuple is real: the pinned engine's
+  `ags_apps` legacy shortcut, `ags_platform` role and both verify mirrors must
+  resolve the program tuple's `ags-platform` tag; `ags-apps`/verify versions
+  must agree; the verify mirror must read the same `apps.yaml` /
+  `program-tuple.yaml` and assert the same standalone surfaces; and the engine
+  must carry the legacy/mixed/all-standalone and quiesce → install/start →
+  verify → rollback fixtures. OpenSpec tasks 2.2 and 2.3 are covered by this
+  gate against the pinned engine. Final closeout (3.3) and runtime reconcile
+  behavior (4.2) remain open.
+- Docs `ARCHITECTURE.md`, `README.md`, `docs/WORKSPACE.md` and
+  `docs/102-ags-app-consumption.md` now name engine `v0.1.19`, the active
+  adoption tuple and the engine-owned verify/cutover fixtures.
+
+### Notes
+
+- `installer.pin` and the engine tag are local-only in this change; no remote
+  tag or push. The program tuple stays `contracts v0.3.0`,
+  `ags-platform v0.3.0`, `dotfiles-assets v0.6.1`.
+- No AGS app, `hypr-pano` rename, assets corpus, runtime or CLI source changes.
+
 ## [0.6.8] - 2026-10-26 — csg v0.2.1 + runtime v0.2.3 (engine v0.1.17)
 
 ### Changed

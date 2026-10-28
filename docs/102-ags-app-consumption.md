@@ -1,9 +1,11 @@
 # 102 — AGS app consumption (one list, one tuple, one owner)
 
-> **Status:** composition-side adoption (2026-10-26). The app list and program
-> tuple exist and the composition gate validates them. All seven apps are still
-> `owner: legacy`; no app has cut over. The provision mirror, per-app cutovers
-> and the final `ags-apps` removal are later tickets.
+> **Status:** composition-side activation (2026-10-27). Engine `v0.1.19`
+> activates the adoption tuple (`ags-apps v0.5.0` + `ags-platform v0.3.0`); the
+> app list and program tuple exist and the composition gate validates them plus
+> the engine's verify mirror and fake cutover fixtures. All seven apps are still
+> `owner: legacy`; no app has cut over. The per-app cutovers and the final
+> `ags-apps` removal are later tickets.
 
 This is the composition owner's guide to the per-app AGS program defined by
 `ags-apps` EPIC-002 / REQ-008 and AD-31/AD-32. It replaces the "one monorepo
@@ -17,7 +19,7 @@ the old role before the last cutover.
 | Which app exists, who owns it, and every deployment surface | `dotfiles/provisioning/apps.yaml` | `dotfiles-v3` |
 | The one `ags-platform` / `contracts` / `dotfiles-assets` tag triple | `dotfiles/provisioning/program-tuple.yaml` | `dotfiles-v3` |
 | App-list and tuple schema | `contracts` v0.3.0 `schemas/ags-apps-install-list.schema.json`, `schemas/program-tuple.schema.json` | `contracts` |
-| Install/cutover/verify behavior | `dotfiles-provision` REQ-008 | `dotfiles-provision` |
+| Install/cutover/verify behavior | `dotfiles-provision` REQ-008 (engine `v0.1.19`) | `dotfiles-provision` |
 | Manifest discovery, ledger, refresh lanes | `dotfiles-runtime` REQ-002 | `dotfiles-runtime` |
 | Launcher/autostart/keybind surfaces | `dotfiles-provision` `cli_tools`/`gui_tools`, `dotfiles-assets` | those repos |
 
@@ -83,12 +85,19 @@ dotfiles-assets: v0.6.1
 
 - One tuple per install. Every standalone app and the remaining legacy unit
   must resolve it; app repos build/test against it.
+- Engine `v0.1.19` activates the tuple: `ags_platform`, the legacy per-unit
+  shortcut (`ags_apps_platform_version`) and both verify mirrors all resolve
+  `ags-platform v0.3.0`; the legacy monorepo is `ags-apps v0.5.0` with per-app
+  manifests and `palette-refresh` handlers.
 - A tuple bump is a program-wide revalidation event. It is **never** part of a
   single-app cutover.
-- The composition gate requires `dotfiles-assets` to equal `assets.tag`.
-- While any entry is standalone, the gate refuses a legacy unit that still
-  resolves a different `ags-platform` tag. That is why the current all-legacy
-  list can pass before the adoption release while a premature cutover cannot.
+- The composition gate requires `dotfiles-assets` to equal `assets.tag`, and
+  requires every engine leg above to resolve the tuple's `ags-platform` tag. A
+  half-re-pin (tuple v0.3.0, engine still v0.2.0) fails before any cutover.
+- The pinned engine's `ags_apps_units` role and `verify` mirror read the same
+  `apps.yaml`/`program-tuple.yaml`; its fake-app fixture covers quiesce →
+  install/start → verify → rollback and the legacy/mixed/all-standalone
+  one-owner lists.
 
 ## One-owner rule
 
@@ -107,7 +116,10 @@ For every app, exactly one entry and one role own every surface:
 `make deploy-coverage` checks all of the above, cross-checks legacy config
 links/instances/launchers/bin links against the pinned engine roles, and runs
 the committed legacy/mixed/all-standalone fixtures plus the negative fixtures
-on every invocation.
+on every invocation. It also requires the pinned engine's `verify` mirror to
+read the same `apps.yaml`/`program-tuple.yaml`, assert the same standalone
+surfaces, and ship the fake-app quiesce → install/start → verify → rollback
+fixture and the engine's one-owner app-list fixtures.
 
 ## Per-app cutover checklist
 
@@ -116,7 +128,8 @@ Prerequisites (all must be true before starting an epoch):
 - [ ] The app repo/tag exists and builds/tests against the current program
       tuple; its `app.manifest.json` passes schema and template conformance.
 - [ ] `dotfiles-runtime` manifest/discovery support and the per-app provision
-      role/verify mirror are pinned (see `dotfiles-provision` REQ-008).
+      role/verify mirror are pinned (engine `v0.1.19` provides the role, verify
+      mirror and fake cutover fixture; see `dotfiles-provision` REQ-008).
 - [ ] The app repo's source is absent from `ags-apps` (or is removed in the same
       epoch), so there is no second source.
 - [ ] The expected launcher/autostart/keybind surface is understood and updated

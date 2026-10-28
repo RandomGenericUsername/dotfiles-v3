@@ -18,6 +18,16 @@ What it proves:
 * exactly the bar owns `barPalettePointer`;
 * the program tuple names exactly `ags-platform`, `contracts` and
   `dotfiles-assets`, is a semver tag triple, and agrees with `assets.tag`;
+* the adoption tuple is actually active: the pinned engine's `ags_apps`,
+  `ags_platform`, `verify` and legacy-shortcut pins all resolve the tuple's
+  `ags-platform` tag, and the installed `ags-apps` unit/verify mirror agree;
+* the pinned engine's provision verify mirror consumes the same `apps.yaml` +
+  `program-tuple.yaml` and asserts the same standalone surfaces (config/spine/
+  XDG/bin, launcher, autostart, palette pointer, launch lock);
+* the pinned engine carries the fake-app cutover fixture (quiesce → install/
+  repoint/start → verify → rollback) and the legacy/mixed/all-standalone
+  one-owner fixtures, which this gate revalidates with the same structural
+  rules;
 * for the current legacy entries, every config link is a managed dir in the
   pinned engine's `config_links` role, every instance is in `gui_tools`, the
   launch policy matches `always_on`, every launcher has a real `cli_tools`
@@ -26,9 +36,9 @@ What it proves:
   duplicate apps/instances/config links, invalid owners and repo/tag
   contradictions; the tuple fixtures reject missing/extra/non-semver records.
 
-A standalone entry is intentionally not checked against the old monorepo role's
-surfaces. The provision mirror ticket owns that half; until it lands, a
-standalone flip is blocked by the engine tuple equality check below.
+A standalone entry is still not deployed by the old monorepo role; the engine's
+generic `ags_apps_units` role owns it, and the gate asserts that role plus its
+verify mirror are present in the pinned checkout before any cutover.
 """
 
 from __future__ import annotations
@@ -45,10 +55,19 @@ ASSETS_MANIFEST = "dotfiles/provisioning/assets.yaml"
 FIXTURE_ROOT = "scripts/fixtures/ags-app-consumption"
 
 ENGINE_AGS_APPS_VARS = "ansible/roles/ags_apps/vars/main.yml"
+ENGINE_AGS_APPS_UNITS_VARS = "ansible/roles/ags_apps_units/vars/main.yml"
+ENGINE_AGS_APPS_UNITS_TASKS = "ansible/roles/ags_apps_units/tasks"
+ENGINE_AGS_PLATFORM_VARS = "ansible/roles/ags_platform/vars/main.yml"
 ENGINE_CLI_TOOLS_TASKS = "ansible/roles/cli_tools/tasks/main.yml"
 ENGINE_CLI_TOOLS_TEMPLATES = "ansible/roles/cli_tools/templates"
 ENGINE_CONFIG_LINKS_VARS = "ansible/roles/config_links/vars/main.yml"
 ENGINE_GUI_TOOLS_VARS = "ansible/roles/gui_tools/vars/main.yml"
+ENGINE_VERIFY_VARS = "ansible/roles/verify/vars/main.yml"
+ENGINE_VERIFY_TASKS = "ansible/roles/verify/tasks/main.yml"
+ENGINE_VERIFY_STANDALONE = "ansible/roles/verify/tasks/_verify_standalone.yml"
+ENGINE_APP_LIST_FIXTURES = "tests/fixtures/ags-apps/app-list"
+ENGINE_FAKE_APP_FIXTURE = "tests/fixtures/ags-apps/fake-app"
+ENGINE_UNITS_TEST = "tests/unit/test_ags_apps_units_role.py"
 
 # The seven apps the composition deploys today. This is an inventory assertion,
 # not a second metadata list: every deployment field lives in apps.yaml.
@@ -378,8 +397,312 @@ def _engine_data(engine_root: Path, relative: str) -> dict[str, Any]:
     return data
 
 
+def _engine_text(engine_root: Path, relative: str) -> str:
+    path = engine_root / relative
+    if not path.is_file():
+        raise ValueError(f"the pinned engine is missing {relative}")
+    return path.read_text(encoding="utf-8")
+
+
+def assert_engine_adoption_tuple(
+    tuple_data: dict[str, Any], engine_root: Path
+) -> str:
+    """The engine must actually resolve the program tuple, not just record it.
+
+    The composition owns `program-tuple.yaml`; the pinned engine owns the
+    concrete role pins. Four engine legs consume `ags-platform`: the platform
+    role, the legacy monorepo's per-unit shortcut, and both verify mirrors. A
+    half-adoption (tuple v0.3.0, engine still v0.2.0) would install two platform
+    generations and break the one-tuple rule, so the composition gate fails
+    naming the leg that disagrees.
+    """
+    expected_platform = tuple_data["ags-platform"]
+    apps_vars = _engine_data(engine_root, ENGINE_AGS_APPS_VARS)
+    platform_vars = _engine_data(engine_root, ENGINE_AGS_PLATFORM_VARS)
+    verify_vars = _engine_data(engine_root, ENGINE_VERIFY_VARS)
+
+    legs = (
+        (ENGINE_AGS_APPS_VARS, "ags_apps_platform_version", apps_vars),
+        (ENGINE_AGS_PLATFORM_VARS, "ags_platform_version", platform_vars),
+        (ENGINE_VERIFY_VARS, "verify_ags_platform_version", verify_vars),
+        (ENGINE_VERIFY_VARS, "verify_ags_apps_platform_version", verify_vars),
+    )
+    for relative, key, data in legs:
+        value = data.get(key)
+        if value != expected_platform:
+            raise ValueError(
+                f"{PROGRAM_TUPLE}: ags-platform {expected_platform!r} is not "
+                f"resolved by {relative} `{key}` = {value!r} — finish the "
+                f"adoption re-pin before any cutover"
+            )
+
+    apps_version = apps_vars.get("ags_apps_version")
+    if not isinstance(apps_version, str) or not _TAG_RE.fullmatch(apps_version):
+        raise ValueError(
+            f"{ENGINE_AGS_APPS_VARS}: ags_apps_version must be an immutable "
+            f"semver tag; got {apps_version!r}"
+        )
+    verify_apps_version = verify_vars.get("verify_ags_apps_version")
+    if verify_apps_version != apps_version:
+        raise ValueError(
+            f"{ENGINE_VERIFY_VARS}: verify_ags_apps_version "
+            f"{verify_apps_version!r} does not mirror ags_apps_version "
+            f"{apps_version!r}"
+        )
+    if verify_vars.get("verify_assets_pinned_tag") != tuple_data["dotfiles-assets"]:
+        raise ValueError(
+            f"{ENGINE_VERIFY_VARS}: verify_assets_pinned_tag "
+            f"{verify_vars.get('verify_assets_pinned_tag')!r} does not mirror the "
+            f"program tuple dotfiles-assets {tuple_data['dotfiles-assets']!r}"
+        )
+
+    units_vars = _engine_text(engine_root, ENGINE_AGS_APPS_UNITS_VARS)
+    if "program-tuple.yaml" not in units_vars or (
+        "ags_apps_units_tuple['ags-platform']" not in units_vars
+    ):
+        raise ValueError(
+            f"{ENGINE_AGS_APPS_UNITS_VARS}: the generic role must consume the "
+            f"shared program-tuple.yaml and resolve ags-platform from it, not "
+            f"carry a second platform pin"
+        )
+    return str(apps_version)
+
+
+def assert_engine_verify_mirror(engine_root: Path) -> None:
+    """The engine's verify role must mirror the installer's app-list surfaces.
+
+    This is the composition-side half of OpenSpec task 2.2: the generic
+    installer (`ags_apps_units`) and `verify` read the SAME apps.yaml /
+    program-tuple.yaml, and every ownership surface the installer creates is
+    asserted again by verify. The task text below is deliberately token-level,
+    not a second app list.
+    """
+    verify_vars = _engine_data(engine_root, ENGINE_VERIFY_VARS)
+    expected = {
+        "verify_ags_apps_units_apps_file": "{{ manifests_dir | trim }}/apps.yaml",
+        "verify_ags_apps_units_tuple_file": (
+            "{{ manifests_dir | trim }}/program-tuple.yaml"
+        ),
+        "verify_ags_apps_units_install_root": "{{ install_dir | trim }}/apps",
+        "verify_ags_apps_units_platform_shortcut": (
+            "{{ verify_ags_apps_units_install_root }}/node_modules/ags-platform"
+        ),
+        "verify_ags_apps_units_spine_config_dir": "{{ install_dir | trim }}/config",
+        "verify_ags_apps_units_run_locked": (
+            "{{ verify_cli_bin_dir | trim }}/ags-run-locked"
+        ),
+        "verify_ags_apps_units_autostart_file": (
+            "{{ install_dir | trim }}/config/hypr/autostart.lua"
+        ),
+        "verify_ags_apps_units_colors_pointer": (
+            "{{ verify_ags_apps_units_state_root }}/dotfiles/current/colors.gtk.css"
+        ),
+    }
+    for key, value in expected.items():
+        if verify_vars.get(key) != value:
+            raise ValueError(
+                f"{ENGINE_VERIFY_VARS}: {key} must be {value!r}; got "
+                f"{verify_vars.get(key)!r} — the verify mirror drifted from the "
+                f"composition app list/tuple seam"
+            )
+
+    installer_main = _engine_text(
+        engine_root, f"{ENGINE_AGS_APPS_UNITS_TASKS}/main.yml"
+    )
+    for token in (
+        "manifests_dir",
+        "apps.yaml",
+        "program-tuple.yaml",
+        "selectattr('owner', 'equalto', 'standalone')",
+        "node_modules",
+    ):
+        if token not in installer_main:
+            raise ValueError(
+                f"{ENGINE_AGS_APPS_UNITS_TASKS}/main.yml does not read {token!r} "
+                f"— the generic role no longer consumes the single list/tuple"
+            )
+
+    verify_main = _engine_text(engine_root, ENGINE_VERIFY_TASKS)
+    for token in (
+        "verify_ags_apps_units_apps_file",
+        "verify_ags_apps_units_tuple_file",
+        "verify_ags_standalone_apps",
+        "include_tasks: _verify_standalone.yml",
+    ):
+        if token not in verify_main:
+            raise ValueError(
+                f"{ENGINE_VERIFY_TASKS} does not mirror {token!r} — verify and "
+                f"the installer no longer audit the same app list"
+            )
+
+    installer_surfaces = _engine_text(
+        engine_root, f"{ENGINE_AGS_APPS_UNITS_TASKS}/_verify_surfaces.yml"
+    )
+    verify_standalone = _engine_text(engine_root, ENGINE_VERIFY_STANDALONE)
+    common_surface_tokens = (
+        "app.binLink",
+        "app.launcher",
+        "app.autostart",
+        "ags-run-locked",
+        "--expect-instance ",
+        "| length - 1) == 1",
+    )
+    for label, text, link_tokens in (
+        (
+            "installer _verify_surfaces.yml",
+            installer_surfaces,
+            (
+                "ags_apps_units_spine_link",
+                "ags_apps_units_xdg_link",
+                "ags_apps_units_bin_link",
+            ),
+        ),
+        (
+            "verify _verify_standalone.yml",
+            verify_standalone,
+            ("app.spineLink", "app.xdgLink"),
+        ),
+    ):
+        for token in common_surface_tokens + link_tokens:
+            if token not in text:
+                raise ValueError(
+                    f"{label}: missing {token!r} — the two gates no longer "
+                    f"assert the same ownership surfaces"
+                )
+
+    for token in (
+        "app.configDir",
+        "app.configLink",
+        "barPalettePointer",
+        "palette-refresh",
+        "colors.css",
+        "icons.json",
+    ):
+        if token not in verify_standalone:
+            raise ValueError(
+                f"{ENGINE_VERIFY_STANDALONE}: missing {token!r} — the standalone "
+                f"verify mirror is incomplete"
+            )
+
+
+def assert_engine_cutover_fixture(engine_root: Path) -> None:
+    """Require the pinned engine's quiesce → flip → verify → rollback fixture.
+
+    The engine owns the executable cutover; the composition gate locks that the
+    pinned tag actually ships it rather than only documenting it. The fake-app
+    tests are GUI-free and run with a fake `ags` CLI; this gate checks the
+    structure and one-owner fixtures they consume.
+    """
+    task_dir = engine_root / ENGINE_AGS_APPS_UNITS_TASKS
+    required_tasks = (
+        "main.yml",
+        "_one.yml",
+        "_quiesce.yml",
+        "_rollback.yml",
+        "_verify_unit.yml",
+        "_verify_surfaces.yml",
+        "_verify_runtime.yml",
+    )
+    for name in required_tasks:
+        if not (task_dir / name).is_file():
+            raise ValueError(
+                f"{ENGINE_AGS_APPS_UNITS_TASKS}/{name} is missing — the pinned "
+                f"engine does not ship the generic cutover epoch"
+            )
+
+    one = _engine_text(engine_root, f"{ENGINE_AGS_APPS_UNITS_TASKS}/_one.yml")
+    sequence = (
+        "_quiesce.yml",
+        "clone the standalone tag",
+        "repoint the spine link",
+        "_verify_surfaces.yml",
+        "_verify_runtime.yml",
+        "rescue:",
+        "_rollback.yml",
+    )
+    positions = [one.find(token) for token in sequence]
+    if any(position < 0 for position in positions) or positions != sorted(positions):
+        raise ValueError(
+            f"{ENGINE_AGS_APPS_UNITS_TASKS}/_one.yml does not keep the AD-32 "
+            f"order quiesce → install → repoint → verify → rollback; found "
+            f"{dict(zip(sequence, positions))}"
+        )
+
+    quiesce = _engine_text(engine_root, f"{ENGINE_AGS_APPS_UNITS_TASKS}/_quiesce.yml")
+    for token in ("ags quit -i", "ags list", "ags-launch.lock"):
+        if token not in quiesce:
+            raise ValueError(
+                f"{ENGINE_AGS_APPS_UNITS_TASKS}/_quiesce.yml does not confirm "
+                f"the old instance is gone ({token!r} missing)"
+            )
+    rollback = _engine_text(engine_root, f"{ENGINE_AGS_APPS_UNITS_TASKS}/_rollback.yml")
+    for token in (
+        "previous_spine_target",
+        "previous_xdg_target",
+        "previous_bin_target",
+        "was_running",
+        "ags_apps_units_run_locked",
+    ):
+        if token not in rollback:
+            raise ValueError(
+                f"{ENGINE_AGS_APPS_UNITS_TASKS}/_rollback.yml does not restore "
+                f"the previous owner ({token!r} missing)"
+            )
+
+    test_text = _engine_text(engine_root, ENGINE_UNITS_TEST)
+    for name in (
+        "test_every_fixture_has_exactly_one_owner",
+        "test_owner_flip_quiesces_the_old_instance_then_installs_and_starts",
+        "test_failure_rolls_back_links_and_restarts_the_previous_instance",
+        "test_all_standalone_installs_full_topology_and_tags_stay_immutable",
+    ):
+        if name not in test_text:
+            raise ValueError(
+                f"{ENGINE_UNITS_TEST} is missing {name!r} — the pinned engine's "
+                f"fake cutover/one-owner fixture is incomplete"
+            )
+
+    fixture_dir = engine_root / ENGINE_FAKE_APP_FIXTURE
+    for relative in (
+        "app.manifest.json",
+        "app.tsx",
+        "handler.ts",
+        "icons.json",
+        "bin/fake-app-tool",
+    ):
+        if not (fixture_dir / relative).is_file():
+            raise ValueError(
+                f"{ENGINE_FAKE_APP_FIXTURE}/{relative} is missing — the cutover "
+                f"fixture cannot exercise a whole app"
+            )
+
+
+def assert_engine_fixtures(engine_root: Path) -> int:
+    """Revalidate the engine's one-owner fixtures with the composition rules."""
+    fixture_dir = engine_root / ENGINE_APP_LIST_FIXTURES
+    expected = {
+        "legacy.apps.yaml": {"legacy": 2, "standalone": 0},
+        "mixed.apps.yaml": {"legacy": 1, "standalone": 1},
+        "all-standalone.apps.yaml": {"legacy": 0, "standalone": 2},
+    }
+    for name, counts in expected.items():
+        source = f"{ENGINE_APP_LIST_FIXTURES}/{name}"
+        path = fixture_dir / name
+        if not path.is_file():
+            raise ValueError(f"the pinned engine is missing {source}")
+        entries = validate_app_list(_load_yaml(path), source)
+        got = Counter(entry["owner"] for entry in entries)
+        if {owner: got.get(owner, 0) for owner in OWNERS} != counts:
+            raise ValueError(
+                f"{source}: owner partition "
+                f"{ {owner: got.get(owner, 0) for owner in OWNERS} } does not "
+                f"match {counts}"
+            )
+    return len(expected)
+
+
 def assert_engine_surfaces(
-    entries: list[dict[str, Any]], engine_root: Path, tuple_data: dict[str, Any]
+    entries: list[dict[str, Any]], engine_root: Path
 ) -> None:
     """Prove every legacy entry names a surface the pinned engine deploys."""
     source = APPS_MANIFEST
@@ -420,21 +743,6 @@ def assert_engine_surfaces(
         raise ValueError(f"the pinned engine is missing {ENGINE_CLI_TOOLS_TASKS}")
     tasks_text = tasks_path.read_text(encoding="utf-8")
     templates_dir = engine_root / ENGINE_CLI_TOOLS_TEMPLATES
-
-    standalone = [entry for entry in entries if entry["owner"] == "standalone"]
-    if standalone:
-        legacy_platform = ags_apps.get("ags_apps_platform_version")
-        if (
-            isinstance(legacy_platform, str)
-            and legacy_platform != tuple_data["ags-platform"]
-        ):
-            raise ValueError(
-                f"{source}: {len(standalone)} standalone entr"
-                f"{'y' if len(standalone) == 1 else 'ies'} exist but the legacy "
-                f"unit still resolves ags-platform {legacy_platform!r}, not the "
-                f"program tuple {tuple_data['ags-platform']!r} — finish the "
-                f"adoption release before any cutover"
-            )
 
     for entry in entries:
         app = entry["app"]
@@ -590,7 +898,11 @@ def run_checks(root: Path, engine_root: Path) -> dict[str, Any]:
             f"does not agree with {ASSETS_MANIFEST} assets.tag {assets_tag!r}"
         )
 
-    assert_engine_surfaces(entries, engine_root, tuple_data)
+    assert_engine_surfaces(entries, engine_root)
+    engine_apps_version = assert_engine_adoption_tuple(tuple_data, engine_root)
+    assert_engine_verify_mirror(engine_root)
+    assert_engine_cutover_fixture(engine_root)
+    engine_fixture_count = assert_engine_fixtures(engine_root)
     fixture_summary = assert_fixtures(root)
 
     owner_counts = Counter(entry["owner"] for entry in entries)
@@ -598,5 +910,7 @@ def run_checks(root: Path, engine_root: Path) -> dict[str, Any]:
         "apps": len(entries),
         "owners": {owner: owner_counts.get(owner, 0) for owner in sorted(OWNERS)},
         "tuple": dict(tuple_data),
+        "engine_apps_version": engine_apps_version,
+        "engine_fixtures": engine_fixture_count,
         **fixture_summary,
     }

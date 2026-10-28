@@ -40,15 +40,15 @@ and **which tag each consumer pins**. It is the cross-project companion to each 
 
 | Consumer | Pinned artifact | Tag | Declared in |
 | --- | --- | --- | --- |
-| `dotfiles-v3` | installer engine `dotfiles-provision` | `v0.1.17` | `dotfiles/provisioning/installer.pin` |
+| `dotfiles-v3` | installer engine `dotfiles-provision` | `v0.1.19` | `dotfiles/provisioning/installer.pin` |
 | `dotfiles-v3` | corpus `dotfiles-assets` | `v0.6.1` | `dotfiles/provisioning/assets.yaml` |
 | `dotfiles-v3` | CLIs `csg`/`weg`/`itr` + runtime `dotfiles-runtime` | `csg v0.2.1` / `weg/itr v0.2.0` / `runtime v0.2.3` | `dotfiles/provisioning/cli-tools.yaml` |
-| `dotfiles-v3` | program tuple `ags-platform` / `contracts` / `dotfiles-assets` | `v0.3.0` / `v0.3.0` / `v0.6.1` | `dotfiles/provisioning/program-tuple.yaml` |
+| `dotfiles-v3` | program tuple `ags-platform` / `contracts` / `dotfiles-assets` (active adoption tuple) | `v0.3.0` / `v0.3.0` / `v0.6.1` | `dotfiles/provisioning/program-tuple.yaml` |
 | `dotfiles-runtime` | `cli-output` | `v0.1.0` | runtime `pyproject.toml` |
 | `dotfiles-runtime` | `contracts` | `v0.2.0` | runtime `pyproject.toml` |
-| `dotfiles-provision` | `ags-apps` unit (legacy, until the last cutover) | `v0.4.3` | `ansible/roles/ags_apps/vars/main.yml` |
-| `dotfiles-provision` | `ags-platform` unit (legacy shortcut, until adoption) | `v0.2.0` | `ansible/roles/ags_apps/vars/main.yml` |
-| `ags-apps` | `ags-platform` | `v0.2.0` | `Makefile` (`AGS_PLATFORM_VERSION`) |
+| `dotfiles-provision` | `ags-apps` adoption unit (legacy, until the last cutover) | `v0.5.0` | `ansible/roles/ags_apps/vars/main.yml` |
+| `dotfiles-provision` | `ags-platform` unit (legacy shortcut + shared tuple) | `v0.3.0` | `ansible/roles/ags_apps/vars/main.yml`, `ansible/roles/ags_platform/vars/main.yml` |
+| `ags-apps` | `ags-platform` | `v0.3.0` | `Makefile` (`AGS_PLATFORM_VERSION`) |
 | `dotfiles-assets` repo | its own release | `v0.6.1` | git tag (composition consumes the same) |
 
 A tag is never moved. A fix ships as a new tag. Consumer pin bumps edit the declared file first,
@@ -69,6 +69,12 @@ launcher, autostart, launch policy, bar palette pointer, cutover id).
 - **All seven apps are legacy today.** `make deploy-coverage` validates the list,
   the tuple, the one-owner invariant and the current legacy surfaces against the
   pinned engine; it also runs legacy/mixed/all-standalone fixtures.
+- **The adoption tuple is active in engine `v0.1.19`.** The legacy monorepo is
+  `ags-apps v0.5.0` (manifests + handlers), the shared platform is
+  `ags-platform v0.3.0`, and the `ags_platform`, legacy-shortcut and verify
+  mirrors all resolve the same tuple. The generic `ags_apps_units` role and its
+  `verify` mirror consume the same `apps.yaml` / `program-tuple.yaml`; the
+  cutover/rollback fixture lives in the pinned engine's tests.
 - **Cutover is an epoch**, one app per composition commit: quiesce the old
   instance (confirmed quit, no process, no D-Bus name) → flip `owner` →
   install/repoint/start → verify identity and every surface → rollback is the

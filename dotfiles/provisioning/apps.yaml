@@ -27,10 +27,11 @@
 #                on-demand = launcher starts it
 #   cutoverId    the per-app cutover ticket/epoch
 #
-# All seven entries are `legacy` today: the pinned engine still installs the
-# whole `ags-apps` monorepo. Do not flip one until its app repo, the generic
-# provision role and the program tuple are ready (see
-# docs/102-ags-app-consumption.md).
+# All seven entries are `legacy` today: the pinned engine v0.1.19 installs the
+# whole `ags-apps v0.5.0` monorepo and the generic per-app role is dormant. The
+# adoption tuple and generic role are ready; do not flip an entry until its app
+# repo/tag, runtime support and the per-app cutover prerequisites are green
+# (see docs/102-ags-app-consumption.md).
 apps:
   - app: bar
     installDir: bar

@@ -9,8 +9,8 @@
 ## 2. Consumption gates
 
 - [x] 2.1 Extend `deploy-coverage` to read the list/tuple and assert one owner, install dir, config/spine/XDG/bin links, launcher, autostart and bar palette pointer; verify a broken fixture fails and the real data passes.
-- [ ] 2.2 Mirror the same assertions in the pinned engine's verify role (provision REQ-008); verify both gates agree on the fixture.
-- [ ] 2.3 Add the quiesce → flip → install/start → verify/rollback fixture; verify it reports zero duplicate and zero missing surfaces.
+- [x] 2.2 Mirror the same assertions in the pinned engine's verify role (provision REQ-008); verify both gates agree on the fixture.
+- [x] 2.3 Add the quiesce → flip → install/start → verify/rollback fixture; verify it reports zero duplicate and zero missing surfaces.
 
 ## 3. Documentation and cutover
 

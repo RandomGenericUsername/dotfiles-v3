@@ -100,7 +100,11 @@ required):
       without a contracts checkout), every app has exactly one owner, the
       legacy entries name real surfaces in the pinned engine roles, the tuple
       agrees with `assets.tag`, and the committed legacy/mixed/all-standalone
-      fixtures accept/reject the intended shapes.
+      fixtures accept/reject the intended shapes. It also proves the pinned
+      engine actually adopted the tuple (its `ags_apps`/`ags_platform`/verify
+      pins resolve it), that the provision verify mirror consumes the same
+      records and surfaces, and that the fake-app cutover/one-owner fixtures
+      are present.
 
 The relative-import closure of `dotfiles/config/ags/app.tsx` is still computed
 when that dev/typecheck/test bridge is PRESENT (a developer checkout, or the
@@ -2989,6 +2993,14 @@ def main() -> int:
         f"{app_summary['tuple']['contracts']}, dotfiles-assets "
         f"{app_summary['tuple']['dotfiles-assets']} (agrees with assets.tag); one "
         f"tuple per install"
+    )
+    print(
+        f"deploy-coverage: engine adoption tuple — ags-apps "
+        f"{app_summary['engine_apps_version']}, ags-platform "
+        f"{app_summary['tuple']['ags-platform']} resolved by ags_apps, "
+        f"ags_platform and both verify mirrors; verify standalone mirror + "
+        f"fake cutover/one-owner fixtures present "
+        f"({app_summary['engine_fixtures']} engine-list fixtures revalidated)"
     )
     print(
         f"deploy-coverage: PASS — app-list fixtures "
