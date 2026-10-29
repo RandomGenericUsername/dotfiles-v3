@@ -22,6 +22,9 @@ this summary:
   v0.1.2 runtime fix — the real btop live preview is the default stage again,
   auto-refreshes after theme edits, and keeps its own scroller. v0.1.1 is
   superseded (its primary preview was hidden behind the Live tab).
+- btop Theme Studio pin `v0.1.2` → `v0.1.3`: the Components pane is a real
+  graphical btop reconstruction (boxes, meter bars, graph lines, values and
+  click-to-select keys); the real btop Live pane is unchanged.
 - Bar app pin `v0.1.2` → `v0.1.3`: the conformance test and docs accept the
   committed `colors.css` runtime-pointer symlink the engine's
   `barPalettePointer` contract requires.
