@@ -9,10 +9,11 @@
 #
 # Each entry is tagged with an AssetKind; `AssetKind.spine_segment()` resolves
 # the deploy target under $XDG_DATA_HOME/dotfiles/. `source` is the path Ansible
-# copies FROM: an ABSOLUTE install-spine path into the pinned assets checkout
-# (or, for `csg-templates`, into the pinned csg checkout — spine AD-10). Rich
-# keys are validated by YamlManifestReader but not captured into the domain view
-# — Ansible reads the full YAML directly.
+# copies FROM: an ABSOLUTE install-spine path into the pinned assets checkout,
+# or into a pinned CLI checkout for the template catalogs (`csg-templates` from
+# csg, `tpr-templates` from tpr — spine AD-10). Rich keys are validated by
+# YamlManifestReader but not captured into the domain view — Ansible reads the
+# full YAML directly.
 kind: assets
 
 assets:
@@ -45,5 +46,12 @@ entries:
     # this path in `assets_csg_templates_source` (+ the `assets_csg_pinned_tag`
     # mirror of this tag), and the parity test fails if they drift.
     source: "{{ install_dir | trim }}/cli-tools/csg/v0.2.1/src/color_scheme_generator/defaults/templates"
+  - name: tpr-templates
+    kind: tpr-template
+    # Mirror of the engine's `assets_checkout_copies` entry: the palette
+    # producer's projection catalog is read from ITS pinned checkout (the
+    # cli_tools role clones tpr before this role runs) and deployed into the
+    # theme-producer config dir the runtime's TprAdapter reads.
+    source: "{{ install_dir | trim }}/cli-tools/tpr/v0.4.0/src/theme_producer/defaults/templates"
   - name: weg-effects
     kind: weg-effects

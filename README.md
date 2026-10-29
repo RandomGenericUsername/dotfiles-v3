@@ -20,6 +20,7 @@ ags-bar / ags-*      seven standalone AGS app repos (bar, notifications, capture
 contracts            event contract + schemas
 cli-output           shared CLI rendering package
 color-scheme-generator / wallpaper-effects-generator / icon-templates-renderer
+theme-producer       semantic-role palette producer (`tpr`; opt-in, default stays csg)
 config-assembler-engine / oci-runtime
 ```
 
@@ -31,17 +32,20 @@ set is `ARCHITECTURE.md` §4.1 and `make deploy-coverage`.
 ```bash
 ./bootstrap.sh                 # fresh machine: uv → engine → collections → bootstrap → verify
 make bootstrap ARGS="--ask-become-pass"   # same, through make
-make provision ARGS="verify --expected-engine-tag v0.1.23"  # installed console
+make provision ARGS="verify --expected-engine-tag v0.1.26"  # installed console
 make gates-ci                  # four composition gates
 make deploy-coverage           # pin-set + composition-only shape
 openspec validate --all        # spec/change baseline
 ```
 
-`bootstrap.sh` reads `dotfiles/provisioning/installer.pin` (currently `v0.1.23`), installs the
+`bootstrap.sh` reads `dotfiles/provisioning/installer.pin` (currently `v0.1.26`), installs the
 engine from `git+…@tag`, fetches the pinned assets corpus (`v0.6.2`), and runs the aggregate.
-The engine is never edited here; neither is the runtime (`dotfiles-runtime@v0.3.0`, the tag
-engine `v0.1.23` consumes and verifies). Engine `v0.1.23` installs the final all-standalone
-AGS topology: seven released app repos (`ags-bar v0.1.1`, six `v0.1.0`) from
+The engine is never edited here; neither is the runtime (`dotfiles-runtime@v0.4.0`, the tag
+engine `v0.1.26` consumes and verifies). The CLI set is `csg`/`weg`/`itr` (compute
+providers) plus `tpr` (`theme-producer@v0.4.0`, the opt-in palette producer; the shipped
+default producer remains `csg`). Engine `v0.1.26` installs the final all-standalone
+AGS topology: seven released app repos (`ags-bar v0.1.3`, five `v0.1.0`, and
+`ags-btop-theme-studio v0.1.2`) from
 `dotfiles/provisioning/apps.yaml`; the old `ags-apps` monorepo role is retired.
 
 ## What lives here

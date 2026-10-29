@@ -1,7 +1,7 @@
 # cli-pin-consumption Specification
 
 ## Purpose
-Defines how `dotfiles-v3` and the extracted repos consume each other's releases: immutable git tags, one shared contract tag, and pins that are proven by running the installed artifact.
+Defines how `dotfiles-v3` and the extracted repos consume each other's releases: immutable git tags, a released contract tag pinned per consumer, and pins that are proven by running the installed artifact.
 
 ## Requirements
 
@@ -29,24 +29,29 @@ A dependency on a sibling repo SHALL be declared as a git source at a tag plus a
 - **WHEN** a released repo needs a change
 - **THEN** a new annotated `vMAJOR.MINOR.PATCH` tag is published and consumers bump their pin; the previous tag still resolves to its original commit
 
-### Requirement: One contracts tag is shared by every consumer
+### Requirement: Every consumer pins a released contracts tag
 
-The runtime, csg, weg, itr and `roles/verify` SHALL pin the same `cli-invocation-contract` tag, not merely a compatible range. Changing the contract SHALL require a new `contracts` tag that every consumer re-pins in the same slice.
+Each consumer (runtime, `csg`, `weg`, `itr`, `tpr`) SHALL pin a released `contracts` tag, never a compatible range, and `roles/verify` SHALL mirror the expected contract generation. Consumers MAY use different released tags: runtime/tpr pin `v0.4.0`; csg/weg/itr remain on `v0.2.0` until their next release. A change SHALL require a new tag and re-pin every affected consumer in the same slice.
 
-#### Scenario: four pyprojects name one tag
+#### Scenario: runtime and tpr name the v0.4.0 contract tag
 
-- **WHEN** `rg -n 'cli-invocation-contract = .*contracts", tag = "v0\.1\.0"' src --glob 'pyproject.toml'` is run after S0b
-- **THEN** it reports exactly four matches: runtime, csg, weg and itr
+- **WHEN** the runtime and theme-producer `pyproject.toml` files are read
+- **THEN** each `[tool.uv.sources]` pins `cli-invocation-contract` at `v0.4.0`
 
-#### Scenario: verify mirrors the contract pin
+#### Scenario: the compute CLIs stay on their released tag
+
+- **WHEN** the `csg`, `weg` and `itr` `pyproject.toml` files are read before their next release
+- **THEN** each pins `cli-invocation-contract` at `v0.2.0`; a compatible range alone is not accepted, and the set is not required to share one tag with the runtime
+
+#### Scenario: verify mirrors each consumer's contract pin
 
 - **WHEN** `roles/verify/vars/main.yml` is read
-- **THEN** it carries the same `contracts` tag as the runtime's `pyproject.toml`
+- **THEN** it records the expected contract generation per consumer: `verify_{csg,weg,itr}_contract_version: 0.2.0`, `verify_tpr_contract_version: 0.4.0`, and the runtime's `v0.4.0` contract pin
 
 #### Scenario: a contract change is a coordinated re-pin
 
 - **WHEN** the contract record changes
-- **THEN** a new `contracts` tag exists and all four consumers' pins and locks are updated in the same slice
+- **THEN** a new `contracts` tag exists and every affected consumer's pin and lock are updated in the same slice
 
 ### Requirement: Pins are proven by execution
 

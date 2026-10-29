@@ -15,6 +15,10 @@ this summary:
 
 ## [Unreleased]
 
+_No unreleased changes._
+
+## [0.6.12] - 2026-10-29 — engine v0.1.26 + runtime v0.4.0 + tpr v0.4.0
+
 ### Changed
 
 - btop Theme Studio pin `v0.1.0` → `v0.1.2`: the mock-v8 visual shell
@@ -25,10 +29,35 @@ this summary:
 - Bar app pin `v0.1.2` → `v0.1.3`: the conformance test and docs accept the
   committed `colors.css` runtime-pointer symlink the engine's
   `barPalettePointer` contract requires.
-- Installer engine pin `v0.1.23` → `v0.1.24`: bootstrap runs
+- Installer engine pin `v0.1.23` → `v0.1.26` (through `v0.1.24`): bootstrap runs
   `compositor-configs` before `ags-apps-units` so the app role sees the current
-  assets-owned `hypr/autostart.lua`, and `cli_tools`/`verify`/`assets` agree on
-  the tpr checkout at `<install>/cli-tools/tpr/<tag>`.
+  assets-owned `hypr/autostart.lua`; `cli_tools`/`verify`/`assets` agree on the
+  tpr and runtime checkouts. Engine `v0.1.26` consumes and verifies
+  `dotfiles-runtime v0.4.0` and `theme-producer v0.4.0` in `cli_tools`, `assets`
+  and `verify`.
+- `dotfiles-runtime` pin `v0.3.0` → `v0.4.0`.
+- New CLI pin `tpr` (`theme-producer v0.4.0`) in
+  `dotfiles/provisioning/cli-tools.yaml`, before `dotfiles-runtime`, matching the
+  engine's `cli_tools` order: the semantic-role palette producer and its
+  template catalog.
+- New `tpr-templates` asset (`kind: tpr-template`) copying the tpr projection
+  catalog from
+  `<install>/cli-tools/tpr/v0.4.0/src/theme_producer/defaults/templates` into
+  `config/theme-producer/templates`; `filesystem.yaml` gains
+  `config/theme-producer` and `config/theme-producer/templates`. The assets
+  corpus pin stays `v0.6.2`.
+- Docs/pin tables (`ARCHITECTURE.md`, `README.md`, `docs/WORKSPACE.md`) align the
+  new engine/runtime/tpr pins. The stale "every consumer pins one contract tag"
+  rule is replaced by per-consumer released contract tags: runtime and tpr pin
+  `v0.4.0`, while csg/weg/itr remain on `v0.2.0` until their next release. The
+  program tuple's `contracts v0.3.0` is the AGS platform schema contract, not
+  this consumer pin.
+
+### Notes
+
+- **No activation.** `runtime_palette_producer` remains the shipped default
+  `csg`; no palette-producer override was added anywhere. The tpr pin is inert.
+- No host provision, publish or tag was performed.
 
 ## [0.6.11] - 2026-10-28 — engine v0.1.23 + runtime v0.3.0 final align
 

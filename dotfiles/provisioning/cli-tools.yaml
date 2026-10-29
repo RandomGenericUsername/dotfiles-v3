@@ -1,9 +1,10 @@
 # CLI tools installed by the `cli_tools` role (plan §3).
 #
-# csg/weg/itr are the three compute-provider CLIs; dotfiles-runtime is the
-# desktop-state CLI (wallpaper set / reconcile / inspect) that the login hook
-# needs on PATH. All four are pinned external repos: every entry carries
-# `{name, repo, tag}` and no `source`.
+# csg/weg/itr are the three compute-provider CLIs; tpr is the palette producer
+# (semantic-role projection; shipped opt-in — the runtime default stays csg);
+# dotfiles-runtime is the desktop-state CLI (wallpaper set / reconcile /
+# inspect) that the login hook needs on PATH. All five are pinned external
+# repos: every entry carries `{name, repo, tag}` and no `source`.
 #
 # The role shallow-clones `<repo>@<tag>` into `<install>/cli-tools/<name>/<tag>/`,
 # removes `.git`, records the pin in `<install>/cli-tools/<name>/pinned`, and
@@ -27,6 +28,9 @@ entries:
   - name: itr
     repo: https://github.com/RandomGenericUsername/icon-templates-renderer
     tag: v0.2.0
+  - name: tpr
+    repo: https://github.com/RandomGenericUsername/theme-producer
+    tag: v0.4.0
   - name: dotfiles-runtime
     repo: https://github.com/RandomGenericUsername/dotfiles-runtime
-    tag: v0.3.0
+    tag: v0.4.0
