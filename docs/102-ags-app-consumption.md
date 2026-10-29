@@ -37,7 +37,7 @@ All seven entries are `owner: standalone`; `ags_apps_units` is the only owner.
 | `clipboard` | `ags-clipboard` | v0.1.0 | `clipboard` | `clipboard` | `ags-clipboard` | `clipboard-ui` | `clipboard` | on-demand | — | REQ-009 |
 | `wallpaper-selector` | `ags-wallpaper-selector` | v0.1.0 | `wallpaper-selector` | `wallpaper-selector` | `ags-wallpaper-selector` | `wallpaper-selector-ui` | — | on-demand | — | REQ-013 |
 | `icme` | `ags-icme` | v0.1.0 | `icme` | `icon-color-mapping-editor` | `ags-icme` | `icon-color-mapping-editor` | — | on-demand | — | REQ-014 |
-| `btop-theme-studio` | `ags-btop-theme-studio` | v0.1.1 | `btop-theme-studio` | `btop-theme-studio` | `ags-btop-studio` | `btop-theme-studio` | — | on-demand | — | REQ-010 |
+| `btop-theme-studio` | `ags-btop-theme-studio` | v0.1.2 | `btop-theme-studio` | `btop-theme-studio` | `ags-btop-studio` | `btop-theme-studio` | — | on-demand | — | REQ-010 |
 
 The bar's `v0.1.3` tag carries `colors.css` as a symlink to the runtime-owned
 `$XDG_STATE_HOME/dotfiles/current/colors.gtk.css` (verified by the engine's

@@ -121,7 +121,7 @@ apps:
     installDir: btop-theme-studio
     owner: standalone
     repo: https://github.com/RandomGenericUsername/ags-btop-theme-studio.git
-    tag: v0.1.1
+    tag: v0.1.2
     instance: btop-theme-studio
     configDir: ags-btop-studio
     configLink: ags-btop-studio

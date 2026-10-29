@@ -118,7 +118,7 @@ FINAL_APP_RELEASES = {
     ),
     "btop-theme-studio": (
         "https://github.com/RandomGenericUsername/ags-btop-theme-studio.git",
-        "v0.1.1",
+        "v0.1.2",
     ),
 }
 
