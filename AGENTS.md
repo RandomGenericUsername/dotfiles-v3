@@ -4,7 +4,7 @@ Canonical agent instructions for this repo (Claude, OpenCode, and any BMAD/OpenS
 skill must follow this). This repo is the dotfiles composition: the manifests + pinned installer
 engine, the Python runtime, and the composition gates. The AGS bar/apps live in
 their seven standalone `ags-*` repos and deploy from the single app list; the
-CLI tools (csg / weg / itr) live in their own repos. The workspace map is
+CLI tools (csg / weg / itr / tpr) live in their own repos. The workspace map is
 [`docs/WORKSPACE.md`](docs/WORKSPACE.md).
 
 ## 1. Worktree discipline — NEVER work on `master`
@@ -58,8 +58,8 @@ retired `ags_apps` monorepo role/pin is gone. See
 tuple, one-owner rule, final surfaces and fixtures on every run.
 
 **CLI tools, the runtime, the installer engine and shared libraries deploy from
-pinned repos — this repo authors NO in-repo package sources.** `csg`, `weg`, `itr`
-and `dotfiles-runtime` are consumed as `{name, repo, tag}` entries in
+pinned repos — this repo authors NO in-repo package sources.** `csg`, `weg`, `itr`,
+`tpr` and `dotfiles-runtime` are consumed as `{name, repo, tag}` entries in
 `dotfiles/provisioning/cli-tools.yaml` (+ its `roles/cli_tools/vars/main.yml`
 mirror in the pinned engine); `cli-output`, `config-assembler-engine`,
 `oci-runtime` and `cli-invocation-contract` are git-tag pins inside those repos;

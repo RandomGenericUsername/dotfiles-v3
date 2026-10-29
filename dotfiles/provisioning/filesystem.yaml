@@ -4,7 +4,8 @@
 # config-in-spine (2026-08-16): the `config/` subtree hosts ALL managed configs
 # (tool dirs + the csg-templates/effects relocations); `config` is DUAL-USE —
 # the XDG config base dir AND the spine's managed-config root. The csg-templates
-# live at config/color-scheme-generator/templates and the weg effects catalog at
+# live at config/color-scheme-generator/templates, the tpr projection catalog at
+# config/theme-producer/templates and the weg effects catalog at
 # config/weg/effects.yaml (the `weg-effects.yaml` file node maps there; its
 # parent `config/weg` is the spine dir). Parity-locked with
 # roles/filesystem/vars/main.yml (filesystem_spine_dirs / file_nodes).
@@ -38,6 +39,8 @@ entries:
   - name: config/kitty
   - name: config/weg
   - name: config/itr
+  - name: config/theme-producer
+  - name: config/theme-producer/templates
   # GTK consumer dirs (gt-3-1): spine parents for the gtk-3.0/gtk-4.0
   # config-links targets. At first runtime seed they host the runtime's
   # colors.css pointers (runtime seeder creates the pointers, never us).

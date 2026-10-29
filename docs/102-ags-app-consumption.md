@@ -1,9 +1,9 @@
 # 102 — AGS app consumption (one list, one tuple, one owner)
 
-> **Status:** final all-standalone composition (2026-10-28). Engine `v0.1.24`
-> installs the seven released app repos from the single list; the old
+> **Status:** final all-standalone composition (2026-10-29). Engine `v0.1.26`
+> (pinned) installs the seven released app repos from the single list; the old
 > `ags-apps` monorepo role/playbook is gone. `dotfiles-assets` is `v0.6.2` and
-> `dotfiles-runtime` is `v0.3.0` (manifest-driven refresh). The seven app tags
+> `dotfiles-runtime` is `v0.4.0` (manifest-driven refresh). The seven app tags
 > and engine `v0.1.24` are published; the retired `ags-apps` repository is
 > archived. The composition is applied on the host and
 > `dotfiles-provision verify` exits 0; the program is closed out.
