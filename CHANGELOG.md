@@ -17,6 +17,9 @@ this summary:
 
 ### Changed
 
+- btop Theme Studio pin `v0.1.0` → `v0.1.1`: the mock-v8 visual shell pass
+  (header, three-column hierarchy, section/panel chrome) keeps the real btop
+  live preview as the Live stage tab.
 - Bar app pin `v0.1.2` → `v0.1.3`: the conformance test and docs accept the
   committed `colors.css` runtime-pointer symlink the engine's
   `barPalettePointer` contract requires.
