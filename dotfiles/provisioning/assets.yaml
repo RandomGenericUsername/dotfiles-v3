@@ -45,7 +45,7 @@ entries:
     # (bootstrap order, locked by the dependency-order test). The role mirrors
     # this path in `assets_csg_templates_source` (+ the `assets_csg_pinned_tag`
     # mirror of this tag), and the parity test fails if they drift.
-    source: "{{ install_dir | trim }}/cli-tools/csg/v0.2.1/src/color_scheme_generator/defaults/templates"
+    source: "{{ install_dir | trim }}/cli-tools/csg/v0.2.2/src/color_scheme_generator/defaults/templates"
   - name: tpr-templates
     kind: tpr-template
     # Mirror of the engine's `assets_checkout_copies` entry: the palette

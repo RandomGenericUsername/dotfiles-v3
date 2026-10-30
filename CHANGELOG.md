@@ -17,6 +17,42 @@ this summary:
 
 _No unreleased changes._
 
+## [0.6.13] - 2026-10-29 — engine v0.1.27 + runtime v0.4.1 + csg v0.2.2; tpr default
+
+### Changed
+
+- Installer engine pin `v0.1.26` → `v0.1.27`: the engine renders
+  `<install>/config/dotfiles-runtime/producer.json` from its
+  `runtime_palette_producer` input, removes the ambient environment.d/unit
+  producer switch, runs tpr in container mode, and moves the rofi/gtk/btop
+  palette-consumer links after `runtime-seed`. Engine `v0.1.27` consumes and
+  verifies csg `v0.2.2`, tpr `v0.4.0` and runtime `v0.4.1`.
+- `dotfiles-runtime` pin `v0.4.0` → `v0.4.1`: the runtime resolves the producer
+  from `producer.json` (explicit `--producer` > config > `csg` default) in every
+  CLI/daemon composition root, ignores stale `RUNTIME__PALETTE__*` env, and runs
+  `TprAdapter` through tpr's container runtime.
+- `csg` pin `v0.2.1` → `v0.2.2`: `generate` fails closed on a decoy CWD
+  `templates/` directory, a missing renderer, a failed format, or a wrapper
+  rc 0 whose inner run failed or produced no artifacts. The `csg-templates`
+  asset source moves to the `v0.2.2` checkout to match the manifest pin.
+- `bootstrap.sh` exports
+  `RUNTIME_PALETTE_PRODUCER="${RUNTIME_PALETTE_PRODUCER:-tpr}"` before the
+  bootstrap/verify stages, so a normal v3 bootstrap renders `producer: tpr`.
+  An explicit `RUNTIME_PALETTE_PRODUCER=csg ./bootstrap.sh` is the documented
+  rollback; csg stays installed and verified either way. No ambient
+  double-underscore `RUNTIME__PALETTE__PRODUCER` is set — the runtime ignores it.
+- `deploy-coverage` asserts the tpr bootstrap default and rejects a
+  double-underscore producer variable.
+- Docs/pin tables (`ARCHITECTURE.md`, `README.md`, `docs/WORKSPACE.md`,
+  `docs/102-ags-app-consumption.md`) align the new engine/runtime/csg pins and
+  the tpr default. `tpr` stays `v0.4.0`; weg/itr, the assets corpus `v0.6.2`,
+  the program tuple and the seven app tags are unchanged.
+
+### Notes
+
+- No host provision, publish or tag was performed. Historical changelog
+  entries above are unchanged.
+
 ## [0.6.12] - 2026-10-29 — engine v0.1.26 + runtime v0.4.0 + tpr v0.4.0
 
 ### Changed

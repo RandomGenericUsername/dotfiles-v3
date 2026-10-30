@@ -1419,6 +1419,9 @@ def assert_pin_set(root: Path, assets_tag: str) -> tuple[str, dict[str, str]]:
       reads that file (it must not repeat the tag as a literal, which would let
       a shell-side bump diverge from the one the Python gates read) and keeps
       its own semver shape check;
+    * **palette producer** — `bootstrap.sh` selects `tpr` by default through the
+      `RUNTIME_PALETTE_PRODUCER` provisioning input (the engine renders
+      `producer.json`), and sets no ambient double-underscore variable;
     * **assets corpus** — the tag returned by :func:`assert_assets_shape`, which
       has already locked the manifest against the role + verify + per-consumer
       mirrors;
@@ -1458,6 +1461,26 @@ def assert_pin_set(root: Path, assets_tag: str) -> tuple[str, dict[str, str]]:
         raise ValueError(
             f"{BOOTSTRAP} lost its semver shape check for {INSTALLER_PIN} — a "
             f"branch, `latest` or a SHA must fail in the shell too"
+        )
+
+    # 1b. The v3 cutover default: a normal bootstrap renders producer=tpr.
+    # The runtime reads <install>/config/dotfiles-runtime/producer.json, which
+    # the engine renders from this provisioning input. An explicit
+    # RUNTIME_PALETTE_PRODUCER=csg remains the documented rollback.
+    tpr_default = (
+        'export RUNTIME_PALETTE_PRODUCER='
+        '"${RUNTIME_PALETTE_PRODUCER:-tpr}"'
+    )
+    if tpr_default not in bootstrap:
+        raise ValueError(
+            f"{BOOTSTRAP} must select tpr by default with {tpr_default!r} — "
+            f"otherwise a fresh bootstrap silently renders producer=csg"
+        )
+    if "RUNTIME__PALETTE__PRODUCER=" in bootstrap:
+        raise ValueError(
+            f"{BOOTSTRAP} sets the retired double-underscore "
+            f"RUNTIME__PALETTE__PRODUCER variable — the runtime reads "
+            f"producer.json, not ambient env"
         )
 
     # 2. The assets corpus tag (mirrors are already locked by assert_assets_shape).
