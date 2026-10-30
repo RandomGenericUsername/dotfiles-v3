@@ -17,6 +17,23 @@ this summary:
 
 _No unreleased changes._
 
+## [0.6.15] - 2026-10-30 — engine v0.1.28; the PIN-0119 pins actually take effect
+
+### Changed
+
+- Installer engine pin `v0.1.27` → `v0.1.28`: the `cli_tools` role now reads
+  `dotfiles/provisioning/cli-tools.yaml` as the single pin source (it previously
+  hardcoded v0.4.0/v0.4.1 in `roles/cli_tools/vars/main.yml`, making PIN-0119 a
+  silent no-op). The role validates the manifest, publishes `cli_tools_tags`,
+  and the `assets`, `settings` and `verify` roles derive every pin, image tag,
+  contract and tag-qualified path from that fact — no duplicated pin literals.
+- `assets.yaml` `csg-templates` / `tpr-templates` sources now derive from
+  `{{ cli_tools_tags.csg }}` / `{{ cli_tools_tags.tpr }}` instead of hardcoded
+  `v0.2.2` / `v0.4.0` paths.
+- This is the pin that makes tpr `v0.5.0` + runtime `v0.5.0` (PIN-0119) live:
+  the CLI checkouts, installed tools, image tags, rendered settings and template
+  catalogs all resolve from the composition manifest.
+
 ## [0.6.14] - 2026-10-30 — tpr v0.5.0 + runtime v0.5.0 (palette.v1 + on_backdrop)
 
 ### Changed
