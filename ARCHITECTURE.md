@@ -5,7 +5,7 @@
 | | |
 |---|---|
 | Written | 2026-10-21 |
-| Updated | 2026-10-29 (PIN-0117: engine `v0.1.26`, runtime + tpr `v0.4.0`; producer stays `csg`) |
+| Updated | 2026-10-29 (PIN-0118: engine `v0.1.27`, runtime `v0.4.1`, csg `v0.2.2`; tpr is the default producer) |
 | Base commit | `e94fe8dc` (parent of the commit that adds this file; `git log -1`) |
 | Scope | the host repo only — it consumes, it does not own, the pinned external repos |
 | Kind | index over sources of truth, not a source of truth itself |
@@ -39,8 +39,9 @@ manifest carries zero local `source:` entries
 (`scripts/deploy-coverage.py`, `assert_manifest_source_scope`). The installer engine
 — its Python package AND its Ansible tree — is the pinned external
 `dotfiles-provision` repo (`dotfiles/provisioning/installer.pin`); the runtime is
-`dotfiles-runtime` at `v0.4.0`, and `tpr` (theme-producer) is pinned at `v0.4.0`
-as the opt-in palette producer (the shipped default producer remains `csg`).
+`dotfiles-runtime` at `v0.4.1`, and `tpr` (theme-producer) is pinned at `v0.4.0`
+as the default palette producer (csg stays installed for compute and as the
+documented `RUNTIME_PALETTE_PRODUCER=csg` rollback).
 
 | The repo owns | The repo consumes |
 |---|---|
@@ -102,7 +103,7 @@ Consequences that surprise newcomers:
       +--------+--------+--------+
                v
    cli-output v0.1.0 · config-assembler-engine v0.1.0 · oci-runtime v0.5.0
-   dotfiles-runtime v0.4.0 (pinned sibling; consumes contracts v0.4.0 + cli-output)
+   dotfiles-runtime v0.4.1 (pinned sibling; consumes contracts v0.4.0 + cli-output)
 ```
 
 **Direction rules (enforced by test, not by convention)**
@@ -129,11 +130,11 @@ anonymously over HTTPS by tag (`openspec/changes/archive/2026-10-21-cli-tools-re
 | `oci-runtime` | `oci_runtime` — engine abstraction, build/run/exec, `resolve_build_context` | `v0.5.0` (imported code was 0.4.0; forward-only) | Git tag in `csg`, `weg` and `tpr` only | same five |
 | `icon-templates-renderer` | console `itr` (pure Python, no container mode) | `v0.2.0` (reports `contract 0.2.0`) | `{name, repo, tag}` manifest + role mirror + verify pin | same five |
 | `wallpaper-effects-generator` | console `weg` + `Dockerfile.imagemagick` + `image` verb | `v0.2.0` (reports `contract 0.2.0`) | same | same five + `image` |
-| `color-scheme-generator` | console `csg` + four Dockerfiles + template catalog + `image` verb | `v0.2.1` — stale-labelled wrapper sweep (BUG-001); reports `contract 0.2.0` | same | same five + `image` |
+| `color-scheme-generator` | console `csg` + four Dockerfiles + template catalog + `image` verb | `v0.2.2` — fail-closed `generate` (BUG-002); reports `contract 0.2.0` | same | same five + `image` |
 | `dotfiles-assets` | **data corpus** (no package, no console script): `icons/` (templates + one group map + vocabulary), `templates/` (9 Jinja sources + 9 vars schemas), `configs/`, `content/`, `desktop/` (6 entries + `toggle-touchpad` + `desktop.yaml` `requires`/`optional` contract) | `v0.6.2` — **all five classes populated**, including the SDDM Wayland template, the wlogout Logout `uwsm stop` fix (BUG-005) and the clipboard/launch-lock autostart update; `icons/schema.json`, every `templates/**/*.vars.schema.json` and `desktop/desktop.yaml` at `schema_major: 1` | `assets:` block in `dotfiles/provisioning/assets.yaml` + role/verify mirrors (+ a per-render-role pin mirror); fetched once into `<install>/assets/<tag>/` | `validate validate-icons validate-content validate-templates validate-desktop lint hermetic` |
-| `theme-producer` | console `tpr` + semantic-role palette projection catalog (`templates/`) + `image` verb; the opt-in palette producer the runtime can drive instead of `csg` | `v0.4.0` — semantic-role palette producer; expected invocation contract `0.4.0` (no dynamic `--version` token) | `{name: tpr, repo, tag}` in `dotfiles/provisioning/cli-tools.yaml`; installed from the tag-bearing checkout; its template catalog deploys to `config/theme-producer/templates`; verify asserts `verify_tpr_version` / contract `0.4.0` | its own `make gates` (`test lint hermetic lock-check docs-check` + `image`) |
-| `dotfiles-runtime` | **host runtime** (console `dotfiles-runtime`): wallpaper apply/derive/reconcile, state/history, content cache, D-Bus daemon, clipboard watcher, manifest-driven AGS refresh | `v0.4.0` — runtime `v0.4.0` consumes contracts `v0.4.0` (tpr palette-producer support; shipped producer default stays `csg`); engine `v0.1.26` consumes this tag | `{name, repo, tag}` in `dotfiles/provisioning/cli-tools.yaml`; installed from the tag-bearing checkout; verify asserts the checkout, `pinned` and `version` | `test lint contracts-check hermetic lock-check docs-check` (runtime repo) |
-| `dotfiles-provision` | **installer engine** (console `dotfiles-provision`): the Python hexagon (`provisioning` package) + the Ansible tree (roles, playbooks, inventory, group_vars). The composition repo owns the manifests and gates; this repo owns nothing the engine also authors | `v0.1.26` — pins tpr `v0.4.0` + runtime `v0.4.0`; final all-standalone AGS topology; legacy `ags_apps` role removed; engine tag, annotated | `dotfiles/provisioning/installer.pin` (one semver tag, read by `bootstrap.sh` and the Python gates); installed self-contained from `git+…@tag` into `UV_TOOL_BIN_DIR` (the wheel carries `provisioning/_ansible`, R-15 closed); gates read the cached `.dev/dotfiles-provision-<tag>/` | `gates` (`test lint hermetic lock-check docs-check`) + CI-only `assets-parity`, plus its own CI |
+| `theme-producer` | console `tpr` + semantic-role palette projection catalog (`templates/`) + `image` verb; the DEFAULT palette producer the runtime drives (csg is the rollback) | `v0.4.0` — semantic-role palette producer; expected invocation contract `0.4.0` (no dynamic `--version` token) | `{name: tpr, repo, tag}` in `dotfiles/provisioning/cli-tools.yaml`; installed from the tag-bearing checkout; its template catalog deploys to `config/theme-producer/templates`; verify asserts `verify_tpr_version` / contract `0.4.0` | its own `make gates` (`test lint hermetic lock-check docs-check` + `image`) |
+| `dotfiles-runtime` | **host runtime** (console `dotfiles-runtime`): wallpaper apply/derive/reconcile, state/history, content cache, D-Bus daemon, clipboard watcher, manifest-driven AGS refresh | `v0.4.1` — reads `config/dotfiles-runtime/producer.json` (the single producer authority rendered by the engine); consumes contracts `v0.4.0`; engine `v0.1.27` consumes this tag | `{name, repo, tag}` in `dotfiles/provisioning/cli-tools.yaml`; installed from the tag-bearing checkout; verify asserts the checkout, `pinned` and `version` | `test lint contracts-check hermetic lock-check docs-check` (runtime repo) |
+| `dotfiles-provision` | **installer engine** (console `dotfiles-provision`): the Python hexagon (`provisioning` package) + the Ansible tree (roles, playbooks, inventory, group_vars). The composition repo owns the manifests and gates; this repo owns nothing the engine also authors | `v0.1.27` — renders `producer.json` from `runtime_palette_producer`; pins csg `v0.2.2`, tpr `v0.4.0` + runtime `v0.4.1`; final all-standalone AGS topology; legacy `ags_apps` role removed; engine tag, annotated | `dotfiles/provisioning/installer.pin` (one semver tag, read by `bootstrap.sh` and the Python gates); installed self-contained from `git+…@tag` into `UV_TOOL_BIN_DIR` (the wheel carries `provisioning/_ansible`, R-15 closed); gates read the cached `.dev/dotfiles-provision-<tag>/` | `gates` (`test lint hermetic lock-check docs-check`) + CI-only `assets-parity`, plus its own CI |
 
 **Two consumption shapes only** (`POST-MIGRATION.md` §2):
 
@@ -142,7 +143,7 @@ anonymously over HTTPS by tag (`openspec/changes/archive/2026-10-21-cli-tools-re
 [tool.uv.sources]
 cli-output = { git = "https://github.com/RandomGenericUsername/cli-output", tag = "v0.1.0" }
 # 2. CLIs — dotfiles/provisioning/cli-tools.yaml
-#    entries: [{name: csg, repo: …/color-scheme-generator, tag: v0.2.1}, …]
+#    entries: [{name: csg, repo: …/color-scheme-generator, tag: v0.2.2}, …]
 ```
 
 **`contracts` carries two contracts, and that is deliberate** (spine AD-4, OPEN-7
@@ -167,10 +168,10 @@ half-edit, recipe (a) in section 11).
 
 | Pin | Declared in (one source) | Value (2026-10-29) | Mirrors / lock | Validated by |
 |---|---|---|---|---|
-| Installer engine `dotfiles-provision` | `dotfiles/provisioning/installer.pin` | `v0.1.26` | `bootstrap.sh` reads the file (never repeats the tag) and re-checks the semver shape; `scripts/engine_checkout.py` resolves the cached checkout for every gate | `deploy-coverage` (`assert_pin_set` + the engine checkout it reads); `ansible-embedded-template-lint` reads the same pin |
+| Installer engine `dotfiles-provision` | `dotfiles/provisioning/installer.pin` | `v0.1.27` | `bootstrap.sh` reads the file (never repeats the tag) and re-checks the semver shape; `scripts/engine_checkout.py` resolves the cached checkout for every gate | `deploy-coverage` (`assert_pin_set` + the engine checkout it reads); `ansible-embedded-template-lint` reads the same pin |
 | Assets corpus `dotfiles-assets` | `dotfiles/provisioning/assets.yaml` → `assets.tag` | `v0.6.2` | engine `roles/assets/vars/main.yml` (`assets_repo`, `assets_pinned_tag`, `assets_classes`, `assets_schema_support`); `roles/verify/vars/main.yml` (`verify_assets_pinned_tag`, class dirs, schema window); per-consumer `{compositor_configs,config_copies,zsh_config,kitty_config,btop_config,wlogout_config,display_manager}_assets_pinned_tag`, plus `assets_csg_pinned_tag`, `assets_tpr_pinned_tag` and `settings_weg_image_tag` | `deploy-coverage` (`assert_assets_shape`, `assert_pin_set`); engine parity tests |
-| CLIs `csg` · `weg` · `itr` · `tpr` + runtime `dotfiles-runtime` | `dotfiles/provisioning/cli-tools.yaml` (`{name, repo, tag}`) | csg `v0.2.1`; weg/itr `v0.2.0`; tpr `v0.4.0`; runtime `v0.4.0` | engine `roles/cli_tools/vars/main.yml` (`cli_tools:`); `roles/verify/vars/main.yml` (`verify_<name>_version`, tag-bearing checkout path, `pinned` record, `verify_{csg,weg,itr}_contract_version: 0.2.0`, `verify_tpr_contract_version: 0.4.0`; runtime uses `verify_runtime_version`/`verify_runtime_tool_version`) | `deploy-coverage` (`assert_cli_provisioned_from_pinned_manifest` + `assert_pin_set`) |
-| Program tuple `ags-platform` / `contracts` / `dotfiles-assets` | `dotfiles/provisioning/program-tuple.yaml` | `v0.3.0` / `v0.3.0` / `v0.6.2` | **final all-standalone tuple**: engine `v0.1.26` resolves `ags-platform v0.3.0` in `roles/ags_platform` + verify; `ags_apps_units` installs all seven apps from `apps.yaml` and owns the one shared `apps/node_modules/ags-platform` shortcut | `deploy-coverage` (`run_ags_app_consumption_checks`: tuple ↔ engine pins, assets-tag agreement, seven-app list/fixture comparison, final surface checks, verify-mirror parity, cutover fixture) |
+| CLIs `csg` · `weg` · `itr` · `tpr` + runtime `dotfiles-runtime` | `dotfiles/provisioning/cli-tools.yaml` (`{name, repo, tag}`) | csg `v0.2.2`; weg/itr `v0.2.0`; tpr `v0.4.0`; runtime `v0.4.1` | engine `roles/cli_tools/vars/main.yml` (`cli_tools:`); `roles/verify/vars/main.yml` (`verify_<name>_version`, tag-bearing checkout path, `pinned` record, `verify_{csg,weg,itr}_contract_version: 0.2.0`, `verify_tpr_contract_version: 0.4.0`; runtime uses `verify_runtime_version`/`verify_runtime_tool_version`) | `deploy-coverage` (`assert_cli_provisioned_from_pinned_manifest` + `assert_pin_set`) |
+| Program tuple `ags-platform` / `contracts` / `dotfiles-assets` | `dotfiles/provisioning/program-tuple.yaml` | `v0.3.0` / `v0.3.0` / `v0.6.2` | **final all-standalone tuple**: engine `v0.1.27` resolves `ags-platform v0.3.0` in `roles/ags_platform` + verify; `ags_apps_units` installs all seven apps from `apps.yaml` and owns the one shared `apps/node_modules/ags-platform` shortcut | `deploy-coverage` (`run_ags_app_consumption_checks`: tuple ↔ engine pins, assets-tag agreement, seven-app list/fixture comparison, final surface checks, verify-mirror parity, cutover fixture) |
 | Seven AGS app units | `dotfiles/provisioning/apps.yaml` (`repo`, `tag`) | `ags-bar v0.1.3`; `ags-notifications`/`ags-capture-tool`/`ags-clipboard`/`ags-wallpaper-selector`/`ags-icme` `v0.1.0`; `ags-btop-theme-studio` `v0.1.2` | engine `ags_apps_units` installs each at `<install>/apps/<installDir>/<tag>/`; no legacy monorepo role | `deploy-coverage` (`run_ags_app_consumption_checks`: released repo/tag inventory + engine seven-app fixture) |
 | **Not pinned here** (named so the set is honest) | — | runtime's `cli-output v0.1.0` and `cli-invocation-contract v0.4.0`, plus tpr's `cli-invocation-contract v0.4.0`, are pinned in those repos; `config-assembler-engine v0.1.0` and `oci-runtime v0.5.0` live only in the CLI repos' `pyproject.toml`; `ags-platform` is installed by the engine `ags_platform` role; uv is `0.9.22`, sha256-verified | owned by those repos / the runtime / the engine / `bootstrap.sh` | their own gates; `bootstrap.sh:246-301` |
 | Vendored event contract (**a commit, not a tag**, by design) | `dotfiles-runtime` `src/runtime/adapters/CONTRACT_PIN` | `dbdc5b8` | the runtime repo's `contracts/` + embedded schemas are byte-identical copies | `make contracts-check` / `make contract-pin-check` in `dotfiles-runtime` |
@@ -190,7 +191,7 @@ for the offline caveat (R-16).
 | Path | What it is | Status |
 |---|---|---|
 | `src/` | **absent since REQ-002** — the runtime is the pinned `dotfiles-runtime` repo (`{name, repo, tag}` in `cli-tools.yaml`) | **absent; `assert_composition_only` asserts it** |
-| `dotfiles/provisioning/installer.pin` | The installer-engine tag (`v0.1.26`) — the ONE source read by `bootstrap.sh` and the Python gates. The engine's Python + `ansible/` tree is the pinned external `dotfiles-provision` repo, installed from `git+…@tag` and cached at `.dev/dotfiles-provision-<tag>/` (gitignored) for the gates | **live** (single source for the engine pin) |
+| `dotfiles/provisioning/installer.pin` | The installer-engine tag (`v0.1.27`) — the ONE source read by `bootstrap.sh` and the Python gates. The engine's Python + `ansible/` tree is the pinned external `dotfiles-provision` repo, installed from `git+…@tag` and cached at `.dev/dotfiles-provision-<tag>/` (gitignored) for the gates | **live** (single source for the engine pin) |
 | `dotfiles/config/` | **absent since R-07** — the btop active-theme preference is host state in the install spine (`<install>/config/btop/active-theme`, written by the studio); all static config is the pinned assets `configs` class and all templates are its `templates` class | **absent; `assert_composition_only` asserts it** |
 | `dotfiles/provisioning/assets.yaml` | The assets pin (`repo`, `tag`, `classes`) — the corpus itself is `dotfiles-assets` | **live** (single source for the corpus pin) |
 | `dotfiles/provisioning/apps.yaml` | The single AGS app list and ownership source (`owner: standalone`, repo/tag, install dir, links, launcher/autostart, launch policy, palette pointer, cutover id) | **live** (all seven apps standalone; AD-31/AD-32) |
@@ -475,11 +476,17 @@ monkeypatches the env (`test_itr_adapter_integration.py`): it hashes and renders
 checked-in corpus through the production path, so a dropped forward fails the test
 instead of being papered over by the host environment.
 
-**The palette producer stays `csg`.** `tpr` is installed and its projection
-catalog is deployed (section 6.5), but the composition sets no
-palette-producer override (no `tpr` selection) anywhere; the runtime's shipped
-default producer remains `csg`. The `tpr` pin is inert — activation is a
-separate change.
+**The palette producer is `tpr` by default.** The pinned engine renders
+`<install>/config/dotfiles-runtime/producer.json` from the provisioning input
+`runtime_palette_producer`, and `bootstrap.sh` exports
+`RUNTIME_PALETTE_PRODUCER="${RUNTIME_PALETTE_PRODUCER:-tpr}"` before the
+bootstrap/verify stages. `tpr`'s projection catalog is deployed to
+`config/theme-producer/templates` (section 6.5). The runtime (daemon, CLI,
+seed) reads that one `producer.json`; it no longer reads ambient
+`RUNTIME__PALETTE__*` env. Precedence is extra-var
+`-e runtime_palette_producer=...` > env `RUNTIME_PALETTE_PRODUCER` > engine
+default `csg`. `RUNTIME_PALETTE_PRODUCER=csg ./bootstrap.sh` is the documented
+rollback; csg stays installed and verified either way.
 
 ### 7.3 Config resolution chain (CLI-side, unchanged by the split)
 
@@ -743,7 +750,7 @@ only when the corrected file is a consumed surface (`catalog.yaml`, a schema, or
 - **Literal stale-path text remains** in the guard, its negative-test fixtures and read-only investigation docs — 338 lines in 9 files on 2026-10-21 (`POST-MIGRATION.md` gap (f)). The **test-side** half of that residue is removed + guarded by `dotfiles-runtime:tests/architecture/test_no_retired_sources.py` (`94b3f4a0`): the retired-tree discovery walks in `dotfiles-runtime:tests/integration/test_csg_determinism.py`, `tests/integration/test_itr_adapter_integration.py`, `tests/unit/test_csg_adapter.py` and `tests/unit/test_itr_adapter.py` are gone, and the two integration files share explicit resolution in `tests/integration/conftest.py` (`resolve_csg_templates_dir` / `resolve_icon_templates_dir`: env override → pinned CLI corpus / the provisioned spine's `icon-templates` (assets checkout override, since S1) → loud skip, never a silent pass). The guard fails on any reintroduced contiguous `src/cli-tools` / `src/shared` / `src/gui-tools` literal **or** the `"src" / "<retired>"` path-join form (`rg` misses the latter), in production or tests, and names the spine / pinned-repo fix. It runs in `gates-ci` as the `runtime-architecture` gate (`d67849ba`), so it is enforced on every push rather than only when someone runs pytest by hand.
 - **CSG templates dir is a required caller input — residual resolved** (`e8fc0916`). The retired repo-relative discovery is gone: `_find_default_templates_dir` — which walked file ancestors for the stale in-tree csg checkout under the retired `src/cli-tools/color-scheme-generator/...` — and its `generate` call site were deleted. `CsgAdapter.generate` now raises a `FileNotFoundError` that names the cause and the fix (`templates_dir` must be resolved from the provisioning spine and passed by the caller) **before** hashing or spawning a subprocess, while `__init__` stays side-effect-free so `CsgAdapter().is_available()` remains legitimate. The regression test in the runtime repo asserts the message names `templates_dir` and that `subprocess.run` was never called; the guard (`test_no_retired_sources.py`) runs in that repo's `make gates`.
 - **Per-app repo split is complete in the composition** (AGS EPIC-002 / REQ-008;
-  AD-25/31/32): engine `v0.1.26` installs all seven released standalone app repos
+  AD-25/31/32): engine `v0.1.27` installs all seven released standalone app repos
   from `apps.yaml`, and the retired `ags-apps` monorepo role/playbook is gone.
   The app-list/program-tuple gate and seven-app cutover fixture are live; only
   the external publish/archive and host provision remain. See

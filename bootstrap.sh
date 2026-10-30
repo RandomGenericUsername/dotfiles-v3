@@ -411,6 +411,21 @@ if [ ! -d "$collections_dir" ] || [ -z "$(ls -A "$collections_dir" 2>/dev/null |
   exit 1
 fi
 
+# ── Palette-producer selection (v3 cutover default: tpr) ─────────────────
+# The runtime reads ONE provisioning-owned file,
+# <install>/config/dotfiles-runtime/producer.json. The pinned engine renders it
+# from its `runtime_palette_producer` input; its precedence is
+#   1. extra-var  -e runtime_palette_producer=tpr (direct engine invocation)
+#   2. env var    RUNTIME_PALETTE_PRODUCER=tpr (the bootstrap path)
+#   3. shipped engine default csg
+# The v3 composition selects tpr here, so a normal bootstrap renders
+# `producer: tpr` instead of silently falling back to csg. An explicit
+# `RUNTIME_PALETTE_PRODUCER=csg ./bootstrap.sh` is the documented rollback
+# override (csg stays installed and verified either way). Do NOT add the old
+# ambient double-underscore producer variable: the runtime ignores it now and
+# only producer.json is authoritative.
+export RUNTIME_PALETTE_PRODUCER="${RUNTIME_PALETTE_PRODUCER:-tpr}"
+
 # ── Stage 4: aggregate bootstrap (AC 3) ──────────────────────────────────
 # Single password entry: `make bootstrap` takes no flags by default, so a host
 # without passwordless escalation would die deep in the aggregate become
