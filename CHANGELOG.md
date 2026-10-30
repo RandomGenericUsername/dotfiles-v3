@@ -17,6 +17,30 @@ this summary:
 
 _No unreleased changes._
 
+## [0.6.14] - 2026-10-30 — tpr v0.5.0 + runtime v0.5.0 (palette.v1 + on_backdrop)
+
+### Changed
+
+- `tpr` pin `v0.4.0` → `v0.5.0`: the producer gains the additive produced role
+  `on_backdrop` (theme.json schema `1.1`), computed from the wallpaper's top
+  `min(48, height)` band and emitted in `theme.json`, `colors.yaml`,
+  `colors.gtk.css`, `colors.adw.css`, `colors.rasi` and `colors.conf`. It may
+  intentionally sit on the opposite luminance pole from `on_surface` when the
+  wallpaper band disagrees with the light/dark scheme — it is the ink that reads
+  over the photo, and it replaces the runtime icon-contrast guard (removed in
+  the follow-up seam-cleanup pin, not here).
+- `dotfiles-runtime` pin `v0.4.1` → `v0.5.0`: adds the `palette.v1` vocabulary
+  contract — the 50 tpr Material roles plus `on_backdrop` — validated
+  fail-closed before the visible swap for every tpr palette, with
+  `inspect palette` / `doctor` reporting and probe fixtures against role drift.
+- Both pins move together on purpose: runtime `v0.5.0` rejects a tpr `v0.4.0`
+  palette (missing `on_backdrop`), and stale cache entries are regenerated
+  through the validated pipeline. The `cli_tools` role rebuilds the tpr base +
+  engine images at `v0.5.0` and re-renders the projection templates from that
+  checkout.
+- csg remains installed and the documented rollback in this pin; its retirement
+  is the follow-up seam-cleanup pin (runtime REQ-007).
+
 ## [0.6.13] - 2026-10-29 — engine v0.1.27 + runtime v0.4.1 + csg v0.2.2; tpr default
 
 ### Changed
