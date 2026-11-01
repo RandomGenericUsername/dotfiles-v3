@@ -22,11 +22,12 @@ and **which tag each consumer pins**. It is the cross-project companion to each 
 ├── ags-apps                    retired migration workshop (archive after publish)
 ├── contracts                   event contract + state/app schemas
 ├── cli-output                  shared CLI rendering package
-├── color-scheme-generator      `csg`
+├── color-scheme-generator      `csg` (retired from the composition; repo only)
 ├── wallpaper-effects-generator `weg`
 ├── icon-templates-renderer     `itr`
+├── theme-producer              `tpr` (sole palette producer)
 ├── config-assembler-engine     `cae` (consumed inside the CLIs)
-└── oci-runtime                 container engine abstraction (consumed inside csg/weg)
+└── oci-runtime                 container engine abstraction (consumed inside weg/tpr)
 ```
 
 ## Ownership
@@ -42,7 +43,7 @@ and **which tag each consumer pins**. It is the cross-project companion to each 
 | `ags-apps` | retired migration workshop; archive after the local tags are published | any live deployment surface |
 | `contracts` | event contract JSON/XML/spec + state/app schemas | consumers |
 | `cli-output` | CLI rendering views/adapters | tool policy |
-| `csg` / `weg` / `itr` / `tpr` | their CLI + container/backend logic (tpr = default palette producer) | composition pins |
+| `weg` / `itr` / `tpr` | their CLI + container/backend logic (tpr = sole palette producer) | composition pins |
 
 ## Pins (live)
 
@@ -50,7 +51,7 @@ and **which tag each consumer pins**. It is the cross-project companion to each 
 | --- | --- | --- | --- |
 | `dotfiles-v3` | installer engine `dotfiles-provision` | `v0.1.27` | `dotfiles/provisioning/installer.pin` |
 | `dotfiles-v3` | corpus `dotfiles-assets` | `v0.6.2` | `dotfiles/provisioning/assets.yaml` |
-| `dotfiles-v3` | CLIs `csg`/`weg`/`itr`/`tpr` + runtime `dotfiles-runtime` | `csg v0.2.2` / `weg/itr v0.2.0` / `tpr v0.4.0` / `runtime v0.4.1` | `dotfiles/provisioning/cli-tools.yaml` |
+| `dotfiles-v3` | CLIs `weg`/`itr`/`tpr` + runtime `dotfiles-runtime` | `weg/itr v0.2.0` / `tpr v0.4.0` / `runtime v0.4.1` | `dotfiles/provisioning/cli-tools.yaml` |
 | `dotfiles-v3` | program tuple `ags-platform` / `contracts` / `dotfiles-assets` | `v0.3.0` / `v0.3.0` / `v0.6.2` | `dotfiles/provisioning/program-tuple.yaml` |
 | `dotfiles-v3` | seven AGS app units (bar + notifications/capture/clipboard/wallpaper-selector/icme/btop-theme-studio) | `ags-bar v0.1.3`; five `v0.1.0`; `ags-btop-theme-studio v0.1.2` | `dotfiles/provisioning/apps.yaml` |
 | `dotfiles-runtime` | `cli-output` | `v0.1.0` | runtime `pyproject.toml` |
@@ -62,12 +63,12 @@ and **which tag each consumer pins**. It is the cross-project companion to each 
 A tag is never moved. A fix ships as a new tag. Consumer pin bumps edit the declared file first,
 then the mirrors; `make deploy-coverage` fails on a half-edit.
 
-Runtime note: engine `v0.1.27` consumes and verifies `dotfiles-runtime v0.4.1`,
-`csg v0.2.2` and `theme-producer v0.4.0` in `cli_tools` and `verify`; runtime and
-engine pins are aligned. The composition selects `tpr` as the default producer
-by exporting `RUNTIME_PALETTE_PRODUCER=tpr` in `bootstrap.sh`; the engine renders
-`config/dotfiles-runtime/producer.json`. An explicit
-`RUNTIME_PALETTE_PRODUCER=csg` is the documented rollback.
+Runtime note: engine `v0.1.27` consumes and verifies `dotfiles-runtime v0.4.1`
+and `theme-producer v0.4.0` in `cli_tools` and `verify`; runtime and
+engine pins are aligned. `tpr` is the sole palette producer: the engine renders
+`config/dotfiles-runtime/producer.json` from its own `runtime_palette_producer`
+input, and `bootstrap.sh` exports no producer variable. csg is retired from
+provisioning (runtime `v0.5.1` rejects it), so there is no csg rollback.
 
 ## AGS app ownership and cutover
 

@@ -10,9 +10,11 @@ owner would otherwise surface only on a fresh machine.
 WHAT IT ASSERTS.
 
   (a) the pin set: `installer.pin` is read by `bootstrap.sh` (never repeated as
-      a literal), the assets manifest/role/verify agree, every CLI manifest
-      entry is mirrored by the pinned engine's `cli_tools`/verify roles, and the
-      csg-templates source names the csg pin;
+      a literal), the assets manifest/role/verify agree, and every CLI manifest
+      entry is mirrored by the pinned engine's `cli_tools`/verify roles. The
+      palette producer is provisioning-owned (`producer.json`), so
+      `bootstrap.sh` exports no producer variable; csg is retired from the
+      manifest and has no package/config/template/verify surface;
   (b) the pinned engine is the final all-standalone shape: no `ags_apps` role or
       playbook remains, `ags_platform` installs the tuple platform unit, and
       `ags_apps_units` (not cli_tools/gui_tools/config_links) owns the ONE
@@ -121,7 +123,7 @@ RETIRED_GUI_TOOLS_DIR = "src/gui-tools"
 CLI_OUTPUT_PACKAGE = "cli-output"
 RETIRED_CLI_OUTPUT_DIR = "src/shared/cli-output"
 
-# `config-assembler-engine` left the repo (cli-tools-repos S2): csg, weg and itr
+# `config-assembler-engine` left the repo (cli-tools-repos S2): weg and itr
 # consume it from its pinned repo (`git = …/config-assembler-engine, tag =
 # "v0.1.0"`). The in-tree package is retired, and a `path =` source would
 # silently resurrect the local copy as the source of truth — exactly the drift
@@ -129,7 +131,7 @@ RETIRED_CLI_OUTPUT_DIR = "src/shared/cli-output"
 CONFIG_ASSEMBLER_ENGINE_PACKAGE = "config-assembler-engine"
 RETIRED_CONFIG_ASSEMBLER_ENGINE_DIR = "src/shared/config-assembler-engine"
 
-# `oci-runtime` left the repo (cli-tools-repos S3): csg and weg consume it from
+# `oci-runtime` left the repo (cli-tools-repos S3): weg and tpr consume it from
 # its pinned repo (`git = …/oci-runtime, tag = "v0.5.0"`). It was the LAST
 # in-repo shared library, so the parent `src/shared/` root is retired too —
 # leaving it behind (even empty) would be an obvious home for a vendored copy
@@ -147,6 +149,7 @@ RETIRED_SHARED_LIBS_DIR = "src/shared"
 # the same slice that proves the new wiring, so a surviving copy is a second
 # source of truth that no consumer installs.
 CLI_TOOLS_MANIFEST = "dotfiles/provisioning/cli-tools.yaml"
+FILESYSTEM_MANIFEST = "dotfiles/provisioning/filesystem.yaml"
 CLI_TOOLS_ROLE_TASKS = "ansible/roles/cli_tools/tasks/main.yml"
 # The installer engine is a separate external pin (not a CLI tool): bootstrap
 # installs the tool from this tag and both composition gates read that checkout.
@@ -248,19 +251,17 @@ ITR_NAME = "itr"
 RETIRED_ITR_DIR = "src/cli-tools/icon-templates-renderer"
 WEG_NAME = "weg"
 RETIRED_WEG_DIR = "src/cli-tools/wallpaper-effects-generator"
-CSG_NAME = "csg"
-RETIRED_CSG_DIR = "src/cli-tools/color-scheme-generator"
 
 # The terminal catch-all (cli-tools-repos S6): the LAST CLI left the repo, so
-# the parent roots are retired. `src/cli-tools/` held the four in-tree trees
-# (csg/weg/itr) plus the nested openspec root; `src/shared/` held the four
+# the parent roots are retired. `src/cli-tools/` held the in-tree CLI trees
+# (historically csg/weg/itr — csg itself is retired from provisioning by
+# PIN-0122) plus the nested openspec root; `src/shared/` held the four
 # shared libraries. A surviving parent (even empty) is an obvious home for a
 # vendored copy that no consumer installs, so the presence of either is a gate
 # failure regardless of what it contains.
 RETIRED_CLI_TOOLS_DIR = "src/cli-tools"
 # `src/shared/` is asserted by assert_no_in_tree_oci_runtime (S3); S6 restates
 # it in the terminal catch-all so one gate run reports both parent roots.
-CONTAINER_IMAGE_TAG_ENV_KEY = "COLORSCHEME__CONTAINER__IMAGE_TAG"
 
 # Files that participate in `ags bundle` and are therefore a missing-module
 # hazard. `.d.ts` ends in `.ts`, so it is covered by the `.ts` suffix.
@@ -533,7 +534,7 @@ def assert_no_in_tree_config_assembler_engine(root: Path) -> None:
     deleted `src/shared/config-assembler-engine/`. Both halves are asserted so
     neither can quietly come back:
       (a) the in-tree package dir must not exist — a surviving copy would be a
-          second source of truth that csg/weg/itr do not install; and
+          second source of truth that the compute CLIs do not install; and
       (b) no package under `src/` may carry a `[tool.uv.sources]` entry that
           pins `config-assembler-engine` by `path` — that would resolve the
           local checkout instead of the tag while still passing an import.
@@ -579,7 +580,7 @@ def assert_no_in_tree_oci_runtime(root: Path) -> None:
     deleted `src/shared/oci-runtime/`. Three halves are asserted so none can
     quietly come back:
       (a) the in-tree package dir must not exist — a surviving copy would be a
-          second source of truth that csg/weg do not install;
+          second source of truth that weg and tpr do not install;
       (b) the parent `src/shared/` root must not exist — it was the last
           shared library, so an empty leftover must not become a new home for
           a vendored copy; and
@@ -647,19 +648,20 @@ def assert_cli_provisioned_from_pinned_manifest(
     name: str,
     retired_dir: str,
     slice_label: str,
-    tag_env_key: str | None = None,
 ) -> None:
     """One CLI is provisioned from its pinned repo, never a local path.
 
     cli-tools-repos moved the CLIs out of this repo one slice at a time
-    (`itr` in S4, `weg` in S5, `csg` in S6). This gate asserts the SHAPE of the
-    consumption for ONE entry, since the host assertions live in `verify`
-    (AD-11):
+    (`itr` in S4, `weg` in S5; csg was S6 and is now retired from provisioning).
+    This gate asserts the SHAPE of the consumption for ONE entry, since the host
+    assertions live in `verify` (AD-11):
       (a) the manifest entry is `{name, repo, tag}` — a repo and tag are
           present and there is NO `source:` path (a source would silently
           resolve the local checkout in one consumer while others use the tag);
-      (b) the role mirror in `vars/main.yml` carries the same repo/tag and
-          installs from the tag-qualified checkout root;
+      (b) the role mirror: an older engine's static `cli_tools` list must carry
+          the same repo/tag, while a manifest-driven engine (v0.1.28+) must
+          declare `cli_tools_manifest_path` and derive `cli_tools` from this
+          manifest — there is no second pin list to drift;
       (c) the role tasks address the tag-bearing checkout path
           (`<install>/cli-tools/<name>/<tag>`) and never a `git+…@tag` URL —
           AD-10 requires the installed tool's PEP 610 record to be a path that
@@ -704,31 +706,45 @@ def assert_cli_provisioned_from_pinned_manifest(
         raise ValueError(f"{CLI_TOOLS_ROLE_VARS} is missing")
     role_vars = yaml.safe_load(role_vars_path.read_text())
     role_entries = role_vars.get("cli_tools") if isinstance(role_vars, dict) else None
-    role_entry = next(
-        (
-            role
-            for role in role_entries or []
-            if isinstance(role, dict) and role.get("name") == name
-        ),
-        None,
-    )
-    if role_entry is None:
-        raise ValueError(f"{CLI_TOOLS_ROLE_VARS} has no {name!r} cli_tools entry")
-    if "source" in role_entry:
-        raise ValueError(
-            f"{CLI_TOOLS_ROLE_VARS} still provisions {name!r} from a source "
-            f"path ({role_entry['source']!r}) — role and manifest must agree on "
-            f"the pinned shape"
+    # Engine v0.1.28+ DERIVES `cli_tools` from this composition manifest
+    # (`cli_tools: "{{ cli_tools_manifest.entries | default([], true) }}"`), so
+    # there is no static in-role pin list to diff. When the role is
+    # manifest-driven the manifest IS the single source; when it still carries
+    # a literal list (older engines), the mirror must agree entry-for-entry.
+    manifest_driven = isinstance(role_entries, str) and "cli_tools_manifest" in role_entries
+    if manifest_driven:
+        if "cli_tools_manifest_path" not in (role_vars or {}):
+            raise ValueError(
+                f"{CLI_TOOLS_ROLE_VARS} derives `cli_tools` from the manifest but "
+                f"does not declare cli_tools_manifest_path — the composition "
+                f"manifest would never be read"
+            )
+    else:
+        role_entry = next(
+            (
+                role
+                for role in role_entries or []
+                if isinstance(role, dict) and role.get("name") == name
+            ),
+            None,
         )
-    if (
-        str(role_entry.get("repo") or "").strip() != str(entry["repo"]).strip()
-        or str(role_entry.get("tag") or "").strip() != tag
-    ):
-        raise ValueError(
-            f"{CLI_TOOLS_ROLE_VARS} {name!r} pin ({role_entry.get('repo')!r}, "
-            f"{role_entry.get('tag')!r}) does not mirror {CLI_TOOLS_MANIFEST} "
-            f"({entry.get('repo')!r}, {tag!r})"
-        )
+        if role_entry is None:
+            raise ValueError(f"{CLI_TOOLS_ROLE_VARS} has no {name!r} cli_tools entry")
+        if "source" in role_entry:
+            raise ValueError(
+                f"{CLI_TOOLS_ROLE_VARS} still provisions {name!r} from a source "
+                f"path ({role_entry['source']!r}) — role and manifest must agree on "
+                f"the pinned shape"
+            )
+        if (
+            str(role_entry.get("repo") or "").strip() != str(entry["repo"]).strip()
+            or str(role_entry.get("tag") or "").strip() != tag
+        ):
+            raise ValueError(
+                f"{CLI_TOOLS_ROLE_VARS} {name!r} pin ({role_entry.get('repo')!r}, "
+                f"{role_entry.get('tag')!r}) does not mirror {CLI_TOOLS_MANIFEST} "
+                f"({entry.get('repo')!r}, {tag!r})"
+            )
     checkout_root = str(role_vars.get("cli_tools_checkout_root", ""))
     if "install_dir" not in checkout_root or not checkout_root.endswith("/cli-tools"):
         raise ValueError(
@@ -802,72 +818,6 @@ def assert_cli_provisioned_from_pinned_manifest(
             f"{retired_dir}/ — it is consumed from its pinned repo tag "
             f"{tag}; delete the directory (cli-tools-repos {slice_label})"
         )
-
-    if tag_env_key is None:
-        return
-
-    # AD-7 for a CLI whose build verb takes the tag from SETTINGS ENV instead
-    # of argv (csg and tpr have no `--image-tag`). The engine resolves the
-    # per-tool env key from `cli_tools_image_tag_env_keys` and always writes
-    # `{{ item.tag }}`; the build still uses the tag-qualified checkout as its
-    # context (csg on argv, tpr through its source-root env).
-    task_code = "\n".join(
-        line for line in tasks_text.splitlines() if not line.lstrip().startswith("#")
-    )
-    if tag in task_code:
-        raise ValueError(
-            f"{CLI_TOOLS_ROLE_TASKS} contains the literal image tag {tag!r} in a "
-            f"task — the tag must come from the manifest pin (`{{{{ item.tag }}}}`) "
-            f"so a pin bump reaches the build (spine AD-7)"
-        )
-
-    env_keys = role_vars.get("cli_tools_image_tag_env_keys")
-    if not isinstance(env_keys, dict) or env_keys.get(name) != tag_env_key:
-        raise ValueError(
-            f"{CLI_TOOLS_ROLE_VARS}: cli_tools_image_tag_env_keys must map "
-            f"{name!r} to {tag_env_key!r}; got {env_keys!r}"
-        )
-    if not any(
-        token in tasks_text
-        for token in (
-            "cli_tools_image_tag_env_builds",
-            "cli_tools_image_tag_env_context_builds",
-        )
-    ):
-        raise ValueError(
-            f"{CLI_TOOLS_ROLE_TASKS} has no env-tag image build loop for "
-            f"{name!r} — the pinned image would never be built at the manifest "
-            f"tag (spine AD-7)"
-        )
-    if "cli_tools_image_tag_env_keys[item.name]: item.tag" not in tasks_text:
-        raise ValueError(
-            f"{CLI_TOOLS_ROLE_TASKS} does not pass the per-tool env key as "
-            f"`{{{{ item.tag }}}}` — a literal/default tag could ship `latest`"
-        )
-    if name == "csg" and (
-        "{{ cli_tools_checkout_root }}/{{ item.name }}/{{ item.tag }}" not in tasks_text
-    ):
-        raise ValueError(
-            f"{CLI_TOOLS_ROLE_TASKS} lost the tag-qualified build context for "
-            f"{name!r} (spine AD-5/AD-10)"
-        )
-
-
-def assert_csg_provisioned_from_pinned_manifest(root: Path) -> None:
-    """cli-tools-repos S6: `csg` (palette generator) is consumed from its pin.
-
-    csg is the LAST extracted CLI and the second container-mode one. Its
-    `install` verb has no `--image-tag`, so the AD-7 assertion follows the
-    SETTINGS-ENV transport (`COLORSCHEME__CONTAINER__IMAGE_TAG`) instead of
-    argv — same pin, same tag-qualified build context.
-    """
-    assert_cli_provisioned_from_pinned_manifest(
-        root,
-        CSG_NAME,
-        RETIRED_CSG_DIR,
-        "S6",
-        tag_env_key=CONTAINER_IMAGE_TAG_ENV_KEY,
-    )
 
 
 def assert_no_cli_tools_dir(root: Path) -> None:
@@ -1345,7 +1295,7 @@ def assert_assets_shape(root: Path) -> tuple[str, tuple[str, ...]]:
 def assert_manifest_source_scope(root: Path) -> None:
     """The CLI manifest has ZERO local `source:` entries (REQ-002).
 
-    Every entry — csg, weg, itr and dotfiles-runtime — is `{name, repo, tag}`.
+    Every entry — weg, itr, tpr and dotfiles-runtime — is `{name, repo, tag}`.
     The runtime moved to its own pinned repo, so a `source:` on any entry is a
     local path one consumer would resolve while the others use the tag. The
     source-path install branch remains in the engine as an extension point, but
@@ -1419,19 +1369,18 @@ def assert_pin_set(root: Path, assets_tag: str) -> tuple[str, dict[str, str]]:
       reads that file (it must not repeat the tag as a literal, which would let
       a shell-side bump diverge from the one the Python gates read) and keeps
       its own semver shape check;
-    * **palette producer** — `bootstrap.sh` selects `tpr` by default through the
-      `RUNTIME_PALETTE_PRODUCER` provisioning input (the engine renders
-      `producer.json`), and sets no ambient double-underscore variable;
+    * **palette producer** — `tpr` is the sole producer. The pinned engine
+      renders `producer.json` from its own provisioning input; `bootstrap.sh`
+      must export NO producer variable (the retired csg rollback and the old
+      ambient double-underscore variable are both gone);
     * **assets corpus** — the tag returned by :func:`assert_assets_shape`, which
       has already locked the manifest against the role + verify + per-consumer
       mirrors;
     * **CLIs** — every manifest entry, including `dotfiles-runtime`, is a
       semver tag mirrored by the pinned engine's `cli_tools` role vars AND by
       `verify` (`version`, tag-bearing checkout path, `pinned` record).
-    * **csg-templates source** — the composition `assets.yaml` source path names
-      the same csg tag as the CLI manifest. The engine role derives the live
-      copy path from its own mirror, so a stale manifest path is a latent
-      second pin that this gate rejects.
+      csg is retired from provisioning and has no manifest entry, so the
+      csg-templates source that used to mirror its pin is gone too.
 
     This repo authors no `[tool.uv.sources]`; the runtime's library/contract
     pins live in `dotfiles-runtime` and are locked by its own gates.
@@ -1463,18 +1412,15 @@ def assert_pin_set(root: Path, assets_tag: str) -> tuple[str, dict[str, str]]:
             f"branch, `latest` or a SHA must fail in the shell too"
         )
 
-    # 1b. The v3 cutover default: a normal bootstrap renders producer=tpr.
-    # The runtime reads <install>/config/dotfiles-runtime/producer.json, which
-    # the engine renders from this provisioning input. An explicit
-    # RUNTIME_PALETTE_PRODUCER=csg remains the documented rollback.
-    tpr_default = (
-        'export RUNTIME_PALETTE_PRODUCER='
-        '"${RUNTIME_PALETTE_PRODUCER:-tpr}"'
-    )
-    if tpr_default not in bootstrap:
+    # 1b. The palette producer is provisioning-owned: a normal bootstrap renders
+    # producer.json from the engine's own tpr default. The composition script
+    # must not select a producer at all — the retired csg rollback export and
+    # the old ambient double-underscore variable are both gone.
+    if "export RUNTIME_PALETTE_PRODUCER" in bootstrap:
         raise ValueError(
-            f"{BOOTSTRAP} must select tpr by default with {tpr_default!r} — "
-            f"otherwise a fresh bootstrap silently renders producer=csg"
+            f"{BOOTSTRAP} exports RUNTIME_PALETTE_PRODUCER — tpr is the sole "
+            f"producer and the engine renders producer.json; the composition "
+            f"must not override it (the csg rollback is retired)"
         )
     if "RUNTIME__PALETTE__PRODUCER=" in bootstrap:
         raise ValueError(
@@ -1508,9 +1454,11 @@ def assert_pin_set(root: Path, assets_tag: str) -> tuple[str, dict[str, str]]:
             raise ValueError(f"the role vars file {label} is missing")
     role_vars = yaml.safe_load(role_vars_path.read_text(encoding="utf-8")) or {}
     verify_vars = yaml.safe_load(verify_vars_path.read_text(encoding="utf-8")) or {}
+    role_entries = role_vars.get("cli_tools")
+    role_manifest_driven = isinstance(role_entries, str) and "cli_tools_manifest" in role_entries
     role_by_name = {
         str(entry.get("name")): entry
-        for entry in role_vars.get("cli_tools") or []
+        for entry in (role_entries if isinstance(role_entries, list) else [])
         if isinstance(entry, dict) and entry.get("name")
     }
 
@@ -1530,18 +1478,19 @@ def assert_pin_set(root: Path, assets_tag: str) -> tuple[str, dict[str, str]]:
                 f"{CLI_TOOLS_MANIFEST} entry {name!r} must carry a semver tag "
                 f"(vX.Y.Z, never `latest`, a branch or a SHA); got {tag!r}"
             )
-        role_entry = role_by_name.get(name)
-        if role_entry is None:
-            raise ValueError(
-                f"{role_vars_path} has no {name!r} cli_tools entry — the role "
-                f"mirror is missing"
-            )
-        role_tag = str(role_entry.get("tag") or "").strip()
-        if role_tag != tag:
-            raise ValueError(
-                f"{role_vars_path} pins {name!r} at {role_tag!r} but "
-                f"{CLI_TOOLS_MANIFEST} pins {tag!r} — bump both or neither"
-            )
+        if not role_manifest_driven:
+            role_entry = role_by_name.get(name)
+            if role_entry is None:
+                raise ValueError(
+                    f"{role_vars_path} has no {name!r} cli_tools entry — the role "
+                    f"mirror is missing"
+                )
+            role_tag = str(role_entry.get("tag") or "").strip()
+            if role_tag != tag:
+                raise ValueError(
+                    f"{role_vars_path} pins {name!r} at {role_tag!r} but "
+                    f"{CLI_TOOLS_MANIFEST} pins {tag!r} — bump both or neither"
+                )
         # The engine's verify mirror names the runtime without the repo prefix
         # (`verify_runtime_version`), while the checkout path keeps the repo name.
         verify_name = "runtime" if name == RUNTIME_NAME else name
@@ -1549,7 +1498,14 @@ def assert_pin_set(root: Path, assets_tag: str) -> tuple[str, dict[str, str]]:
         checkout_key = f"verify_{verify_name}_checkout"
         pin_key = f"verify_{verify_name}_pin_file"
         verify_tag = str(verify_vars.get(version_key) or "").strip()
-        if verify_tag != tag:
+        # v0.1.28+ derives the verify tag from the same manifest
+        # (`{{ cli_tools_tags.<name> }}`), which is the stronger mirror; an
+        # older engine carries the literal tag.
+        derives_from_manifest = verify_tag in (
+            "{{ cli_tools_tags." + name + " }}",
+            "{{ cli_tools_tags['" + name + "'] }}",
+        )
+        if verify_tag != tag and not derives_from_manifest:
             raise ValueError(
                 f"{VERIFY_ROLE_VARS} {version_key} is {verify_tag!r} but the "
                 f"manifest pins {tag!r} — verify would assert a different tag "
@@ -1571,49 +1527,46 @@ def assert_pin_set(root: Path, assets_tag: str) -> tuple[str, dict[str, str]]:
             )
         cli_tags[name] = tag
 
-    # 4. The composition csg-templates source mirrors the csg pin.
-    csg_tag = cli_tags.get("csg")
-    if csg_tag is None:
+    # 4. csg is retired from provisioning. The runtime accepts only tpr, so a
+    # csg CLI entry, template asset, or spine config dir would install/link a
+    # producer the runtime rejects. Assert every retired surface stays gone
+    # instead of merely not asserting anything about it.
+    if "csg" in cli_tags:
         raise ValueError(
-            f"{CLI_TOOLS_MANIFEST} has no `csg` entry — the csg-templates "
-            f"source cannot be checked"
+            f"{CLI_TOOLS_MANIFEST} still carries a `csg` entry — csg is retired "
+            f"from provisioning (tpr is the sole palette producer); drop it"
         )
-    assets_manifest_path = root / ASSETS_MANIFEST
-    if not assets_manifest_path.is_file():
+    manifest_assets_path = root / ASSETS_MANIFEST
+    if not manifest_assets_path.is_file():
         raise ValueError(f"the assets manifest {ASSETS_MANIFEST} is missing")
-    assets_manifest = yaml.safe_load(
-        assets_manifest_path.read_text(encoding="utf-8")
-    ) or {}
-    assets_entries = assets_manifest.get("entries")
-    if not isinstance(assets_entries, list):
+    manifest_assets = yaml.safe_load(manifest_assets_path.read_text(encoding="utf-8")) or {}
+    asset_entries = manifest_assets.get("entries")
+    if not isinstance(asset_entries, list):
         raise ValueError(f"{ASSETS_MANIFEST} has no `entries` list")
-    csg_template = next(
-        (
-            entry
-            for entry in assets_entries
-            if isinstance(entry, dict) and entry.get("name") == "csg-templates"
-        ),
-        None,
-    )
-    if csg_template is None:
-        raise ValueError(
-            f"{ASSETS_MANIFEST} has no `csg-templates` entry — the csg "
-            f"template catalog is a pinned-CLI source"
-        )
-    csg_source = str(csg_template.get("source") or "")
-    csg_source_prefix = "{{ install_dir | trim }}/cli-tools/csg/"
-    if not csg_source.startswith(csg_source_prefix):
-        raise ValueError(
-            f"{ASSETS_MANIFEST} csg-templates source {csg_source!r} must be "
-            f"under {csg_source_prefix!r}"
-        )
-    csg_source_tag = csg_source[len(csg_source_prefix):].split("/", 1)[0]
-    if csg_source_tag != csg_tag:
-        raise ValueError(
-            f"{ASSETS_MANIFEST} csg-templates source pins {csg_source_tag!r} "
-            f"but {CLI_TOOLS_MANIFEST} pins csg at {csg_tag!r} — bump both or "
-            f"neither"
-        )
+    for entry in asset_entries:
+        if not isinstance(entry, dict):
+            continue
+        if entry.get("name") == "csg-templates" or entry.get("kind") == "csg-template":
+            raise ValueError(
+                f"{ASSETS_MANIFEST} still deploys csg templates "
+                f"({entry.get('name')!r}) — csg is retired; the tpr projection "
+                f"catalog is the only CLI template source"
+            )
+
+    filesystem_path = root / FILESYSTEM_MANIFEST
+    if not filesystem_path.is_file():
+        raise ValueError(f"the filesystem manifest {FILESYSTEM_MANIFEST} is missing")
+    filesystem = yaml.safe_load(filesystem_path.read_text(encoding="utf-8")) or {}
+    fs_entries = filesystem.get("entries")
+    if not isinstance(fs_entries, list):
+        raise ValueError(f"{FILESYSTEM_MANIFEST} has no `entries` list")
+    for entry in fs_entries:
+        node = str(entry.get("name") if isinstance(entry, dict) else entry)
+        if "color-scheme-generator" in node:
+            raise ValueError(
+                f"{FILESYSTEM_MANIFEST} still creates {node!r} — csg is retired "
+                f"from provisioning; delete the spine config dirs"
+            )
 
     return installer_tag, cli_tags
 
@@ -1756,8 +1709,8 @@ def main() -> int:
         # The in-tree package AND every `path =` source for it are retired, so
         # neither a leftover copy nor a re-pointed pin can slip back in.
         assert_no_in_tree_cli_output(root)
-        # cli-tools-repos S2: same shape for `config-assembler-engine` (csg,
-        # weg, itr consume the v0.1.0 tag; the in-tree tree is retired).
+        # cli-tools-repos S2: same shape for `config-assembler-engine` (weg and
+        # itr consume the v0.1.0 tag; the in-tree tree is retired).
         assert_no_in_tree_config_assembler_engine(root)
         # cli-tools-repos S3: `oci-runtime` (v0.5.0) was the last shared
         # library, so the package AND the `src/shared/` root are retired.
@@ -1769,12 +1722,10 @@ def main() -> int:
         assert_itr_provisioned_from_pinned_manifest(root)
         # cli-tools-repos S5: the same shape for `weg` — repo+tag from the
         # manifest, no source path, installed from the tag-bearing checkout,
-        # and the in-tree package gone.
+        # and the in-tree package gone. csg (S6) is retired from provisioning:
+        # the manifest carries no entry, so there is no package, template
+        # catalog or verify path to assert.
         assert_weg_provisioned_from_pinned_manifest(root)
-        # cli-tools-repos S6: `csg` closes the set. Same pinned shape, plus the
-        # AD-7 assertion for its SETTINGS-ENV tag transport (its `install` build
-        # verb has no --image-tag) and the tag-qualified build context.
-        assert_csg_provisioned_from_pinned_manifest(root)
         # REQ-002: the runtime is a pinned repo too. Same generic shape check;
         # `src/runtime/` must be gone.
         assert_cli_provisioned_from_pinned_manifest(
@@ -1873,16 +1824,15 @@ def main() -> int:
         f"tree is retired"
     )
     print(
-        f"deploy-coverage: {CSG_NAME!r} is provisioned from its pinned manifest "
-        f"entry (repo+tag, no source) and installed from the tag-bearing "
-        f"checkout; its base + backend images are tagged with the pin via "
-        f"{CONTAINER_IMAGE_TAG_ENV_KEY} (never `latest`) — the in-tree tree is "
-        f"retired"
-    )
-    print(
         f"deploy-coverage: {RUNTIME_NAME!r} is provisioned from its pinned "
         f"manifest entry (repo+tag, no source) and installed from the "
         f"tag-bearing checkout; {RETIRED_RUNTIME_DIR}/ is retired"
+    )
+    print(
+        "deploy-coverage: PASS -- csg is retired from provisioning: no CLI "
+        "entry, no csg-templates asset, no color-scheme-generator spine dir and "
+        "no producer export in bootstrap.sh (tpr is the sole producer; "
+        "producer.json is rendered by the engine)"
     )
     print(
         "deploy-coverage: PASS -- the static config corpus (hypr, hyprpaper, "
@@ -1961,9 +1911,9 @@ def main() -> int:
         + f" (dirs under <install>/assets/{assets_tag}/)"
     )
     print(
-        f"deploy-coverage: PASS -- six packages are consumed from their pinned "
+        f"deploy-coverage: PASS -- five packages are consumed from their pinned "
         f"repos ({CLI_OUTPUT_PACKAGE}, {CONFIG_ASSEMBLER_ENGINE_PACKAGE}, "
-        f"{OCI_RUNTIME_PACKAGE}, {ITR_NAME}, {WEG_NAME}, {CSG_NAME}) and "
+        f"{OCI_RUNTIME_PACKAGE}, {ITR_NAME}, {WEG_NAME}) and "
         f"{RUNTIME_NAME} is consumed from its pinned repo; "
         f"{RETIRED_RUNTIME_DIR}/, {RETIRED_CLI_TOOLS_DIR}/ and "
         f"{RETIRED_SHARED_LIBS_DIR}/ are retired, and the CLI manifest carries "

@@ -1,11 +1,12 @@
 # CLI tools installed by the `cli_tools` role (plan §3).
 #
-# csg/weg/itr are the three compute-provider CLIs; tpr is the DEFAULT palette
-# producer (semantic-role projection; csg remains installed and is the
-# documented rollback via RUNTIME_PALETTE_PRODUCER=csg); dotfiles-runtime is
-# the desktop-state CLI (wallpaper set / reconcile / inspect) that the login
-# hook needs on PATH. All five are pinned external repos: every entry carries
-# `{name, repo, tag}` and no `source`.
+# weg/itr are the compute-provider CLIs; tpr is the SOLE palette producer
+# (semantic-role projection); dotfiles-runtime is the desktop-state CLI
+# (wallpaper set / reconcile / inspect) that the login hook needs on PATH.
+# All four are pinned external repos: every entry carries `{name, repo, tag}`
+# and no `source`. csg (color-scheme-generator) is retired from provisioning:
+# the runtime accepts only the tpr producer, so no csg package, template
+# catalog or verify path is installed or linked any more.
 #
 # The role shallow-clones `<repo>@<tag>` into `<install>/cli-tools/<name>/<tag>/`,
 # removes `.git`, records the pin in `<install>/cli-tools/<name>/pinned`, and
@@ -20,9 +21,6 @@
 # entry.
 kind: cli-tools
 entries:
-  - name: csg
-    repo: https://github.com/RandomGenericUsername/color-scheme-generator
-    tag: v0.2.2
   - name: weg
     repo: https://github.com/RandomGenericUsername/wallpaper-effects-generator
     tag: v0.2.0

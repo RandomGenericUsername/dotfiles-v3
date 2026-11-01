@@ -19,10 +19,14 @@ ags-bar / ags-*      seven standalone AGS app repos (bar, notifications, capture
                      clipboard, wallpaper-selector, icme, btop-theme-studio)
 contracts            event contract + schemas
 cli-output           shared CLI rendering package
-color-scheme-generator / wallpaper-effects-generator / icon-templates-renderer
-theme-producer       semantic-role palette producer (`tpr`; composition default)
+wallpaper-effects-generator / icon-templates-renderer
+theme-producer       semantic-role palette producer (`tpr`; sole producer)
 config-assembler-engine / oci-runtime
 ```
+
+csg (`color-scheme-generator`) is retired from the composition: it is no longer
+installed, linked, verified or deployed, and the runtime rejects it as a
+producer.
 
 The canonical ownership/pin map is [`docs/WORKSPACE.md`](docs/WORKSPACE.md); the executable pin
 set is `ARCHITECTURE.md` §4.1 and `make deploy-coverage`.
@@ -41,11 +45,11 @@ openspec validate --all        # spec/change baseline
 `bootstrap.sh` reads `dotfiles/provisioning/installer.pin` (currently `v0.1.27`), installs the
 engine from `git+…@tag`, fetches the pinned assets corpus (`v0.6.2`), and runs the aggregate.
 The engine is never edited here; neither is the runtime (`dotfiles-runtime@v0.4.1`, the tag
-engine `v0.1.27` consumes and verifies). The CLI set is `csg@v0.2.2`/`weg`/`itr` (compute
-providers) plus `tpr` (`theme-producer@v0.4.0`, the default palette producer). The engine renders
-`config/dotfiles-runtime/producer.json` from `RUNTIME_PALETTE_PRODUCER`, which `bootstrap.sh`
-defaults to `tpr`; run `RUNTIME_PALETTE_PRODUCER=csg ./bootstrap.sh` to roll back to the csg
-producer. Engine `v0.1.27` installs the final all-standalone
+engine `v0.1.27` consumes and verifies). The CLI set is `weg`/`itr` (compute
+providers) plus `tpr` (`theme-producer@v0.4.0`, the sole palette producer).
+The pinned engine renders `config/dotfiles-runtime/producer.json` from its own
+`runtime_palette_producer` input; `bootstrap.sh` exports no producer variable
+(the retired csg rollback is gone). Engine `v0.1.27` installs the final all-standalone
 AGS topology: seven released app repos (`ags-bar v0.1.3`, five `v0.1.0`, and
 `ags-btop-theme-studio v0.1.2`) from
 `dotfiles/provisioning/apps.yaml`; the old `ags-apps` monorepo role is retired.

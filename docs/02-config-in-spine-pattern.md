@@ -8,9 +8,14 @@
 
 Adopted 2026-08-16. Replaces the "copy everything into `~/.config`" mechanism
 for the managed config set (config-copies, compositor configs, per-tool
-settings). Assets, generated output, and the CSG templates/effects catalogs
-already live in the spine and are unchanged except for relocation into
-`config/`.
+settings). Assets, generated output, and the effects catalog already live in the
+spine and are unchanged except for relocation into `config/`.
+
+> **CSG retired (PIN-0122).** `csg` is no longer provisioned: the runtime accepts
+> only the `tpr` palette producer, so there is no
+> `color-scheme-generator/` config dir, template catalog, settings file or
+> symlink. The CSG rows and paths below are the historical design record for that
+> tool; the live spine has `theme-producer/` instead.
 
 **Where the roles live now (S6b/S7).** This is a design record for the install
 spine, not a source map. The Ansible implementation it names — `config_links`,
@@ -39,12 +44,13 @@ has all the configs, the settings, all** — one coherent tree that can be
 versioned, backed up, and understood as a unit.
 
 The CSG subdir-split flaw (settings under `color-scheme-generator/`, templates
-under `color-scheme/`) was fixed first (commit `90d2a07`), so every tool now
-uses one config subdir named after itself:
+under `color-scheme/`) was fixed first (commit `90d2a07`), so every tool used one
+config subdir named after itself:
 
 | Tool | Config subdir |
 |---|---|
-| CSG | `color-scheme-generator/` (settings.toml + templates/) |
+| CSG (retired, PIN-0122) | `color-scheme-generator/` (settings.toml + templates/) — no longer provisioned |
+| TPR (sole palette producer) | `theme-producer/` (settings.toml + templates/) |
 | WEG | `weg/` (settings.toml + effects.yaml) |
 | ITR | `itr/` (settings.toml) |
 | compositors | `hypr/`, `ags/`, `hyprpaper/` |
@@ -81,14 +87,13 @@ $XDG_DATA_HOME/dotfiles/                          ← install target
 │   ├── starship/                starship.toml
 │   ├── wlogout/                 layout (copied from the corpus) + style.css (RENDERED from the corpus template)
 │   ├── zsh/                     .zshrc (RENDERED from the corpus's templates/zsh/.zshrc.j2; no .j2 is deployed)
-│   ├── color-scheme-generator/  settings.toml + templates/
 │   ├── weg/                     settings.toml + effects.yaml
 │   └── itr/                     settings.toml
 ├── wallpapers/  icon-templates/  icon-mappings/   (assets, unchanged)
 ├── assets/<tag>/               the pinned dotfiles-assets checkout: icons/, templates/, configs/,
 │                               content/, desktop/ — the SOURCE for every copy and render above
 ├── (removed — Epic 4) `generated/` — runtime owns all derived artifacts under `$XDG_STATE_HOME/dotfiles/`
-└── (removed) csg-templates/  →  config/color-scheme-generator/templates/
+└── (removed, PIN-0122) color-scheme-generator/ and csg-templates/ — csg is retired from provisioning
 └── (removed) weg-effects.yaml →  config/weg/effects.yaml
 ```
 
@@ -135,7 +140,7 @@ Every managed dir is symlinked at its native XDG location:
 ~/.config/starship            → <install>/config/starship
 ~/.config/wlogout             → <install>/config/wlogout
 ~/.config/zsh                 → <install>/config/zsh
-~/.config/color-scheme-generator → <install>/config/color-scheme-generator
+~/.config/theme-producer      → <install>/config/theme-producer
 ~/.config/weg                 → <install>/config/weg
 ~/.config/itr                 → <install>/config/itr
 ```
@@ -144,8 +149,8 @@ Because the links point at the tools' **declared** XDG stops, native tool
 discovery works with no env-var or `--flag` scaffolding:
 
 - `weg info` resolves effects via `~/.config/weg/effects.yaml` → spine
-- `csg` resolves templates via `~/.config/color-scheme-generator/templates` → spine
-- `csg/weg/itr info --config ~/.config/<tool>/settings.toml` → spine
+- `tpr` resolves its projection templates via `~/.config/theme-producer/templates` → spine
+- `weg/itr info --config ~/.config/<tool>/settings.toml` → spine
 
 ## New role: `config_links` (or a shared task include)
 
@@ -241,12 +246,12 @@ resolves the conflict via the move-aside and creates the link.
 | Role | Change |
 |---|---|
 | **filesystem** | creates `<install>/config/` and the tool subdirs (was: XDG dirs only) |
-| **assets** | WEG effects → `config/weg/effects.yaml`; CSG templates → `config/color-scheme-generator/templates/` (was `<install>/weg-effects.yaml`, `<install>/csg-templates/`) |
+| **assets** | WEG effects → `config/weg/effects.yaml`; TPR projection catalog → `config/theme-producer/templates/` (was `<install>/weg-effects.yaml`, `<install>/csg-templates/`; CSG templates retired with CSG, PIN-0122) |
 | **compositor_configs** | renders the pinned corpus's 15 non-bar skeletons into `spine/config/{hypr,hyprpaper,rofi}/` and, since S4, deploys the pinned `desktop/` class: six entries into `$XDG_DATA_HOME/applications/` (after resolving the contract's `requires`/`optional`) and `toggle-touchpad` 0755 into the user bin dir (was: repo skeleton copies + repo `dotfiles/applications/` + `dotfiles/scripts/`; the corpus is `dotfiles-assets` since S2/S4) |
 | **config_copies** | copies the pinned corpus's `configs/` class → `spine/config/{nvim,starship,wlogout}/` (was: repo dirs into `~/.config/...`; `zsh` left the set in S2 — zsh_config renders `.zshrc` from the template source) |
 | **zsh_config / kitty_config / btop_config / wlogout_config / display_manager** | render their files from the pinned corpus's `templates/` class (S3; `<install>/assets/<tag>/templates/…`) instead of a repo/role `templates/` dir. Values, `dest`, `mode`, `become` and supplied vars unchanged; wlogout_config also prunes the pre-S3 `<spine>/config/wlogout/style.css.tpl` |
-| **settings** | renders → `spine/config/{color-scheme-generator,weg,itr}/settings.toml` (was `~/.config/...`); CSG `default_formats = []` (interactive = all catalog formats) |
-| **default_palette** | `--templates-dir <install>/config/color-scheme-generator/templates` |
+| **settings** | renders → `spine/config/{theme-producer,weg,itr}/settings.toml` (was `~/.config/...`); the CSG settings file is retired with CSG (PIN-0122) |
+| **default_palette** | historical (CSG-era): `--templates-dir <install>/config/color-scheme-generator/templates`; the runtime now derives the palette through `tpr` |
 | **config_links (NEW)** | backup guard + symlink step for all managed dirs |
 | **icons (REMOVED — Epic 4)** | role deleted; runtime derives icons per wallpaper into `cache/icons/<ih>/` |
 | **verify** | criterion 9 flips to symlink assertion (below); icons criterion is `current/icons/` populated (Epic 4) |
@@ -261,7 +266,7 @@ managed dir:
 2. target   stat.lnk_target            → == <install>/config/<name>
 3. resolves stat follow:true           → stat.exists and stat.isdir  (not broken)
 4. content  stat through the link      → e.g. ~/.config/nvim/init.lua isreg
-5. function existing parse gates       → csg/weg/itr info --config resolve through the link
+5. function existing parse gates       → weg/itr info --config resolve through the link
 ```
 
 Layer 2 uses an **exact** target match (not "under install_dir") so a link to
@@ -269,8 +274,8 @@ the repo, a moved location, or a wrong spine path fails. Layers 3-4 catch
 broken/empty links. Layer 5 proves the tools work through the link.
 
 Also add: verify asserts `<install>/config/weg/effects.yaml` and
-`<install>/config/color-scheme-generator/templates/` exist (relocated
-catalogs).
+`<install>/config/theme-producer/templates/` exist (relocated catalogs). The CSG
+template-dir assertion is retired with CSG (PIN-0122).
 
 ## NFR-8 wording update
 

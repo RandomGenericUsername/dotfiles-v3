@@ -17,6 +17,54 @@ this summary:
 
 _No unreleased changes._
 
+## [0.6.17] - 2026-10-31 (draft) — engine v0.1.30; CSG retired from provisioning
+
+> Draft working-tree section (PIN-0122). The installer pin is deliberately NOT
+> bumped here: it stays `v0.1.29` until the engine `v0.1.30` tag exists. The
+> orchestrator bumps `installer.pin` and commits this section after that release.
+> tpr/runtime/assets pins are unchanged. **Do not deploy this working tree
+> against engine `v0.1.29`**: that engine still carries csg tasks/templates in
+> its `assets`, `settings`, `config_links`, `filesystem` and `verify` roles, so
+> the composition manifests and the pinned engine would disagree until the
+> `v0.1.30` bump lands.
+
+### Removed
+
+- `csg` / `color-scheme-generator` is retired from provisioning. Runtime
+  `v0.5.1` accepts only the `tpr` producer, so installing/linking/verifying csg
+  only installed dead weight the runtime rejects.
+  - `dotfiles/provisioning/cli-tools.yaml`: dropped the `csg` entry; the header
+    now describes weg/itr/tpr + the runtime and no longer advertises a csg
+    rollback.
+  - `dotfiles/provisioning/assets.yaml`: dropped the `csg-templates` entry (and
+    its pinned-checkout comment). tpr is the only CLI template catalog.
+  - `dotfiles/provisioning/filesystem.yaml`: dropped
+    `config/color-scheme-generator` and `config/color-scheme-generator/templates`.
+  - `dotfiles/provisioning/packages.yaml`: the “CLIs are not packages” comment
+    no longer lists csg (there was no package entry to remove).
+- `bootstrap.sh`: removed the `RUNTIME_PALETTE_PRODUCER` default/export and the
+  csg-rollback documentation. The script now exports nothing producer-related;
+  the pinned engine renders `config/dotfiles-runtime/producer.json` from its own
+  `runtime_palette_producer` input (tpr is the sole producer). Container-engine
+  comments/errors now name tpr/weg instead of csg.
+
+### Changed
+
+- `scripts/deploy-coverage.py`: removed the csg pinned-CLI assertion, the
+  csg-templates pin mirror, and the now-unreachable SETTINGS-ENV image-tag
+  branch. `assert_pin_set` instead REJECTS a csg CLI entry, a csg template asset
+  and a `color-scheme-generator` filesystem node, and asserts `bootstrap.sh`
+  exports no producer variable (the retired rollback). The CLI role/verify
+  mirror checks now accept the engine `v0.1.28+` shape, where `cli_tools` and
+  `verify_<name>_version` are DERIVED from this composition manifest (the gate
+  was red at HEAD before this change because it still expected static in-role
+  pin lists). Comments/docstrings that named csg as a current consumer were
+  updated.
+- Docs: `README.md`, `ARCHITECTURE.md`, `docs/WORKSPACE.md`,
+  `docs/02-config-in-spine-pattern.md` and `AGENTS.md` no longer present csg as
+  installed, linked, verified, or as a producer rollback. Historical CHANGELOG
+  entries and the archive are untouched.
+
 ## [0.6.16] - 2026-10-31 — engine v0.1.29 + assets v0.6.3 (icons on semantic roles)
 
 ### Changed

@@ -2,12 +2,13 @@
 # XDG config/state/cache dirs. Each entry is a node name Ansible ensures exists.
 #
 # config-in-spine (2026-08-16): the `config/` subtree hosts ALL managed configs
-# (tool dirs + the csg-templates/effects relocations); `config` is DUAL-USE —
-# the XDG config base dir AND the spine's managed-config root. The csg-templates
-# live at config/color-scheme-generator/templates, the tpr projection catalog at
-# config/theme-producer/templates and the weg effects catalog at
-# config/weg/effects.yaml (the `weg-effects.yaml` file node maps there; its
-# parent `config/weg` is the spine dir). Parity-locked with
+# (tool dirs + the effects relocation); `config` is DUAL-USE —
+# the XDG config base dir AND the spine's managed-config root. The tpr
+# projection catalog lives at config/theme-producer/templates and the weg
+# effects catalog at config/weg/effects.yaml (the `weg-effects.yaml` file node
+# maps there; its parent `config/weg` is the spine dir). csg is retired from
+# provisioning, so there is no color-scheme-generator config dir or template
+# set. Parity-locked with
 # roles/filesystem/vars/main.yml (filesystem_spine_dirs / file_nodes).
 #
 # Epic 4 single-source: no `generated/` tree — the runtime owns all derived
@@ -22,8 +23,6 @@ entries:
   - name: icon-templates
   - name: icon-mappings
   - name: config
-  - name: config/color-scheme-generator
-  - name: config/color-scheme-generator/templates
   - name: config/hypr
   - name: config/hyprpaper
   # config/ags is DELIBERATELY absent: the ags_apps role owns it as the

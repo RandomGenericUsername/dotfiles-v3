@@ -45,8 +45,8 @@ set -euo pipefail
 # live ONLY in ansible/group_vars. Do not add any distro logic here.
 #
 # CONTAINER ENGINE (LOCKED decision 2026-08-13, Option A): the container-mode
-# chain (cli_tools builds the csg image; runtime-seed runs
-# `dotfiles-runtime wallpaper set`, which generates the scheme via csg)
+# chain (cli_tools builds the tpr and weg images; runtime-seed runs
+# `dotfiles-runtime wallpaper set`, which generates the scheme via tpr)
 # needs podman OR docker at runtime. Neither role installs one, so this script
 # fails loud EARLY if no USABLE engine exists — a presence-only probe would let
 # a stopped docker daemon through and die ~40 minutes in. Usability is probed
@@ -234,8 +234,8 @@ else
   red "  - neither podman nor docker is on PATH, or the engine's 'info'"
   red "    probe failed (e.g. the docker daemon is not running)"
   red "The container-mode chain requires podman OR docker at runtime:"
-  red "  - cli_tools builds the csg image via 'csg install'"
-  red "  - runtime-seed runs 'dotfiles-runtime wallpaper set' (csg generate) in container mode"
+  red "  - cli_tools builds the tpr and weg images via 'tpr install' / 'weg install'"
+  red "  - runtime-seed runs 'dotfiles-runtime wallpaper set' (tpr generate) in container mode"
   red "Neither role installs an engine. Install podman (preferred) or docker,"
   red "start its daemon, then re-run $0."
   exit 1
@@ -411,21 +411,16 @@ if [ ! -d "$collections_dir" ] || [ -z "$(ls -A "$collections_dir" 2>/dev/null |
   exit 1
 fi
 
-# ── Palette-producer selection (v3 cutover default: tpr) ─────────────────
+# ── Palette producer: tpr only ───────────────────────────────────────────
 # The runtime reads ONE provisioning-owned file,
-# <install>/config/dotfiles-runtime/producer.json. The pinned engine renders it
-# from its `runtime_palette_producer` input; its precedence is
-#   1. extra-var  -e runtime_palette_producer=tpr (direct engine invocation)
-#   2. env var    RUNTIME_PALETTE_PRODUCER=tpr (the bootstrap path)
-#   3. shipped engine default csg
-# The v3 composition selects tpr here, so a normal bootstrap renders
-# `producer: tpr` instead of silently falling back to csg. An explicit
-# `RUNTIME_PALETTE_PRODUCER=csg ./bootstrap.sh` is the documented rollback
-# override (csg stays installed and verified either way). Do NOT add the old
-# ambient double-underscore producer variable: the runtime ignores it now and
-# only producer.json is authoritative.
-export RUNTIME_PALETTE_PRODUCER="${RUNTIME_PALETTE_PRODUCER:-tpr}"
-
+# <install>/config/dotfiles-runtime/producer.json, rendered by the pinned
+# engine from its `runtime_palette_producer` input. tpr is the sole producer
+# (the runtime rejects csg) and producer selection belongs to the engine
+# (the pinned engine defaults it to tpr): this script intentionally exports NO producer
+# variable. The retired csg rollback (`RUNTIME_PALETTE_PRODUCER=csg`) and the
+# old ambient double-underscore variable are both gone; producer.json is the
+# only authority.
+#
 # ── Stage 4: aggregate bootstrap (AC 3) ──────────────────────────────────
 # Single password entry: `make bootstrap` takes no flags by default, so a host
 # without passwordless escalation would die deep in the aggregate become

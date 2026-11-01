@@ -10,8 +10,10 @@
 # Each entry is tagged with an AssetKind; `AssetKind.spine_segment()` resolves
 # the deploy target under $XDG_DATA_HOME/dotfiles/. `source` is the path Ansible
 # copies FROM: an ABSOLUTE install-spine path into the pinned assets checkout,
-# or into a pinned CLI checkout for the template catalogs (`csg-templates` from
-# csg, `tpr-templates` from tpr — spine AD-10). Rich keys are validated by
+# or into a pinned CLI checkout for the template catalog (`tpr-templates` from
+# tpr — spine AD-10). csg's template catalog is no longer deployed: the runtime
+# accepts only the tpr palette producer, so there is no csg config dir or
+# template set to populate. Rich keys are validated by
 # YamlManifestReader but not captured into the domain view — Ansible reads the
 # full YAML directly.
 kind: assets
@@ -36,16 +38,6 @@ entries:
   - name: icon-mappings
     kind: icon-mapping
     source: "{{ install_dir | trim }}/assets/v0.6.3/icons/mappings/"
-  - name: csg-templates
-    kind: csg-template
-    # ABSOLUTE install-spine path INTO the pinned csg checkout (spine AD-10):
-    # csg is consumed from its pinned repo, so its template catalog is no
-    # longer a repo tree. The cli_tools role clones csg at the pin into
-    # <install>/cli-tools/csg/<tag>/ and cli-tools.yaml runs BEFORE assets.yaml
-    # (bootstrap order, locked by the dependency-order test). The role mirrors
-    # this path in `assets_csg_templates_source` (+ the `assets_csg_pinned_tag`
-    # mirror of this tag), and the parity test fails if they drift.
-    source: "{{ install_dir | trim }}/cli-tools/csg/{{ cli_tools_tags.csg }}/src/color_scheme_generator/defaults/templates"
   - name: tpr-templates
     kind: tpr-template
     # Mirror of the engine's `assets_checkout_copies` entry: the palette
