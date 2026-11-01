@@ -17,6 +17,32 @@ this summary:
 
 _No unreleased changes._
 
+## [0.6.16] - 2026-10-31 — engine v0.1.29 + assets v0.6.3 (icons on semantic roles)
+
+### Changed
+
+- `dotfiles-assets` pin `v0.6.2` → `v0.6.3`: every icon mapping is re-pinned
+  from the CSG-era `colorN` carriers to tpr semantic roles; wallpaper-floating
+  glyphs use `on_backdrop`; `defaults.yaml` carries real roles; `surface:`
+  classes are declared; the legacy baseline is empty (`legacy_baseline=0`, the
+  ratchet now rejects any positional token). The corpus sources in
+  `assets.yaml` and the `program-tuple.yaml` entry move with the tag.
+- Installer engine pin `v0.1.28` → `v0.1.29`: the engine mirrors move to
+  `v0.6.3` (`assets`, `verify`, `btop_config`, `compositor_configs`,
+  `config_copies`, `display_manager`, `kitty_config`, `wlogout_config`,
+  `zsh_config`) and the fixture expectations follow. Known debt: these corpus
+  mirrors remain; single-sourcing them from `assets.yaml` is the follow-up
+  (REQ-015 note).
+- `dotfiles-runtime` pin `v0.5.0` → `v0.5.1`: deletes the icon-contrast guard
+  (domain, sampler wiring, prefs store, policy, CLI `--contrast`, meta.json
+  contrast block) and retires the CSG producer (adapter, enum/registry, tests);
+  `producer.json` now accepts only `tpr`, and unknown producers fail with a
+  typed error naming the supported set. The `palette.v1` gate stays.
+- This is the pin that makes both changes live in one bootstrap: icons render
+  from semantic roles with no runtime retargeting, and the palette producer is
+  tpr-only. Provisioning still installs csg and deploys its templates; removing
+  that dead weight is the remaining csg-retirement slice.
+
 ## [0.6.15] - 2026-10-30 — engine v0.1.28; the PIN-0119 pins actually take effect
 
 ### Changed
