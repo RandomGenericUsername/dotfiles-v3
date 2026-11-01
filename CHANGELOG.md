@@ -17,6 +17,25 @@ this summary:
 
 _No unreleased changes._
 
+## [0.6.18] - 2026-11-01 — engine v0.1.31 + ags-platform v0.4.0 (theme provider Phase A)
+
+### Changed
+
+- `ags-platform` pin `v0.3.0` → `v0.4.0`: the platform now exposes a typed
+  `palette()` role API (palette.v1: 50 tpr roles + `on_backdrop`) and a single
+  change subscription (`subscribe()`), parsing the runtime's current
+  `colors.yaml` without a YAML dependency. The provider keeps applying the
+  legacy `@color_*` sheet byte-for-byte, so **no app changes are required** and
+  current UIs are unchanged; it additionally defines `@define-color <role>` for
+  the Phase B app migrations. One monitor, one CSS provider per display
+  (replace-then-remove), malformed refreshes keep the previous palette.
+- Installer engine pin `v0.1.30` → `v0.1.31`: the platform role/verify mirrors
+  and the program-tuple fixture move to `v0.4.0`. Known debt: the platform pin
+  is still mirrored (role + verify + program tuple); single-sourcing it from
+  `program-tuple.yaml` is the follow-up.
+- `program-tuple.yaml` and the ags-app-consumption fixtures move to
+  `ags-platform: v0.4.0` (`contracts` stays `v0.3.0`).
+
 ## [0.6.17] - 2026-10-31 (draft) — engine v0.1.30; CSG retired from provisioning
 
 > Draft working-tree section (PIN-0122). The installer pin is deliberately NOT
