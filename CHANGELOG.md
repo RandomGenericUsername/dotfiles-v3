@@ -17,6 +17,23 @@ this summary:
 
 _No unreleased changes._
 
+## [0.6.21] - 2026-11-02 — notifications/capture/clipboard v0.2.0 (roles batch)
+
+### Changed
+
+- `ags-notifications` `v0.1.0` → `v0.2.0`: CSS on `palette.v1` roles — ink
+  `@on_surface`, plates `@surface`, accent tiles/chips `@primary`, all
+  critical states `@error`/`@error_container`. Real notification cards captured.
+- `ags-capture-tool` `v0.1.0` → `v0.2.0`: ink `@on_surface`, selection/action
+  `@primary`+`@on_primary`, muted hairline `@outline_variant`, recording and
+  settings errors `@error`; geometry unchanged (measured 1123×54 at the same
+  position).
+- `ags-clipboard` `v0.1.0` → `v0.2.0`: neutral `@surface_container` search,
+  `@error_container` destructive Clear, `@tertiary` decorative type headers,
+  `@primary` accent ink; all text pairs ≥ 7:1 on the live palette.
+- All three apps pin platform `v0.4.0` for their gates and add a validation
+  gate that rejects legacy `@color_*`.
+
 ## [0.6.20] - 2026-11-02 — selector v0.2.0 (fix removed contrast surface + roles)
 
 ### Fixed
