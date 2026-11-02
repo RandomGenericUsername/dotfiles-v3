@@ -17,6 +17,19 @@ this summary:
 
 _No unreleased changes._
 
+## [0.6.22] - 2026-11-02 — btop-theme-studio v0.2.0 (content on roles)
+
+### Changed
+
+- `ags-btop-theme-studio` pin `v0.1.2` → `v0.2.0`: the studio chrome and its
+  content model now consume `palette.v1` roles instead of the flat legacy
+  `colors:` list. The candidate/default btop theme is derived from a canonical
+  role→btop-key table mirroring theme-producer (`surface`, `on_surface`,
+  `primary(_container)`, `secondary(_container)`, `tertiary(_container)`,
+  `error`, `outline*`, `surface_container*`), and the token picker lists roles
+  instead of `color0..15`. The btop output format (48 keys), user-editable
+  pending map and unsaved-edit preservation are unchanged.
+
 ## [0.6.21] - 2026-11-02 — notifications/capture/clipboard v0.2.0 (roles batch)
 
 ### Changed
