@@ -17,6 +17,18 @@ this summary:
 
 _No unreleased changes._
 
+## [0.6.19] - 2026-11-01 — bar v0.2.0 (first consumer on semantic roles)
+
+### Changed
+
+- `ags-bar` pin `v0.1.3` → `v0.2.0`: `style.css` and `audio/audio-panel.css`
+  now consume `palette.v1` roles (`@surface`, `@on_surface`, `@primary`,
+  `@on_primary`, `@primary_container`, `@tertiary`, `@surface_container_*`)
+  instead of the CSG-era `@color_*` carriers — the first Phase B consumer
+  migration. Geometry, alpha values, selectors and refresh behavior are
+  unchanged; the platform still applies the legacy sheet for un-migrated apps.
+- A new validation gate in the bar fails on any `@color_*` reference.
+
 ## [0.6.18] - 2026-11-01 — engine v0.1.31 + ags-platform v0.4.0 (theme provider Phase A)
 
 ### Changed
