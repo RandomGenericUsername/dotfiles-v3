@@ -94,7 +94,7 @@ EXPECTED_APPS = frozenset(
 FINAL_APP_RELEASES = {
     "bar": (
         "https://github.com/RandomGenericUsername/ags-bar.git",
-        "v0.1.3",
+        "v0.2.0",
     ),
     "notifications": (
         "https://github.com/RandomGenericUsername/ags-notifications.git",
