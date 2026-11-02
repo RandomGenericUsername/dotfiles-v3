@@ -17,6 +17,21 @@ this summary:
 
 _No unreleased changes._
 
+## [0.6.23] - 2026-11-02 — ICME v0.2.0 (final consumer; window identity fixed)
+
+### Changed / Fixed
+
+- `ags-icme` pin `v0.1.0` → `v0.2.0`: one window name
+  (`icon-color-mapping-editor-window`) across registration, lookup and CSS —
+  the launcher/manifest convention — fixing the `no window registered` toggle
+  errors. Palette comes from the platform provider (`palette()` +
+  `subscribe()`), not direct `colors.yaml` reads; the token picker lists
+  `palette.v1` roles (51, incl. `on_backdrop`) instead of `colorN`; chrome CSS
+  uses roles only. Verified live: two consecutive toggles, and an open editor
+  repainted when the palette was repointed without restart.
+- With this pin, **every AGS consumer is role-based**: bar, notifications,
+  capture, clipboard, wallpaper-selector, btop-theme-studio, icme.
+
 ## [0.6.22] - 2026-11-02 — btop-theme-studio v0.2.0 (content on roles)
 
 ### Changed
