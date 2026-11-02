@@ -93,7 +93,7 @@ apps:
     installDir: wallpaper-selector
     owner: standalone
     repo: https://github.com/RandomGenericUsername/ags-wallpaper-selector.git
-    tag: v0.1.0
+    tag: v0.2.0
     instance: wallpaper-selector
     configDir: ags-wallpaper-selector
     configLink: ags-wallpaper-selector

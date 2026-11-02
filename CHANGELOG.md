@@ -17,6 +17,22 @@ this summary:
 
 _No unreleased changes._
 
+## [0.6.20] - 2026-11-02 — selector v0.2.0 (fix removed contrast surface + roles)
+
+### Fixed
+
+- `ags-wallpaper-selector` pin `v0.1.0` → `v0.2.0`: the selector no longer
+  calls the icon-contrast surface deleted by runtime v0.5.1
+  (`icons preference`, `wallpaper set --contrast`, `icons regenerate
+  --contrast`). That regression made wallpaper apply fail from the GUI; apply
+  is now exactly `dotfiles-runtime wallpaper set <image>`. The contrast toggle
+  UI/state/store is removed, not replaced.
+- The selector CSS moves to `palette.v1` roles (`@primary`,
+  `@on_primary(_container)`, `@surface_container`, `@on_surface`) — zero
+  `@color_*` references.
+- Proven: `dotfiles-runtime wallpaper set <current wallpaper>` exits 0 and
+  lands in history; selector gates green with the new platform pin.
+
 ## [0.6.19] - 2026-11-01 — bar v0.2.0 (first consumer on semantic roles)
 
 ### Changed
