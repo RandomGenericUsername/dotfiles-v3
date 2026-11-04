@@ -17,6 +17,21 @@ this summary:
 
 _No unreleased changes._
 
+## [0.6.35] - 2026-11-04 — unified recording controls (PIN-0140)
+
+### Changed
+
+- `ags-platform` `v0.4.0` → `v0.5.0`: adds the `capture-cluster` request
+  contract used by the capture-drawn top-bar cluster.
+- `ags-bar` `v0.2.0` → `v0.3.0`: the bar reserves a recording slot and asks
+  capture to draw it; the slot exists only in `top-bar` presentation mode.
+- `ags-capture-tool` `v0.2.4` → `v0.3.1`: one `recording_controls` setting
+  (`top-bar` / `hover` / `always`), shared `.rec-*` design across the top-bar
+  cluster and the native hover bar, and an on-disk migration from
+  `bar.recording_hud`.
+- Installer engine pin `v0.1.32` → `v0.1.33` for the new platform mirror.
+
+
 ## [0.6.34] - 2026-11-04 — wallpaper-selector v0.2.1 (hoverbar spacing)
 
 ### Fixed

@@ -31,9 +31,9 @@ All seven entries are `owner: standalone`; `ags_apps_units` is the only owner.
 
 | app | repo | tag | installDir | instance | configDir / links | launcher | autostart | launch | binLink | cutover |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `bar` | `ags-bar` | v0.1.3 | `bar` | `ags` | `ags` | — | `ags` | always | — | REQ-015 |
+| `bar` | `ags-bar` | v0.3.0 | `bar` | `ags` | `ags` | — | `ags` | always | — | REQ-015 |
 | `notifications` | `ags-notifications` | v0.1.0 | `notifications` | `notifications` | `ags-notifications` | — | `notifications` | always | — | REQ-012 |
-| `capture` | `ags-capture-tool` | v0.1.0 | `capture` | `capture` | `ags-capture` | `capture-ui` | `capture` | on-demand | `capture-tool` | REQ-011 |
+| `capture` | `ags-capture-tool` | v0.3.1 | `capture` | `capture` | `ags-capture` | `capture-ui` | `capture` | on-demand | `capture-tool` | REQ-011 |
 | `clipboard` | `ags-clipboard` | v0.1.0 | `clipboard` | `clipboard` | `ags-clipboard` | `clipboard-ui` | `clipboard` | on-demand | — | REQ-009 |
 | `wallpaper-selector` | `ags-wallpaper-selector` | v0.1.0 | `wallpaper-selector` | `wallpaper-selector` | `ags-wallpaper-selector` | `wallpaper-selector-ui` | — | on-demand | — | REQ-013 |
 | `icme` | `ags-icme` | v0.1.0 | `icme` | `icon-color-mapping-editor` | `ags-icme` | `icon-color-mapping-editor` | — | on-demand | — | REQ-014 |
@@ -71,7 +71,7 @@ is the app id while `capture-tool` is its bin command; `installDir` is
 
 ```yaml
 schemaVersion: 1
-ags-platform: v0.3.0
+ags-platform: v0.5.0
 contracts: v0.3.0
 dotfiles-assets: v0.6.2
 ```
