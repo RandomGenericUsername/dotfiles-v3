@@ -17,6 +17,17 @@ this summary:
 
 _No unreleased changes._
 
+## [0.6.34] - 2026-11-04 — wallpaper-selector v0.2.1 (hoverbar spacing)
+
+### Fixed
+
+- `ags-wallpaper-selector` pin `v0.2.0` → `v0.2.1`: the L1 hover toolbar's
+  Apply pill now sits symmetrically inside its dark container. Both the
+  hoverbar and the button carried the same right/bottom margin, so the button
+  was flush on the top/left and inset 6px on the bottom/right. The hoverbar now
+  owns even padding and the button has no margin. Adds a static hoverbar-layout
+  regression test (BUG-003).
+
 ## [0.6.33] - 2026-11-04 — tpr v0.5.4 (terminal chrome fix)
 
 ### Fixed
