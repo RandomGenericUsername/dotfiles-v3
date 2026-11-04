@@ -17,6 +17,22 @@ this summary:
 
 _No unreleased changes._
 
+## [0.6.24] - 2026-11-04 — feedback batch F1/F2 (tpr v0.5.1, runtime v0.5.2)
+
+### Fixed
+
+- `tpr` pin `v0.5.0` → `v0.5.1`: the `colors.rasi` projection now emits a valid
+  rofi theme (`* { name: value; }`), not GTK `@define-color`. Rofi role
+  identifiers are hyphenated (`on_surface` → `on-surface`) because rasi
+  identifiers cannot contain underscores; `color00..15` are unchanged. This
+  fixes the launcher parse error (feedback F2 / tpr BUG-004).
+- `dotfiles-runtime` pin `v0.5.1` → `v0.5.2`: manifest discovery attributes a
+  bare `ags run` (the bar) to its default config dir
+  (`$XDG_CONFIG_HOME/ags` from the process environment), so the bar is no
+  longer reported as “owned by a process outside the deployed link” and is
+  restarted on palette changes. Foreign processes still fail closed
+  (feedback F1 / runtime BUG-008).
+
 ## [0.6.23] - 2026-11-02 — ICME v0.2.0 (final consumer; window identity fixed)
 
 ### Changed / Fixed
