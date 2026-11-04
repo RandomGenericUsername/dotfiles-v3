@@ -17,6 +17,18 @@ this summary:
 
 _No unreleased changes._
 
+## [0.6.27] - 2026-11-04 — capture v0.2.1 (Settings card, tiny-region move)
+
+### Fixed
+
+- `ags-capture-tool` `v0.2.0` → `v0.2.1`: the S4 Settings view now paints an
+  opaque `@surface` card (border + radius) while the capture window stays
+  transparent; Settings labels are readable over arbitrary windows
+  (BUG-001 / feedback C17).
+- Minimal-size regions now have a centre move zone: handle hit radius is
+  clamped per axis so a ~15×15 rect can be moved, while corners/edges still
+  resize (BUG-002 / feedback C5).
+
 ## [0.6.26] - 2026-11-04 — notifications v0.2.1 (opaque cards, F3)
 
 ### Fixed
