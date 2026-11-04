@@ -17,6 +17,18 @@ this summary:
 
 _No unreleased changes._
 
+## [0.6.32] - 2026-11-04 — tpr v0.5.3 (ANSI fully wallpaper-derived)
+
+### Changed
+
+- `tpr` pin `v0.5.2` → `v0.5.3`: the 16 ANSI slots are now a direct Material-role
+  mapping in the canonical legacy order (surface, error, tertiary, secondary,
+  primary, surface_variant, outline_variant, on_surface, outline, *_container,
+  surface_container, surface_container_high, on_surface_variant). The fixed
+  hue-anchor/saturation recipe is removed. Terminals now use the wallpaper's
+  actual palette; standard red/green/blue ANSI semantics are intentionally not
+  preserved (JD decision). Kitty/OSC templates and runtime wiring unchanged.
+
 ## [0.6.31] - 2026-11-04 — tpr v0.5.2 (theme-tinted ANSI terminal palette)
 
 ### Changed
