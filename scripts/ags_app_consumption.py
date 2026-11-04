@@ -94,7 +94,7 @@ EXPECTED_APPS = frozenset(
 FINAL_APP_RELEASES = {
     "bar": (
         "https://github.com/RandomGenericUsername/ags-bar.git",
-        "v0.2.0",
+        "v0.3.0",
     ),
     "notifications": (
         "https://github.com/RandomGenericUsername/ags-notifications.git",
@@ -102,7 +102,7 @@ FINAL_APP_RELEASES = {
     ),
     "capture": (
         "https://github.com/RandomGenericUsername/ags-capture-tool.git",
-        "v0.2.4",
+        "v0.3.1",
     ),
     "clipboard": (
         "https://github.com/RandomGenericUsername/ags-clipboard.git",
