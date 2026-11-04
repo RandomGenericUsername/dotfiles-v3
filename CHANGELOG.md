@@ -17,6 +17,17 @@ this summary:
 
 _No unreleased changes._
 
+## [0.6.33] - 2026-11-04 — tpr v0.5.4 (terminal chrome fix)
+
+### Fixed
+
+- `tpr` pin `v0.5.3` → `v0.5.4`: kitty/OSC terminal chrome now resolves
+  `background`/`foreground`/`cursor` from the semantic Material roles
+  (`surface`/`on_surface`) instead of ANSI slot 15. With the role-derived ANSI
+  table, slot 15 is `on_surface_variant`, so v0.5.3 rendered terminal text with
+  the dimmer variant (`#d7c1c1` instead of `#f0dede`). The 16-slot ANSI table
+  itself is unchanged and remains fully wallpaper-derived (REQ-024/025).
+
 ## [0.6.32] - 2026-11-04 — tpr v0.5.3 (ANSI fully wallpaper-derived)
 
 ### Changed
