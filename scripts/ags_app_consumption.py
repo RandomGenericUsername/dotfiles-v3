@@ -102,7 +102,7 @@ FINAL_APP_RELEASES = {
     ),
     "capture": (
         "https://github.com/RandomGenericUsername/ags-capture-tool.git",
-        "v0.2.2",
+        "v0.2.3",
     ),
     "clipboard": (
         "https://github.com/RandomGenericUsername/ags-clipboard.git",

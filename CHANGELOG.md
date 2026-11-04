@@ -17,6 +17,17 @@ this summary:
 
 _No unreleased changes._
 
+## [0.6.29] - 2026-11-04 — capture v0.2.3 (exact bar hover region)
+
+### Changed
+
+- `ags-capture-tool` `v0.2.2` → `v0.2.3`: the hover reveal now tracks the
+  **actual resting bar rectangle** (measured 142×54, centred) instead of the
+  S1 recording lane (1506×54). The lane was 35.5% of a 1920 screen per side,
+  which made the trigger feel too wide. 0px tolerance; config position/offset
+  and monitor connector are honored, and a cross-monitor mismatch disables
+  reveal. Fallback to the previous window footprint if measurement fails.
+
 ## [0.6.28] - 2026-11-04 — capture v0.2.2 (full-region hover reveal)
 
 ### Changed
