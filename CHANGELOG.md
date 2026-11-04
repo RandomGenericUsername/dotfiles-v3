@@ -17,6 +17,17 @@ this summary:
 
 _No unreleased changes._
 
+## [0.6.30] - 2026-11-04 — capture v0.2.4 (hover controls usable)
+
+### Fixed
+
+- `ags-capture-tool` `v0.2.3` → `v0.2.4`: the hover reveal now stays mapped
+  while the pointer is over the expanded HUD and its Pause/Stop popover, not
+  just the resting 142×54 bar. Adds a 200 ms leave grace, press/release holds
+  so a click cannot lose the surface mid-press, and keeps the exact resting
+  trigger + hidden click-through. Measured expanded surfaces: compact
+  popover 220×92 at 850,937; non-compact bar 243×46 at 839,1034.
+
 ## [0.6.29] - 2026-11-04 — capture v0.2.3 (exact bar hover region)
 
 ### Changed
