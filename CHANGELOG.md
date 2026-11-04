@@ -92,10 +92,15 @@ _No unreleased changes._
 - `ags-notifications` `v0.1.0` → `v0.2.0`: CSS on `palette.v1` roles — ink
   `@on_surface`, plates `@surface`, accent tiles/chips `@primary`, all
   critical states `@error`/`@error_container`. Real notification cards captured.
-- `ags-capture-tool` `v0.1.0` → `v0.2.0`: ink `@on_surface`, selection/action
+- `ags-capture-tool` `v0.1.0` → `v0.2.0`: the release is the capture-bar
+  redesign (centred three-page panel → 142×54 resting rail), not only a
+  colour-token change. Role migration: ink `@on_surface`, selection/action
   `@primary`+`@on_primary`, muted hairline `@outline_variant`, recording and
-  settings errors `@error`; geometry unchanged (measured 1123×54 at the same
-  position).
+  settings errors `@error`, recording ink `@on_error`. The earlier
+  "geometry unchanged (measured 1123×54 at the same position)" claim was
+  scoped wrong: that measurement compared the new code's S1 lane before and
+  after REQ-005 (`style.css` only), not `v0.1.0` against `v0.2.0`.
+  (Corrected 2026-11-04.)
 - `ags-clipboard` `v0.1.0` → `v0.2.0`: neutral `@surface_container` search,
   `@error_container` destructive Clear, `@tertiary` decorative type headers,
   `@primary` accent ink; all text pairs ≥ 7:1 on the live palette.
