@@ -17,6 +17,21 @@ this summary:
 
 _No unreleased changes._
 
+## [0.6.25] - 2026-11-04 — assets v0.6.4 + engine v0.1.32 (rofi/wlogout roles)
+
+### Fixed
+
+- `dotfiles-assets` pin `v0.6.3` → `v0.6.4`: the rofi launcher config and
+  wlogout template move from CSG carrier tokens to `palette.v1` roles. Rofi's
+  window/field used `@color01` = Material **error** (invariant across all
+  palettes), so it never changed color with the wallpaper; it now uses
+  `@surface-container` / `@surface-container-high` / `@primary` /
+  `@primary-container` / `@on-surface`, and wlogout uses `@on_surface` /
+  `@primary_container`. No geometry/behavior change.
+- Installer engine pin `v0.1.31` → `v0.1.32`: corpus mirrors and fixture
+  manifests move to `v0.6.4` (known mirror debt remains; single-sourcing the
+  corpus pin from `assets.yaml` is the follow-up).
+
 ## [0.6.24] - 2026-11-04 — feedback batch F1/F2 (tpr v0.5.1, runtime v0.5.2)
 
 ### Fixed

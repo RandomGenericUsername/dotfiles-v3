@@ -20,7 +20,7 @@ kind: assets
 
 assets:
   repo: https://github.com/RandomGenericUsername/dotfiles-assets
-  tag: v0.6.3
+  tag: v0.6.4
   classes:
     icons:     { dest: icons,     schema: icons/schema.json }
     templates: { dest: templates, schema: "**/*.vars.schema.json" }
@@ -31,13 +31,13 @@ assets:
 entries:
   - name: wallpapers
     kind: wallpaper
-    source: "{{ install_dir | trim }}/assets/v0.6.3/content/wallpapers/wallpapers.tar.gz"
+    source: "{{ install_dir | trim }}/assets/v0.6.4/content/wallpapers/wallpapers.tar.gz"
   - name: icon-templates
     kind: icon-template
-    source: "{{ install_dir | trim }}/assets/v0.6.3/icons/templates/"
+    source: "{{ install_dir | trim }}/assets/v0.6.4/icons/templates/"
   - name: icon-mappings
     kind: icon-mapping
-    source: "{{ install_dir | trim }}/assets/v0.6.3/icons/mappings/"
+    source: "{{ install_dir | trim }}/assets/v0.6.4/icons/mappings/"
   - name: tpr-templates
     kind: tpr-template
     # Mirror of the engine's `assets_checkout_copies` entry: the palette
