@@ -98,7 +98,7 @@ FINAL_APP_RELEASES = {
     ),
     "notifications": (
         "https://github.com/RandomGenericUsername/ags-notifications.git",
-        "v0.2.0",
+        "v0.2.1",
     ),
     "capture": (
         "https://github.com/RandomGenericUsername/ags-capture-tool.git",

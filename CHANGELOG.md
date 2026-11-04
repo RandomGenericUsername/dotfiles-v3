@@ -17,6 +17,15 @@ this summary:
 
 _No unreleased changes._
 
+## [0.6.26] - 2026-11-04 — notifications v0.2.1 (opaque cards, F3)
+
+### Fixed
+
+- `ags-notifications` `v0.2.0` → `v0.2.1`: notification cards are opaque
+  (`@surface`) instead of `alpha(@surface, 0.92)`. Notifications overlay
+  arbitrary windows, so the old 8% transparency let window text bleed through
+  the wallpaper-completion card (F3). Regression test added.
+
 ## [0.6.25] - 2026-11-04 — assets v0.6.4 + engine v0.1.32 (rofi/wlogout roles)
 
 ### Fixed

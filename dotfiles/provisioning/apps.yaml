@@ -48,7 +48,7 @@ apps:
     installDir: notifications
     owner: standalone
     repo: https://github.com/RandomGenericUsername/ags-notifications.git
-    tag: v0.2.0
+    tag: v0.2.1
     instance: notifications
     configDir: ags-notifications
     configLink: ags-notifications
