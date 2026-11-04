@@ -17,6 +17,17 @@ this summary:
 
 _No unreleased changes._
 
+## [0.6.31] - 2026-11-04 — tpr v0.5.2 (theme-tinted ANSI terminal palette)
+
+### Changed
+
+- `tpr` pin `v0.5.1` → `v0.5.2`: the 16-color ANSI table used by kitty and OSC
+  sequences now tints each fixed hue anchor up to 30% toward the wallpaper's
+  primary (25° family bound) while keeping six distinct ANSI hues (40° minimum
+  separation, backing off if needed). Saturation window drops from
+  0.45–0.85 to 0.35–0.65. Terminals now read as part of the wallpaper theme
+  instead of a fixed rainbow; red/green/blue semantics are preserved.
+
 ## [0.6.30] - 2026-11-04 — capture v0.2.4 (hover controls usable)
 
 ### Fixed
