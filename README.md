@@ -73,6 +73,7 @@ active-theme is host state in the install spine).
 
 - **Live:** [`ARCHITECTURE.md`](ARCHITECTURE.md), [`AGENTS.md`](AGENTS.md),
   [`docs/WORKSPACE.md`](docs/WORKSPACE.md), `docs/02-config-in-spine-pattern.md`.
+- **[`docs/103-recording-controls-presentation.md`](docs/103-recording-controls-presentation.md)** — recording-controls ownership, modes and capture/bar coupling.
 - **Historical (kept for provenance):** `docs/99-*`, `docs/100-*`, `docs/101-*`,
   `docs/investigation/`, `_bmad-output/`, `spikes/`, `prototypes/`,
   `openspec/changes/archive/`.
