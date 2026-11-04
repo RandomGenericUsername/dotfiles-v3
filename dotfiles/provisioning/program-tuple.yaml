@@ -10,6 +10,6 @@
 # schemas/program-tuple.schema.json) and `make deploy-coverage` validates the
 # shape plus the engine/assets pin agreement.
 schemaVersion: 1
-ags-platform: v0.4.0
+ags-platform: v0.5.0
 contracts: v0.3.0
 dotfiles-assets: v0.6.4

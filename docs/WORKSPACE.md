@@ -52,12 +52,12 @@ and **which tag each consumer pins**. It is the cross-project companion to each 
 | `dotfiles-v3` | installer engine `dotfiles-provision` | `v0.1.27` | `dotfiles/provisioning/installer.pin` |
 | `dotfiles-v3` | corpus `dotfiles-assets` | `v0.6.2` | `dotfiles/provisioning/assets.yaml` |
 | `dotfiles-v3` | CLIs `weg`/`itr`/`tpr` + runtime `dotfiles-runtime` | `weg/itr v0.2.0` / `tpr v0.4.0` / `runtime v0.4.1` | `dotfiles/provisioning/cli-tools.yaml` |
-| `dotfiles-v3` | program tuple `ags-platform` / `contracts` / `dotfiles-assets` | `v0.3.0` / `v0.3.0` / `v0.6.2` | `dotfiles/provisioning/program-tuple.yaml` |
-| `dotfiles-v3` | seven AGS app units (bar + notifications/capture/clipboard/wallpaper-selector/icme/btop-theme-studio) | `ags-bar v0.1.3`; five `v0.1.0`; `ags-btop-theme-studio v0.1.2` | `dotfiles/provisioning/apps.yaml` |
+| `dotfiles-v3` | program tuple `ags-platform` / `contracts` / `dotfiles-assets` | `v0.5.0` / `v0.3.0` / `v0.6.4` | `dotfiles/provisioning/program-tuple.yaml` |
+| `dotfiles-v3` | seven AGS app units (bar + notifications/capture/clipboard/wallpaper-selector/icme/btop-theme-studio) | `ags-bar v0.3.0`; `ags-capture-tool v0.3.1`; other app tags per `apps.yaml` | `dotfiles/provisioning/apps.yaml` |
 | `dotfiles-runtime` | `cli-output` | `v0.1.0` | runtime `pyproject.toml` |
 | `dotfiles-runtime` | `contracts` | `v0.4.0` | runtime `pyproject.toml` |
 | `theme-producer` | `contracts` | `v0.4.0` | tpr `pyproject.toml` |
-| `dotfiles-provision` | `ags-platform` unit | `v0.3.0` | `ansible/roles/ags_platform/vars/main.yml` |
+| `dotfiles-provision` | `ags-platform` unit | `v0.5.0` | `ansible/roles/ags_platform/vars/main.yml` |
 | `dotfiles-assets` repo | its own release | `v0.6.2` | git tag (composition consumes the same) |
 
 A tag is never moved. A fix ships as a new tag. Consumer pin bumps edit the declared file first,
