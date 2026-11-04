@@ -17,6 +17,18 @@ this summary:
 
 _No unreleased changes._
 
+## [0.6.28] - 2026-11-04 — capture v0.2.2 (full-region hover reveal)
+
+### Changed
+
+- `ags-capture-tool` `v0.2.1` → `v0.2.2`: in `recording_hud=hover`, the bar is
+  now revealed when the pointer is anywhere over the normal bar region, not
+  only the 76×38 HUD row. The hidden S4 window stays **unmapped** (no input
+  surface, clicks pass through); a ~20 Hz Hyprland cursor-position poll
+  (persistent socket, `hyprctl` fallback) drives map/unmap. An arm-after-leave
+  guard keeps the first recorded frame clean when recording starts on the
+  Record CTA. Revealed HUD appears in the clip during interaction (D9).
+
 ## [0.6.27] - 2026-11-04 — capture v0.2.1 (Settings card, tiny-region move)
 
 ### Fixed
