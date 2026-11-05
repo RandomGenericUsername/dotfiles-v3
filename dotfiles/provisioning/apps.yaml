@@ -62,7 +62,7 @@ apps:
     installDir: capture
     owner: standalone
     repo: https://github.com/RandomGenericUsername/ags-capture-tool.git
-    tag: v0.3.1
+    tag: v0.4.0
     instance: capture
     configDir: ags-capture
     configLink: ags-capture
