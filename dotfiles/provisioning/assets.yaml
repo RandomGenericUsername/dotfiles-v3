@@ -22,7 +22,7 @@ kind: assets
 
 assets:
   repo: https://github.com/RandomGenericUsername/dotfiles-assets
-  tag: v0.12.2
+  tag: v0.13.0
   classes:
     icons:     { dest: icons,     schema: icons/schema.json }
     templates: { dest: templates, schema: "**/*.vars.schema.json" }
