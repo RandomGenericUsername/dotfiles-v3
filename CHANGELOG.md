@@ -15,7 +15,26 @@ this summary:
 
 ## [Unreleased]
 
-_No unreleased changes._
+### Added
+
+- `docs/105-appearance-plane-v2.md` — appearance-plane v2 RFC: the hot-skin
+  reload and stale-instance findings with code evidence, the single
+  `current/appearance` artifact/pointer interface, one composed provider and
+  refresh handler, token model v2, systemd supervision, migration waves and
+  acceptance.
+- `docs/epics/SKIN-PLANE-V2-appearance-plane.md` — epic rollup for the planned
+  cross-repo children and the frozen v2 decisions.
+
+### Changed
+
+- `docs/104-skin-plane-composition.md` now points forward to the v2 RFC and
+  states that v1 remains the live record until the v2 tuple lands.
+- `README.md` docs map lists the v2 RFC and epic.
+
+### Notes
+
+- Documentation-only RFC ticket. No composition pin, app tag or runtime pin is
+  changed; running apps still need a restart to pick up a v1 skin change.
 
 ## [0.6.37] - 2026-11-06 — per-app skin pointers
 

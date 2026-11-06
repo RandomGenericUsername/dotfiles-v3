@@ -1,10 +1,15 @@
 # 104 — the skin plane in the composition
 
-> **Status:** live (skin-plane cutover, 2026-11-05). This page is the
+> **Status:** live (skin-plane cutover, 2026-11-05) — **v1**. This page is the
 > composition-side view: where the data comes from, what the runtime publishes,
 > what each app consumes, and which boundary the program froze. The normative
 > vocabulary is `contracts` `skins.md` + its schemas; the renderer and apps live
 > in their pinned repos.
+>
+> **v2 is designed, not live.** [`docs/105-appearance-plane-v2.md`](./105-appearance-plane-v2.md)
+> replaces the v1 split palette/skin artifact, watch and provider with one
+> Appearance plane. Until that tuple lands, this page remains the authoritative
+> live record; v1 skin changes still require a restart.
 
 ## Boundary (what a skin is)
 

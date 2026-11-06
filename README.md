@@ -76,8 +76,10 @@ active-theme is host state in the install spine).
 
 - **Live:** [`ARCHITECTURE.md`](ARCHITECTURE.md), [`AGENTS.md`](AGENTS.md),
   [`docs/WORKSPACE.md`](docs/WORKSPACE.md), `docs/02-config-in-spine-pattern.md`.
-- **[`docs/104-skin-plane-composition.md`](docs/104-skin-plane-composition.md)** — skin-plane data path, runtime outputs, app factory, bar restart lane and `desired.json` selection.
+- **[`docs/105-appearance-plane-v2.md`](docs/105-appearance-plane-v2.md)** — appearance-plane v2 RFC: hot-reload/instance findings, one composed artifact/pointer/provider, token model v2, supervision and migration waves (design; no pin change).
+- **[`docs/104-skin-plane-composition.md`](docs/104-skin-plane-composition.md)** — skin-plane data path, runtime outputs, app factory, bar restart lane and `desired.json` selection (v1, live until v2).
 - **[`docs/103-recording-controls-presentation.md`](docs/103-recording-controls-presentation.md)** — recording-controls ownership, modes and capture/bar coupling.
+- **[`docs/epics/SKIN-PLANE-V2-appearance-plane.md`](docs/epics/SKIN-PLANE-V2-appearance-plane.md)** — appearance-plane v2 epic: planned children and frozen decisions.
 - **Historical (kept for provenance):** `docs/99-*`, `docs/100-*`, `docs/101-*`,
   `docs/investigation/`, `_bmad-output/`, `spikes/`, `prototypes/`,
   `openspec/changes/archive/`.
