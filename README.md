@@ -76,7 +76,7 @@ active-theme is host state in the install spine).
 
 - **Live:** [`ARCHITECTURE.md`](ARCHITECTURE.md), [`AGENTS.md`](AGENTS.md),
   [`docs/WORKSPACE.md`](docs/WORKSPACE.md), `docs/02-config-in-spine-pattern.md`.
-- **[`docs/106-generations-v3.md`](docs/106-generations-v3.md)** — generations v3 RFC: multi-pointer/two-pipeline/stale-ack findings with code and live evidence, one `generations/<genHash>` commit pointer, one `converge(intent)`, generation-bound apply/ack, artifact locality, lane policy, event-driven rules, GC and migration waves (design; no pin change).
+- **[`docs/107-generations-v3.md`](docs/107-generations-v3.md)** — generations v3 RFC: multi-pointer/two-pipeline/stale-ack findings with code and live evidence, one `generations/<genHash>` commit pointer, one `converge(intent)`, generation-bound apply/ack, artifact locality, lane policy, event-driven rules, GC and migration waves (design; no pin change).
 - **[`docs/epics/SKIN-PLANE-V3-generations.md`](docs/epics/SKIN-PLANE-V3-generations.md)** — generations v3 epic: planned contracts/runtime/platform/provision/apps/composition workstreams and acceptance.
 - **[`docs/105-appearance-plane-v2.md`](docs/105-appearance-plane-v2.md)** — appearance-plane v2 RFC: hot-reload/instance findings, one composed artifact/pointer/provider, token model v2, supervision and migration waves (live v2 until v3 cutover; no pin change in the RFC).
 - **[`docs/104-skin-plane-composition.md`](docs/104-skin-plane-composition.md)** — skin-plane data path, runtime outputs, app factory, bar restart lane and `desired.json` selection (v1, historical after v2).

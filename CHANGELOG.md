@@ -17,7 +17,7 @@ this summary:
 
 ### Added
 
-- `docs/106-generations-v3.md` — generations v3 RFC (`SKIN-PLANE-V3`): the
+- `docs/107-generations-v3.md` — generations v3 RFC (`SKIN-PLANE-V3`): the
   multi-pointer skew, daemon/CLI double pipeline, non-generation-bound ack,
   runtime-writes-into-tag and polling findings with code/live evidence; one
   `generations/<genHash>` commit pointer, one `converge(intent)`, the daemon job

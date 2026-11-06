@@ -4,7 +4,7 @@
 > **kind:** epic (container; the RFC ticket `SKIN-PLANE-V3` / slug
 > `generations-v3-rfc` carries the design)
 > **status:** **planned** (design only, 2026-11-06)
-> **design:** [`docs/106-generations-v3.md`](../106-generations-v3.md)
+> **design:** [`docs/107-generations-v3.md`](../107-generations-v3.md)
 > **predecessor:** [`docs/105-appearance-plane-v2.md`](../105-appearance-plane-v2.md)
 > **ticket:** worktree `.worktrees/SKIN-PLANE-V3/`, branch
 > `ticket/SKIN-PLANE-V3-generations-v3-rfc`
@@ -45,7 +45,7 @@ The live findings that force this epic are in the RFC:
 8. No workarounds: no second pointer, no second pipeline, no boolean ack.
 
 The full rationale, layout, manifest, transaction, crash matrix and tests are
-in [`docs/106`](../106-generations-v3.md).
+in [`docs/107`](../107-generations-v3.md).
 
 ## Child workstreams (planned)
 
