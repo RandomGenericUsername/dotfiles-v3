@@ -17,6 +17,16 @@ this summary:
 
 _No unreleased changes._
 
+## [0.6.37] - 2026-11-06 — per-app skin pointers
+
+### Changed
+
+- `dotfiles-runtime` `v0.8.1` → `v0.8.2`: the runtime now derives
+  `config/<configDir>/skin.css` + `skin.json` for every target that has a
+  `current/skins/<configDir>.css`, instead of only the bar. Stale
+  runtime-owned skin pointers are pruned; palette/theme pointers and
+  user-owned files are untouched.
+
 ## [0.6.36] - 2026-11-05 — skin-plane composition cutover (SKIN-PLANE)
 
 ### Changed
