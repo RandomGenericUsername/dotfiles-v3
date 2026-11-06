@@ -2,11 +2,11 @@
 
 > **id:** `SKIN-PLANE`
 > **kind:** epic (container only; the composition branch is the rollup record)
-> **status:** blocked (composition work complete; external engine mirror missing)
+> **status:** done
 > **slug:** `skin-plane-cutover`
 > **worktree:** `.worktrees/SKIN-PLANE/`
 > **branch:** `ticket/SKIN-PLANE-skin-plane-cutover`
-> **composition release:** untagged (gate not green)
+> **composition release:** tag `v0.1.36` (CHANGELOG `0.6.36`)
 
 This is the composition-side close of the skin-plane program. The children below
 live in their own repos, own their own gates and release tags, and are recorded
@@ -42,7 +42,7 @@ The skin plane is **appearance**, not structure:
 | `dotfiles-assets` | `req-009-skins-class`, `req-010-skins-parity`, `req-011-skins-value-types`, `req-012-skins-template-naming`, `req-013-skins-hairline-layout`, `req-014-skins-app-templates` | `v0.7.0` → `v0.11.0` | `skins/` class, parity, value types, `<configDir>` templates, hairlines, seven app templates |
 | `ags-platform` | `REQ-014-skin-port-adapter`, `REQ-015-skin-token-validation`, `REQ-016-skin-app-scope` | `v0.6.0` → `v0.8.0` | Skin port/adapter, per-token validation, `createAppSkin({ configDir })` |
 | `dotfiles-runtime` | `REQ-010-skins-derivation-layer`, `REQ-011-skins-interface-reconcile`, `REQ-012-skins-hairline-token` | `v0.7.0` → `v0.8.1` | Derivation, pointer/`skin.json` interface, 24-token vocabulary |
-| `dotfiles-provision` | `REQ-020-skin-plane-deploy`, `REQ-021-skins-assets-v011` | `v0.1.34`, `v0.1.35` | Deploy `<install>/skins`, verify seven templates + vendored contracts |
+| `dotfiles-provision` | `REQ-020-skin-plane-deploy`, `REQ-021-skins-assets-v011`, `REQ-022-ags-platform-v08-mirror` | `v0.1.34`, `v0.1.35`, `v0.1.36` | Deploy `<install>/skins`, verify seven templates + vendored contracts, platform mirror `v0.8.0` |
 | `ags-bar` | `REQ-003-skin-plane-pilot` | `v0.4.0` | Apply the bar skin last at USER priority; restart-only |
 | `ags-clipboard` | `REQ-003-skin-consumption` | `v0.3.0` | App-scoped skin consumption |
 | `ags-notifications` | `REQ-003-skin-consumption` | `v0.3.0` | App-scoped skin consumption |
