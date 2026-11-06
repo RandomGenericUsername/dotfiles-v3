@@ -13,7 +13,7 @@ The sibling repos are expected under `~/Development/dotfiles/`:
 dotfiles-v3          this repo: manifests, gates, bootstrap
 dotfiles-provision   installer engine: Ansible tree + Python orchestrator
 dotfiles-runtime     host runtime: wallpaper/state/cache, daemon, clipboard
-dotfiles-assets      pinned corpus: icons, templates, configs, content, desktop
+dotfiles-assets      pinned corpus: icons, templates, configs, content, desktop, skins
 ags-platform         pinned AGS platform: ports, adapters, event client
 ags-bar / ags-*      seven standalone AGS app repos (bar, notifications, capture-tool,
                      clipboard, wallpaper-selector, icme, btop-theme-studio)
@@ -36,23 +36,26 @@ set is `ARCHITECTURE.md` §4.1 and `make deploy-coverage`.
 ```bash
 ./bootstrap.sh                 # fresh machine: uv → engine → collections → bootstrap → verify
 make bootstrap ARGS="--ask-become-pass"   # same, through make
-make provision ARGS="verify --expected-engine-tag v0.1.27"  # installed console
+make provision ARGS="verify --expected-engine-tag v0.1.35"  # installed console
 make gates-ci                  # four composition gates
 make deploy-coverage           # pin-set + composition-only shape
 openspec validate --all        # spec/change baseline
 ```
 
-`bootstrap.sh` reads `dotfiles/provisioning/installer.pin` (currently `v0.1.27`), installs the
-engine from `git+…@tag`, fetches the pinned assets corpus (`v0.6.2`), and runs the aggregate.
-The engine is never edited here; neither is the runtime (`dotfiles-runtime@v0.4.1`, the tag
-engine `v0.1.27` consumes and verifies). The CLI set is `weg`/`itr` (compute
-providers) plus `tpr` (`theme-producer@v0.4.0`, the sole palette producer).
+`bootstrap.sh` reads `dotfiles/provisioning/installer.pin` (currently `v0.1.35`), installs the
+engine from `git+…@tag`, fetches the pinned assets corpus (`v0.11.0`), and runs the aggregate.
+The engine is never edited here; neither is the runtime (`dotfiles-runtime@v0.8.1`, the tag
+engine `v0.1.35` consumes and verifies). The CLI set is `weg`/`itr` (compute
+providers) plus `tpr` (`theme-producer@v0.5.4`, the sole palette producer).
 The pinned engine renders `config/dotfiles-runtime/producer.json` from its own
 `runtime_palette_producer` input; `bootstrap.sh` exports no producer variable
-(the retired csg rollback is gone). Engine `v0.1.27` installs the final all-standalone
-AGS topology: seven released app repos (`ags-bar v0.1.3`, five `v0.1.0`, and
-`ags-btop-theme-studio v0.1.2`) from
-`dotfiles/provisioning/apps.yaml`; the old `ags-apps` monorepo role is retired.
+(the retired csg rollback is gone). Engine `v0.1.35` installs the final all-standalone
+AGS topology: seven released app repos (`ags-bar v0.4.0`, the six app repos at
+their skin-plane tags) from `dotfiles/provisioning/apps.yaml`; the old
+`ags-apps` monorepo role is retired. The program tuple is
+`ags-platform v0.8.0` / `contracts v0.6.0` / `dotfiles-assets v0.11.0`; the
+deployed `skins/` class feeds the runtime skin plane (see
+[`docs/104-skin-plane-composition.md`](docs/104-skin-plane-composition.md)).
 
 ## What lives here
 
@@ -73,6 +76,7 @@ active-theme is host state in the install spine).
 
 - **Live:** [`ARCHITECTURE.md`](ARCHITECTURE.md), [`AGENTS.md`](AGENTS.md),
   [`docs/WORKSPACE.md`](docs/WORKSPACE.md), `docs/02-config-in-spine-pattern.md`.
+- **[`docs/104-skin-plane-composition.md`](docs/104-skin-plane-composition.md)** — skin-plane data path, runtime outputs, app factory, bar restart lane and `desired.json` selection.
 - **[`docs/103-recording-controls-presentation.md`](docs/103-recording-controls-presentation.md)** — recording-controls ownership, modes and capture/bar coupling.
 - **Historical (kept for provenance):** `docs/99-*`, `docs/100-*`, `docs/101-*`,
   `docs/investigation/`, `_bmad-output/`, `spikes/`, `prototypes/`,

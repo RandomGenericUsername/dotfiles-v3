@@ -17,6 +17,35 @@ this summary:
 
 _No unreleased changes._
 
+## [0.6.36] - 2026-11-05 — skin-plane composition cutover (SKIN-PLANE)
+
+### Changed
+
+- Program tuple `ags-platform v0.5.0` → `v0.8.0`, `contracts v0.3.0` →
+  `v0.6.0`, `dotfiles-assets v0.6.4` → `v0.11.0`.
+- Installer engine pin `v0.1.33` → `v0.1.35`; runtime
+  `v0.6.1` → `v0.8.1`.
+- `assets.yaml` grows the sixth `skins` class and the `<install>/skins` data
+  entry; `deploy-coverage` now expects six class dirs.
+- App tags: bar `v0.4.0`, notifications/capture/clipboard/wallpaper-selector/
+  icme/btop-theme-studio at their skin-plane releases (`capture v0.5.0`, the
+  other five `v0.3.0`).
+
+### Added
+
+- `docs/104-skin-plane-composition.md` — data path, runtime
+  `current/skins/<configDir>.css` + `current/skin.json`, `createAppSkin`,
+  bar restart lane and `desired.json` selection.
+- `docs/epics/SKIN-PLANE-skin-plane-cutover.md` — cross-repo child rollup and
+  the frozen boundary.
+
+### Known blocker
+
+- Engine `v0.1.35` still mirrors `ags_platform_version: v0.5.0` (installer and
+  verify) while the final tuple is `v0.8.0`. `make deploy-coverage` fails on
+  that skew; the composition release is untagged and unmerged until an engine
+  release moves both mirrors to `v0.8.0`.
+
 ## [0.6.35] - 2026-11-04 — unified recording controls (PIN-0140)
 
 ### Changed

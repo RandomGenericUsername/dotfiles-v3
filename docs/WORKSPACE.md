@@ -10,7 +10,7 @@ and **which tag each consumer pins**. It is the cross-project companion to each 
 ├── dotfiles-v3                 composition: app list, program tuple, manifests, gates, bootstrap
 ├── dotfiles-provision          installer engine: Ansible tree + Python orchestrator
 ├── dotfiles-runtime            host runtime: wallpaper/state/cache, daemon, clipboard
-├── dotfiles-assets             pinned corpus: icons, templates, configs, content, desktop
+├── dotfiles-assets             pinned corpus: icons, templates, configs, content, desktop, skins
 ├── ags-platform                pinned AGS platform: ports, shared adapters, event client
 ├── ags-bar                     standalone AGS bar (AGS instance `ags`)
 ├── ags-notifications           standalone notification overlay
@@ -37,7 +37,7 @@ and **which tag each consumer pins**. It is the cross-project companion to each 
 | `dotfiles-v3` | app list + program tuple, manifests, composition gates, `bootstrap.sh` | engine roles, runtime, corpus bytes, app source, CLI source |
 | `dotfiles-provision` | Ansible roles/playbooks/inventory, Python orchestrator, engine tests | composition manifests, runtime, corpus, app source |
 | `dotfiles-runtime` | host runtime: wallpaper/state/cache, daemon, clipboard, manifest-driven refresh | composition manifests, installer roles, corpus, app/CLI source |
-| `dotfiles-assets` | the five corpus classes and their validators | destinations, consumers, runtime state |
+| `dotfiles-assets` | the six corpus classes and their validators | destinations, consumers, runtime state |
 | `ags-platform` | reusable ports, shared adapters, event-contract client | app policy, dotfiles paths |
 | `ags-bar` / the six `ags-*` app repos | their app package, manifest, `palette-refresh` handler and tests | platform ports/adapters, dotfiles provisioning |
 | `ags-apps` | retired migration workshop; archive after the local tags are published | any live deployment surface |
@@ -49,26 +49,32 @@ and **which tag each consumer pins**. It is the cross-project companion to each 
 
 | Consumer | Pinned artifact | Tag | Declared in |
 | --- | --- | --- | --- |
-| `dotfiles-v3` | installer engine `dotfiles-provision` | `v0.1.27` | `dotfiles/provisioning/installer.pin` |
-| `dotfiles-v3` | corpus `dotfiles-assets` | `v0.6.2` | `dotfiles/provisioning/assets.yaml` |
-| `dotfiles-v3` | CLIs `weg`/`itr`/`tpr` + runtime `dotfiles-runtime` | `weg/itr v0.2.0` / `tpr v0.4.0` / `runtime v0.4.1` | `dotfiles/provisioning/cli-tools.yaml` |
-| `dotfiles-v3` | program tuple `ags-platform` / `contracts` / `dotfiles-assets` | `v0.5.0` / `v0.3.0` / `v0.6.4` | `dotfiles/provisioning/program-tuple.yaml` |
-| `dotfiles-v3` | seven AGS app units (bar + notifications/capture/clipboard/wallpaper-selector/icme/btop-theme-studio) | `ags-bar v0.3.0`; `ags-capture-tool v0.3.1`; other app tags per `apps.yaml` | `dotfiles/provisioning/apps.yaml` |
+| `dotfiles-v3` | installer engine `dotfiles-provision` | `v0.1.35` | `dotfiles/provisioning/installer.pin` |
+| `dotfiles-v3` | corpus `dotfiles-assets` | `v0.11.0` | `dotfiles/provisioning/assets.yaml` |
+| `dotfiles-v3` | CLIs `weg`/`itr`/`tpr` + runtime `dotfiles-runtime` | `weg/itr v0.2.0` / `tpr v0.5.4` / `runtime v0.8.1` | `dotfiles/provisioning/cli-tools.yaml` |
+| `dotfiles-v3` | program tuple `ags-platform` / `contracts` / `dotfiles-assets` | `v0.8.0` / `v0.6.0` / `v0.11.0` | `dotfiles/provisioning/program-tuple.yaml` |
+| `dotfiles-v3` | seven AGS app units (bar + notifications/capture/clipboard/wallpaper-selector/icme/btop-theme-studio) | `ags-bar v0.4.0`; `ags-capture-tool v0.5.0`; `ags-notifications`/`ags-clipboard`/`ags-wallpaper-selector`/`ags-icme`/`ags-btop-theme-studio` `v0.3.0` | `dotfiles/provisioning/apps.yaml` |
 | `dotfiles-runtime` | `cli-output` | `v0.1.0` | runtime `pyproject.toml` |
-| `dotfiles-runtime` | `contracts` | `v0.4.0` | runtime `pyproject.toml` |
-| `theme-producer` | `contracts` | `v0.4.0` | tpr `pyproject.toml` |
-| `dotfiles-provision` | `ags-platform` unit | `v0.5.0` | `ansible/roles/ags_platform/vars/main.yml` |
-| `dotfiles-assets` repo | its own release | `v0.6.2` | git tag (composition consumes the same) |
+| `dotfiles-runtime` | `contracts` (`cli-invocation-contract`) | `v0.4.0` | runtime `pyproject.toml` |
+| `theme-producer` | `contracts` (`cli-invocation-contract`) | `v0.4.0` | tpr `pyproject.toml` |
+| `dotfiles-provision` | `ags-platform` unit | `v0.5.0` (engine `v0.1.35` mirror; final composition tuple is `v0.8.0`) | `ansible/roles/ags_platform/vars/main.yml` |
+| `dotfiles-assets` repo | its own release | `v0.11.0` | git tag (composition consumes the same) |
 
 A tag is never moved. A fix ships as a new tag. Consumer pin bumps edit the declared file first,
 then the mirrors; `make deploy-coverage` fails on a half-edit.
 
-Runtime note: engine `v0.1.27` consumes and verifies `dotfiles-runtime v0.4.1`
-and `theme-producer v0.4.0` in `cli_tools` and `verify`; runtime and
-engine pins are aligned. `tpr` is the sole palette producer: the engine renders
+Runtime note: engine `v0.1.35` consumes and verifies `dotfiles-runtime v0.8.1`
+and `theme-producer v0.5.4` in `cli_tools` and `verify`. `tpr` is the sole
+palette producer: the engine renders
 `config/dotfiles-runtime/producer.json` from its own `runtime_palette_producer`
 input, and `bootstrap.sh` exports no producer variable. csg is retired from
 provisioning (runtime `v0.5.1` rejects it), so there is no csg rollback.
+
+Skin-plane note (live doc: [`104-skin-plane-composition.md`](./104-skin-plane-composition.md)):
+the `dotfiles-assets` `skins/` class deploys to `<install>/skins`; the runtime
+derives `current/skins/<configDir>.css` + `current/skin.json`; every app applies
+`createAppSkin({ configDir })`; the bar stays restart-only; and selection lives
+in runtime `desired.json` (`skin`, default `glass`).
 
 ## AGS app ownership and cutover
 

@@ -1,12 +1,14 @@
 # 102 — AGS app consumption (one list, one tuple, one owner)
 
-> **Status:** final all-standalone composition (2026-10-29). Engine `v0.1.27`
-> (pinned) installs the seven released app repos from the single list; the old
-> `ags-apps` monorepo role/playbook is gone. `dotfiles-assets` is `v0.6.2` and
-> `dotfiles-runtime` is `v0.4.1` (manifest-driven refresh). The seven app tags
-> and the closeout engine tag `v0.1.24` are published; the retired `ags-apps` repository is
-> archived. The composition is applied on the host and
-> `dotfiles-provision verify` exits 0; the program is closed out.
+> **Status:** final all-standalone skin-plane composition (2026-11-05). Engine
+> `v0.1.35` (pinned) installs the seven released app repos from the single list;
+> the old `ags-apps` monorepo role/playbook is gone. `dotfiles-assets` is
+> `v0.11.0` (six classes, including `skins`) and `dotfiles-runtime` is `v0.8.1`
+> (manifest-driven refresh + skin derivation). The seven app tags are the
+> skin-plane releases; the program tuple is `ags-platform v0.8.0` /
+> `contracts v0.6.0` / `dotfiles-assets v0.11.0`. The retired `ags-apps`
+> repository is archived. This composition release is the rollup record; the
+> host deploy is the user's step after the local tags are published.
 
 This is the composition owner's guide to the per-app AGS program defined by
 `ags-apps` EPIC-002 / REQ-008 and AD-31/AD-32.
@@ -17,9 +19,9 @@ This is the composition owner's guide to the per-app AGS program defined by
 | --- | --- | --- |
 | Which app exists, who owns it, and every deployment surface | `dotfiles/provisioning/apps.yaml` | `dotfiles-v3` |
 | The one `ags-platform` / `contracts` / `dotfiles-assets` tag triple | `dotfiles/provisioning/program-tuple.yaml` | `dotfiles-v3` |
-| App-list and tuple schema | `contracts` v0.3.0 `schemas/ags-apps-install-list.schema.json`, `schemas/program-tuple.schema.json` | `contracts` |
-| Install/cutover/verify behavior | `dotfiles-provision` REQ-008 (engine `v0.1.24`) | `dotfiles-provision` |
-| Manifest discovery, ledger, refresh lanes | `dotfiles-runtime` REQ-002 (`v0.3.0`) | `dotfiles-runtime` |
+| App-list and tuple schema | `contracts` v0.6.0 `schemas/ags-apps-install-list.schema.json`, `schemas/program-tuple.schema.json` | `contracts` |
+| Install/cutover/verify behavior | `dotfiles-provision` REQ-008/REQ-020/REQ-021 (engine `v0.1.35`) | `dotfiles-provision` |
+| Manifest discovery, ledger, refresh lanes, skin derivation | `dotfiles-runtime` REQ-002/REQ-010..REQ-012 (`v0.8.1`) | `dotfiles-runtime` |
 | Launcher/autostart/keybind surfaces | `dotfiles-provision` `ags_apps_units`, `dotfiles-assets` | those repos |
 
 There is **no second per-app list**. `ags_apps_units` owns every app surface;
@@ -31,19 +33,22 @@ All seven entries are `owner: standalone`; `ags_apps_units` is the only owner.
 
 | app | repo | tag | installDir | instance | configDir / links | launcher | autostart | launch | binLink | cutover |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `bar` | `ags-bar` | v0.3.0 | `bar` | `ags` | `ags` | — | `ags` | always | — | REQ-015 |
-| `notifications` | `ags-notifications` | v0.1.0 | `notifications` | `notifications` | `ags-notifications` | — | `notifications` | always | — | REQ-012 |
-| `capture` | `ags-capture-tool` | v0.3.1 | `capture` | `capture` | `ags-capture` | `capture-ui` | `capture` | on-demand | `capture-tool` | REQ-011 |
-| `clipboard` | `ags-clipboard` | v0.1.0 | `clipboard` | `clipboard` | `ags-clipboard` | `clipboard-ui` | `clipboard` | on-demand | — | REQ-009 |
-| `wallpaper-selector` | `ags-wallpaper-selector` | v0.1.0 | `wallpaper-selector` | `wallpaper-selector` | `ags-wallpaper-selector` | `wallpaper-selector-ui` | — | on-demand | — | REQ-013 |
-| `icme` | `ags-icme` | v0.1.0 | `icme` | `icon-color-mapping-editor` | `ags-icme` | `icon-color-mapping-editor` | — | on-demand | — | REQ-014 |
-| `btop-theme-studio` | `ags-btop-theme-studio` | v0.1.2 | `btop-theme-studio` | `btop-theme-studio` | `ags-btop-studio` | `btop-theme-studio` | — | on-demand | — | REQ-010 |
+| `bar` | `ags-bar` | v0.4.0 | `bar` | `ags` | `ags` | — | `ags` | always | — | REQ-015 |
+| `notifications` | `ags-notifications` | v0.3.0 | `notifications` | `notifications` | `ags-notifications` | — | `notifications` | always | — | REQ-012 |
+| `capture` | `ags-capture-tool` | v0.5.0 | `capture` | `capture` | `ags-capture` | `capture-ui` | `capture` | on-demand | `capture-tool` | REQ-011 |
+| `clipboard` | `ags-clipboard` | v0.3.0 | `clipboard` | `clipboard` | `ags-clipboard` | `clipboard-ui` | `clipboard` | on-demand | — | REQ-009 |
+| `wallpaper-selector` | `ags-wallpaper-selector` | v0.3.0 | `wallpaper-selector` | `wallpaper-selector` | `ags-wallpaper-selector` | `wallpaper-selector-ui` | — | on-demand | — | REQ-013 |
+| `icme` | `ags-icme` | v0.3.0 | `icme` | `icon-color-mapping-editor` | `ags-icme` | `icon-color-mapping-editor` | — | on-demand | — | REQ-014 |
+| `btop-theme-studio` | `ags-btop-theme-studio` | v0.3.0 | `btop-theme-studio` | `btop-theme-studio` | `ags-btop-studio` | `btop-theme-studio` | — | on-demand | — | REQ-010 |
 
-The bar's `v0.1.3` tag carries `colors.css` as a symlink to the runtime-owned
-`$XDG_STATE_HOME/dotfiles/current/colors.gtk.css` (verified by the engine's
-`barPalettePointer` contract); `icons.json` is the platform artifact. `capture`
-is the app id while `capture-tool` is its bin command; `installDir` is
-`capture`, not the repo stem.
+The bar's `v0.4.0` tag applies the skin plane last at USER priority and stays
+**restart-only** (no palette-refresh handler); it carries `colors.css` as a
+symlink to the runtime-owned `$XDG_STATE_HOME/dotfiles/current/colors.gtk.css`
+(verified by the engine's `barPalettePointer` contract). All seven app tags
+consume `createAppSkin({ configDir })`; `icons.json` is the platform artifact.
+`capture` is the app id while `capture-tool` is its bin command; `installDir`
+is `capture`, not the repo stem. The skin contract and deployment path are in
+[`104-skin-plane-composition.md`](./104-skin-plane-composition.md).
 
 ### Field semantics
 
@@ -71,9 +76,9 @@ is the app id while `capture-tool` is its bin command; `installDir` is
 
 ```yaml
 schemaVersion: 1
-ags-platform: v0.5.0
-contracts: v0.3.0
-dotfiles-assets: v0.6.2
+ags-platform: v0.8.0
+contracts: v0.6.0
+dotfiles-assets: v0.11.0
 ```
 
 - One tuple per install. Every standalone app resolves its `ags-platform` from
@@ -111,14 +116,14 @@ The composition-side closeout is done when the app list, tuple, engine pin,
 assets pin and docs are committed and the gates are green. The remaining
 external steps are **not** performed here:
 
-1. Publish the seven local app tags, the engine `v0.1.24`, assets `v0.6.2`
-   and runtime `v0.3.0` to their remotes. **Done.**
+1. Publish the local tags: the seven app repos, engine `v0.1.35`, assets
+   `v0.11.0`, runtime `v0.8.1`, platform `v0.8.0` and contracts `v0.6.0`.
+   **Pending** — they are local tags at composition-close time.
 2. Apply the composition on the host (`bootstrap`/`provision`) and run `verify`.
-   **Done** — `dotfiles-provision verify` → exit 0 (`returncode: 0`).
+   **User step** — this composition ticket never runs the deploy.
 3. Verify `ags list`, the XDG/spine/app links, launcher toggles, autostart
-   identity, bar `colors.css`, and the absence of `<install>/ags-apps/`.
-   **Done** — one live/restart owner per app; no host `ags-apps` or `hypr-pano`
-   surface remains.
+   identity, bar `colors.css`/`skin.css`, `desired.json` skin selection, and the
+   absence of `<install>/ags-apps/`. **User step** after the apply.
 4. Archive the retired `ags-apps` repository after publish. **Done.**
 
 ## Related tickets
@@ -131,3 +136,7 @@ external steps are **not** performed here:
   generic role, owner filters, quiesce/start, verify mirror, launch lock.
 - `dotfiles-runtime/tickets/REQ-002-ags-app-refresh/ticket.md` — manifest
   discovery, ledger, lanes and restart safety.
+- `contracts/tickets/REQ-011..REQ-014*`, `dotfiles-assets/tickets/req-009..req-014*`,
+  `ags-platform/tickets/REQ-014..REQ-016*`, `dotfiles-runtime/tickets/REQ-010..REQ-012*`
+  and `dotfiles-provision/tickets/REQ-020*/REQ-021*` — the skin-plane children;
+  the rollup is [`epics/SKIN-PLANE-skin-plane-cutover.md`](./epics/SKIN-PLANE-skin-plane-cutover.md).

@@ -2,11 +2,11 @@
 
 > **id:** `SKIN-PLANE`
 > **kind:** epic (container only; the composition branch is the rollup record)
-> **status:** done
+> **status:** blocked (composition work complete; external engine mirror missing)
 > **slug:** `skin-plane-cutover`
 > **worktree:** `.worktrees/SKIN-PLANE/`
 > **branch:** `ticket/SKIN-PLANE-skin-plane-cutover`
-> **composition release:** `v0.6.36`
+> **composition release:** untagged (gate not green)
 
 This is the composition-side close of the skin-plane program. The children below
 live in their own repos, own their own gates and release tags, and are recorded
@@ -70,8 +70,53 @@ The skin plane is **appearance**, not structure:
 - [x] The composition gates accept the final tuple/app inventory and reject drift.
 - [x] Live docs state the data path, runtime artifacts, app factory, bar restart lane and `desired.json` selection.
 - [x] Composition-only: no `bootstrap`, `apply`, install or live-desktop action was run by this epic.
-- [x] Release tag and fast-forward merge to `master` recorded in the closeout.
+- [ ] Release tag and fast-forward merge to `master` — **blocked** by the engine mirror below.
 
 ## Evidence / closeout
 
-_Filled by the implementation commit after the gates run._
+Composition branch: `ticket/SKIN-PLANE-skin-plane-cutover`. Files: the program
+tuple, assets/CLI/app manifests, the composition gate class list + app release
+inventory, and the live docs.
+
+Commands run on 2026-11-05 (local cache prepopulated from the local engine tag;
+no network, no deploy):
+
+```text
+$ make ci-gates-parity
+ci-gates-parity: PASS -- every gates-ci target has a CI job and every CI job is a gates-ci target (modulo the declared tables)
+rc=0
+
+$ make ansible-embedded-template-lint
+CHECK embedded templates in expression contexts (88 file(s) scanned under engine v0.1.35 ansible)
+ansible-embedded-template-lint: PASS
+rc=0
+
+$ make per-app-drift-symbol-suites
+OK: per-app contract drift + symbol suites green (no in-repo suites; all moved to the standalone app repos)
+rc=0
+
+$ make deploy-coverage
+CHECK pinned installer engine v0.1.35 at .../.dev/dotfiles-provision-v0.1.35
+FAIL: dotfiles/provisioning/program-tuple.yaml: ags-platform 'v0.8.0' is not resolved by ansible/roles/ags_platform/vars/main.yml `ags_platform_version` = 'v0.5.0'
+rc=2
+```
+
+The failure is a real cross-repo skew, not a composition typo: engine
+`v0.1.35` (REQ-020/REQ-021, assets v0.11.0) still mirrors
+`ags_platform_version: v0.5.0` and `verify_ags_platform_version: v0.5.0`.
+The final app tags need platform `v0.8.0` (`createAppSkin`), so pinning the
+tuple back to `v0.5.0` would break the apps and the shared
+`apps/node_modules/ags-platform` shortcut at apply time.
+
+Diagnostic only (not a gate): with a temporary copy of the engine checkout whose
+two platform mirrors were edited to `v0.8.0`, `make deploy-coverage` printed
+`PASS` and the same final tuple/app/assets/skins inventory. That proves the
+composition half is complete; the missing half is an engine release.
+
+**Required external fix:** cut `dotfiles-provision` with
+`ags_platform_version: v0.8.0` / `verify_ags_platform_version: v0.8.0`, then bump
+`installer.pin` to that tag and rerun `make deploy-coverage`. Do not merge this
+composition branch or tag it before that fix; the harness rule is that `master`
+only takes green gates.
+
+No `bootstrap`, `apply`, install, or live-desktop mutation was performed.

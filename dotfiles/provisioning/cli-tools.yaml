@@ -32,4 +32,4 @@ entries:
     tag: v0.5.4
   - name: dotfiles-runtime
     repo: https://github.com/RandomGenericUsername/dotfiles-runtime
-    tag: v0.6.1
+    tag: v0.8.1

@@ -6,10 +6,10 @@
 # <install>/apps/node_modules/ags-platform shortcut. A tuple bump is a
 # program-wide revalidation event, never part of a single-app cutover.
 #
-# The contracts repo owns the schema (v0.3.0,
+# The contracts repo owns the schema (v0.6.0,
 # schemas/program-tuple.schema.json) and `make deploy-coverage` validates the
 # shape plus the engine/assets pin agreement.
 schemaVersion: 1
-ags-platform: v0.5.0
-contracts: v0.3.0
-dotfiles-assets: v0.6.4
+ags-platform: v0.8.0
+contracts: v0.6.0
+dotfiles-assets: v0.11.0

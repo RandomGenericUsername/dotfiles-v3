@@ -30,15 +30,15 @@ WHAT IT ASSERTS.
       all-standalone lists and reject duplicate/owner/repo/tag violations; the
       pinned engine's fake-app cutover fixture (quiesce → install/start →
       verify → rollback) is present;
-  (f) the static config, template, desktop and asset corpora are the pinned
-      `dotfiles-assets` classes (no in-tree copy), and the retired in-repo
-      source/engine/corpus roots are absent;
+  (f) the static config, template, desktop, skins and asset corpora are the
+      pinned `dotfiles-assets` classes (no in-tree copy), and the retired
+      in-repo source/engine/corpus roots are absent;
   (g) the terminal composition-only shape: `src/` is absent, `dotfiles/` holds
       `provisioning/`, and the retired runtime/CLI/GUI/provisioning roots are
       gone.
 
 THE AGS APP GATE LIVES IN `scripts/ags_app_consumption.py`. It mirrors the
-contracts v0.3.0 structural rules (draft-07 + `x-uniqueKeys`) because a stock
+contracts v0.6.0 structural rules (draft-07 + `x-uniqueKeys`) because a stock
 checkout has no contracts clone, exercises the fixtures, and checks the final
 app list against the pinned engine's installer/verify/fixture shape. This gate
 calls it after the core pin/corpus guards.
@@ -187,7 +187,7 @@ DESKTOP_PIN_ROLE = "compositor_configs"
 ASSETS_MANIFEST = "dotfiles/provisioning/assets.yaml"
 ASSETS_ROLE_VARS = "ansible/roles/assets/vars/main.yml"
 VERIFY_ROLE_VARS = "ansible/roles/verify/vars/main.yml"
-ASSETS_CLASSES = ("icons", "templates", "configs", "content", "desktop")
+ASSETS_CLASSES = ("icons", "templates", "configs", "content", "desktop", "skins")
 _SEMVER_TAG = re.compile(r"^v\d+\.\d+\.\d+$")
 
 # S2: the static config corpus moved to the pinned `dotfiles-assets` repo
@@ -1127,10 +1127,10 @@ def assert_assets_shape(root: Path) -> tuple[str, tuple[str, ...]]:
     Four things, all CI-runnable (this repo only, no checkout, no network):
 
     * the manifest `assets:` block carries a `repo` and a SEMVER `tag`, and names
-      exactly the five class dirs with the schema-bearing ones declaring a
+      exactly the six class dirs with the schema-bearing ones declaring a
       contract (`configs`/`content` declare `null` — no schema to version);
     * the role mirror (`assets_repo` / `assets_pinned_tag` / `assets_classes`)
-      and the verify mirror (`verify_assets_pinned_tag` / the five class dirs)
+      and the verify mirror (`verify_assets_pinned_tag` / the six class dirs)
       agree with the manifest, so a pin bump cannot land on one side;
     * the AD-12 support window exists on BOTH sides, names exactly the
       schema-bearing classes, and is EQUAL — a widened window on one side would
@@ -1219,7 +1219,7 @@ def assert_assets_shape(root: Path) -> tuple[str, tuple[str, ...]]:
     ]
     if class_dirs != expected_dirs:
         raise ValueError(
-            f"{VERIFY_ROLE_VARS}: verify_assets_class_dirs must be the five class "
+            f"{VERIFY_ROLE_VARS}: verify_assets_class_dirs must be the six class "
             f"dirs under the pinned tag; expected {expected_dirs}, got {class_dirs}"
         )
 
@@ -1763,7 +1763,7 @@ def main() -> int:
         # the same set for human readers.
         installer_tag, cli_tags = assert_pin_set(root, assets_tag)
         # AD-31/AD-32: ONE app list and ONE program tuple. Validated against
-        # the contracts v0.3.0 structural rules (mirrored here so a stock
+        # the contracts v0.6.0 structural rules (mirrored here so a stock
         # checkout needs no contracts clone), the pinned engine's legacy-role
         # surfaces, and the committed legacy/mixed/all-standalone fixtures.
         # The fixture self-test runs on every gate invocation, so a broken

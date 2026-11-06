@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Composition-side validation for the per-app AGS consumption program.
 
-The `contracts` repo owns the canonical JSON Schemas (v0.3.0):
+The `contracts` repo owns the canonical JSON Schemas (v0.6.0):
 `schemas/ags-apps-install-list.schema.json` and
 `schemas/program-tuple.schema.json`. The composition gate must run on a stock
 checkout without a `contracts` checkout, so this module mirrors the schemas'
@@ -94,31 +94,31 @@ EXPECTED_APPS = frozenset(
 FINAL_APP_RELEASES = {
     "bar": (
         "https://github.com/RandomGenericUsername/ags-bar.git",
-        "v0.3.0",
+        "v0.4.0",
     ),
     "notifications": (
         "https://github.com/RandomGenericUsername/ags-notifications.git",
-        "v0.2.1",
+        "v0.3.0",
     ),
     "capture": (
         "https://github.com/RandomGenericUsername/ags-capture-tool.git",
-        "v0.4.0",
+        "v0.5.0",
     ),
     "clipboard": (
         "https://github.com/RandomGenericUsername/ags-clipboard.git",
-        "v0.2.0",
+        "v0.3.0",
     ),
     "wallpaper-selector": (
         "https://github.com/RandomGenericUsername/ags-wallpaper-selector.git",
-        "v0.2.1",
+        "v0.3.0",
     ),
     "icme": (
         "https://github.com/RandomGenericUsername/ags-icme.git",
-        "v0.2.0",
+        "v0.3.0",
     ),
     "btop-theme-studio": (
         "https://github.com/RandomGenericUsername/ags-btop-theme-studio.git",
-        "v0.2.0",
+        "v0.3.0",
     ),
 }
 
