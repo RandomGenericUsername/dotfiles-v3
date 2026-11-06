@@ -10,6 +10,12 @@
 > kept as the historical skin-plane record. This plane keeps the v1 boundary
 > that a skin is appearance, never structure; it replaces the v1
 > artifact/refresh/supervision mechanics.
+>
+> **Forward:** [`docs/106-generations-v3.md`](./106-generations-v3.md) is the
+> planned v3 design. It keeps this plane's composed artifact/provider and token
+> vocabulary, but replaces the multi-pointer `current/` family and the
+> daemon/CLI split with one committed generation and one `converge` function.
+> v2 remains the live plane until the v3 cutover; docs 106 changes no pin.
 
 ## Implementation status (cutover close)
 

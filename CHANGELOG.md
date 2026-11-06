@@ -17,6 +17,15 @@ this summary:
 
 ### Added
 
+- `docs/106-generations-v3.md` — generations v3 RFC (`SKIN-PLANE-V3`): the
+  multi-pointer skew, daemon/CLI double pipeline, non-generation-bound ack,
+  runtime-writes-into-tag and polling findings with code/live evidence; one
+  `generations/<genHash>` commit pointer, one `converge(intent)`, the daemon job
+  queue + fallback lock, generation-bound apply/ack, artifact locality, lane
+  policy, event-driven rules, GC, migration waves and acceptance tests.
+- `docs/epics/SKIN-PLANE-V3-generations.md` — generations v3 epic: planned
+  contracts/runtime/ags-platform/dotfiles-provision/apps/composition
+  workstreams and acceptance criteria; status `planned`.
 - `docs/105-appearance-plane-v2.md` — appearance-plane v2 RFC: the hot-skin
   reload and stale-instance findings with code evidence, the single
   `current/appearance` artifact/pointer interface, one composed provider and
@@ -27,14 +36,20 @@ this summary:
 
 ### Changed
 
+- `docs/105-appearance-plane-v2.md` now points forward to the v3 RFC and states
+  that v2 remains live until the v3 cutover.
 - `docs/104-skin-plane-composition.md` now points forward to the v2 RFC and
   states that v1 remains the live record until the v2 tuple lands.
-- `README.md` docs map lists the v2 RFC and epic.
+- `README.md` docs map lists the v3 RFC and epic, and marks v2 as live until
+  the v3 cutover.
 
 ### Notes
 
-- Documentation-only RFC ticket. No composition pin, app tag or runtime pin is
-  changed; running apps still need a restart to pick up a v1 skin change.
+- Documentation-only tickets. The v2 RFC did not change pins; the separate
+  `0.6.38` cutover did. `SKIN-PLANE-V3` (docs 106) is design only: no
+  composition pin, app tag or runtime pin is changed, and v2 remains live until
+  the v3 cutover. The RFC's acceptance tests are the cutover contract, not an
+  executed result.
 
 ## [0.6.38] - 2026-11-06 — appearance-plane v2 cutover (SKIN-PLANE-V2)
 
