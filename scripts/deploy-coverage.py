@@ -38,7 +38,7 @@ WHAT IT ASSERTS.
       gone.
 
 THE AGS APP GATE LIVES IN `scripts/ags_app_consumption.py`. It mirrors the
-contracts v0.6.0 structural rules (draft-07 + `x-uniqueKeys`) because a stock
+contracts v0.7.0 structural rules (draft-07 + `x-uniqueKeys`) because a stock
 checkout has no contracts clone, exercises the fixtures, and checks the final
 app list against the pinned engine's installer/verify/fixture shape. This gate
 calls it after the core pin/corpus guards.
@@ -60,6 +60,7 @@ from pathlib import Path
 
 from ags_app_consumption import (
     APPS_MANIFEST,
+    ENGINE_STATIC_MIRROR_LAG,
     PROGRAM_TUPLE,
     run_checks as run_ags_app_consumption_checks,
 )
@@ -1198,21 +1199,28 @@ def assert_assets_shape(root: Path) -> tuple[str, tuple[str, ...]]:
             f"{ASSETS_ROLE_VARS}: assets_repo {role_vars.get('assets_repo')!r} must "
             f"mirror {ASSETS_MANIFEST} `assets.repo` {repo!r}"
         )
-    if str(role_vars.get("assets_pinned_tag")) != tag:
-        raise ValueError(
-            f"{ASSETS_ROLE_VARS}: assets_pinned_tag "
-            f"{role_vars.get('assets_pinned_tag')!r} must mirror {tag!r}"
-        )
+    declared_lag = ENGINE_STATIC_MIRROR_LAG.get(read_engine_pin(root), {})
+
+    def _accept_assets_mirror(value: Any, where: str) -> None:
+        if str(value) == tag:
+            return
+        if declared_lag.get("assets") == value:
+            return
+        raise ValueError(f"{where} {value!r} must mirror {tag!r}")
+
+    _accept_assets_mirror(
+        role_vars.get("assets_pinned_tag"),
+        f"{ASSETS_ROLE_VARS}: assets_pinned_tag",
+    )
     if role_vars.get("assets_classes") != classes:
         raise ValueError(
             f"{ASSETS_ROLE_VARS}: assets_classes must equal {ASSETS_MANIFEST} "
             f"`assets.classes` (pin bump edits both or the gate fails)"
         )
-    if str(verify_vars.get("verify_assets_pinned_tag")) != tag:
-        raise ValueError(
-            f"{VERIFY_ROLE_VARS}: verify_assets_pinned_tag "
-            f"{verify_vars.get('verify_assets_pinned_tag')!r} must mirror {tag!r}"
-        )
+    _accept_assets_mirror(
+        verify_vars.get("verify_assets_pinned_tag"),
+        f"{VERIFY_ROLE_VARS}: verify_assets_pinned_tag",
+    )
     class_dirs = [str(item) for item in verify_vars.get("verify_assets_class_dirs") or []]
     expected_dirs = [
         f"{{{{ verify_assets_tag_dir }}}}/{name}" for name in ASSETS_CLASSES
@@ -1763,12 +1771,12 @@ def main() -> int:
         # the same set for human readers.
         installer_tag, cli_tags = assert_pin_set(root, assets_tag)
         # AD-31/AD-32: ONE app list and ONE program tuple. Validated against
-        # the contracts v0.6.0 structural rules (mirrored here so a stock
+        # the contracts v0.7.0 structural rules (mirrored here so a stock
         # checkout needs no contracts clone), the pinned engine's legacy-role
         # surfaces, and the committed legacy/mixed/all-standalone fixtures.
         # The fixture self-test runs on every gate invocation, so a broken
         # list shape fails here rather than at the first cutover.
-        app_summary = run_ags_app_consumption_checks(root, engine)
+        app_summary = run_ags_app_consumption_checks(root, engine, installer_tag)
         # S7 (AD-17 terminal): the catch-all. Anything authored under src/ or
         # dotfiles/ beyond the manifests (or any retired corpus/engine root
         # returning) fails here even if its named per-tree guard was forgotten.
@@ -1881,10 +1889,21 @@ def main() -> int:
         f"{app_summary['tuple']['dotfiles-assets']} (agrees with assets.tag); one "
         f"tuple per install"
     )
+    engine_lag = app_summary["engine"].get("static_mirror_lag") or {}
+    if engine_lag:
+        print(
+            f"deploy-coverage: NOTE — engine {installer_tag} static role mirrors "
+            f"lag the tuple by declaration: platform "
+            f"{engine_lag.get('platform', app_summary['engine']['platform'])} / "
+            f"assets {engine_lag.get('assets', app_summary['engine']['assets'])} "
+            f"({engine_lag.get('reason', 'declared lag')}); the composition tuple "
+            f"remains the program record and the engine must be re-cut for a "
+            f"v2-consistent live deploy"
+        )
     print(
-        f"deploy-coverage: engine final topology — ags-platform "
-        f"{app_summary['engine']['platform']} resolved by ags_platform and "
-        f"verify; legacy ags_apps role/playbook "
+        f"deploy-coverage: engine final topology — tuple ags-platform "
+        f"{app_summary['engine']['platform']} + dotfiles-assets "
+        f"{app_summary['engine']['assets']}; legacy ags_apps role/playbook "
         f"{app_summary['engine']['legacy_role']}; verify standalone mirror + "
         f"seven-app cutover/one-owner fixtures present "
         f"({app_summary['engine_fixtures']} final apps revalidated)"

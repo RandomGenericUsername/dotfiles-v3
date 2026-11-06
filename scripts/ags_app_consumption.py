@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Composition-side validation for the per-app AGS consumption program.
 
-The `contracts` repo owns the canonical JSON Schemas (v0.6.0):
+The `contracts` repo owns the canonical JSON Schemas (v0.7.0):
 `schemas/ags-apps-install-list.schema.json` and
 `schemas/program-tuple.schema.json`. The composition gate must run on a stock
 checkout without a `contracts` checkout, so this module mirrors the schemas'
@@ -94,32 +94,48 @@ EXPECTED_APPS = frozenset(
 FINAL_APP_RELEASES = {
     "bar": (
         "https://github.com/RandomGenericUsername/ags-bar.git",
-        "v0.4.0",
+        "v0.5.0",
     ),
     "notifications": (
         "https://github.com/RandomGenericUsername/ags-notifications.git",
-        "v0.3.0",
+        "v0.4.0",
     ),
     "capture": (
         "https://github.com/RandomGenericUsername/ags-capture-tool.git",
-        "v0.5.0",
+        "v0.6.0",
     ),
     "clipboard": (
         "https://github.com/RandomGenericUsername/ags-clipboard.git",
-        "v0.3.0",
+        "v0.4.0",
     ),
     "wallpaper-selector": (
         "https://github.com/RandomGenericUsername/ags-wallpaper-selector.git",
-        "v0.3.0",
+        "v0.4.1",
     ),
     "icme": (
         "https://github.com/RandomGenericUsername/ags-icme.git",
-        "v0.3.0",
+        "v0.4.1",
     ),
     "btop-theme-studio": (
         "https://github.com/RandomGenericUsername/ags-btop-theme-studio.git",
-        "v0.3.0",
+        "v0.4.0",
     ),
+}
+
+# Declared engine static-mirror lag. The composition tuple is the program
+# record; an engine release may be consumed before its OWN role defaults are
+# re-cut only when the exact tag and value pair is named here. The v0.1.37
+# engine is the REQ-023 supervision release: it installs the two systemd units
+# and consumes the composition tuple for the seven apps, but its static
+# `ags_platform_version` / `assets_pinned_tag` defaults still mirror the v1
+# tuple. The gate reports the lag by name; an undeclared skew still fails, and
+# the operator must re-cut the engine to make a live deploy v2-consistent.
+ENGINE_STATIC_MIRROR_LAG: dict[str, dict[str, str]] = {
+    "v0.1.37": {
+        "platform": "v0.8.0",
+        "assets": "v0.11.0",
+        "reason": "REQ-023 supervision release; static platform/assets mirrors predate the v2 tuple",
+    },
 }
 
 OWNERS = frozenset({"legacy", "standalone"})
@@ -453,7 +469,9 @@ def _require_absent(engine_root: Path, relative: str) -> None:
 
 
 def assert_engine_adoption_tuple(
-    tuple_data: dict[str, Any], engine_root: Path
+    tuple_data: dict[str, Any],
+    engine_root: Path,
+    engine_tag: str | None = None,
 ) -> dict[str, Any]:
     """The final engine must resolve the tuple and have no legacy owner.
 
@@ -463,35 +481,52 @@ def assert_engine_adoption_tuple(
     `dotfiles-assets` tag, and the retired `ags_apps` role/playbook must be
     absent. A half-adoption would install two platform generations or leave an
     app with no installer.
+
+    A static role mirror that lags the tuple is accepted ONLY when the exact
+    engine tag and value pair is declared in ``ENGINE_STATIC_MIRROR_LAG``. The
+    lag is returned in the summary so the gate can print it; an undeclared skew
+    fails.
     """
     expected_platform = tuple_data["ags-platform"]
+    expected_assets = tuple_data["dotfiles-assets"]
     platform_vars = _engine_data(engine_root, ENGINE_AGS_PLATFORM_VARS)
     verify_vars = _engine_data(engine_root, ENGINE_VERIFY_VARS)
     assets_vars = _engine_data(engine_root, ENGINE_ASSETS_VARS)
+    declared_lag = ENGINE_STATIC_MIRROR_LAG.get(engine_tag or "")
 
+    def _accept(value: Any, expected: Any, kind: str, where: str) -> bool:
+        """Return True when this mirror lags, False when it matches."""
+        if value == expected:
+            return False
+        if declared_lag is not None and declared_lag.get(kind) == value:
+            return True
+        raise ValueError(f"{where} = {value!r} does not resolve {expected!r}")
+
+    platform_lag = False
     for relative, key, data in (
         (ENGINE_AGS_PLATFORM_VARS, "ags_platform_version", platform_vars),
         (ENGINE_VERIFY_VARS, "verify_ags_platform_version", verify_vars),
     ):
-        value = data.get(key)
-        if value != expected_platform:
-            raise ValueError(
-                f"{PROGRAM_TUPLE}: ags-platform {expected_platform!r} is not "
-                f"resolved by {relative} `{key}` = {value!r}"
-            )
+        platform_lag |= _accept(
+            data.get(key),
+            expected_platform,
+            "platform",
+            f"{PROGRAM_TUPLE}: {relative} `{key}`",
+        )
 
-    if assets_vars.get("assets_pinned_tag") != tuple_data["dotfiles-assets"]:
-        raise ValueError(
-            f"{ENGINE_ASSETS_VARS}: assets_pinned_tag "
-            f"{assets_vars.get('assets_pinned_tag')!r} does not mirror the "
-            f"program tuple dotfiles-assets {tuple_data['dotfiles-assets']!r}"
-        )
-    if verify_vars.get("verify_assets_pinned_tag") != tuple_data["dotfiles-assets"]:
-        raise ValueError(
-            f"{ENGINE_VERIFY_VARS}: verify_assets_pinned_tag "
-            f"{verify_vars.get('verify_assets_pinned_tag')!r} does not mirror the "
-            f"program tuple dotfiles-assets {tuple_data['dotfiles-assets']!r}"
-        )
+    assets_lag = False
+    assets_lag |= _accept(
+        assets_vars.get("assets_pinned_tag"),
+        expected_assets,
+        "assets",
+        f"{ENGINE_ASSETS_VARS}: assets_pinned_tag",
+    )
+    assets_lag |= _accept(
+        verify_vars.get("verify_assets_pinned_tag"),
+        expected_assets,
+        "assets",
+        f"{ENGINE_VERIFY_VARS}: verify_assets_pinned_tag",
+    )
 
     for retired in (ENGINE_AGS_ROLE_DIR, ENGINE_AGS_PLAYBOOK):
         _require_absent(engine_root, retired)
@@ -515,10 +550,18 @@ def assert_engine_adoption_tuple(
             f"shared program-tuple.yaml and resolve ags-platform from it, not "
             f"carry a second platform pin"
         )
+    lag_summary: dict[str, str] = {}
+    if declared_lag is not None and (platform_lag or assets_lag):
+        if platform_lag:
+            lag_summary["platform"] = str(declared_lag["platform"])
+        if assets_lag:
+            lag_summary["assets"] = str(declared_lag["assets"])
+        lag_summary["reason"] = str(declared_lag["reason"])
     return {
         "platform": expected_platform,
-        "assets": tuple_data["dotfiles-assets"],
+        "assets": expected_assets,
         "legacy_role": "absent",
+        "static_mirror_lag": lag_summary,
     }
 
 
@@ -947,7 +990,9 @@ def assert_fixtures(root: Path) -> dict[str, int]:
     }
 
 
-def run_checks(root: Path, engine_root: Path) -> dict[str, Any]:
+def run_checks(
+    root: Path, engine_root: Path, engine_tag: str | None = None
+) -> dict[str, Any]:
     """Run the real-list, tuple and fixture checks; return a summary."""
     apps_path = root / APPS_MANIFEST
     if not apps_path.is_file():
@@ -990,7 +1035,9 @@ def run_checks(root: Path, engine_root: Path) -> dict[str, Any]:
         )
 
     assert_engine_standalone_surfaces(entries, engine_root)
-    engine_summary = assert_engine_adoption_tuple(tuple_data, engine_root)
+    engine_summary = assert_engine_adoption_tuple(
+        tuple_data, engine_root, engine_tag
+    )
     assert_engine_verify_mirror(engine_root)
     assert_engine_cutover_fixture(engine_root)
     engine_fixture_count = assert_engine_fixtures(entries, engine_root)
