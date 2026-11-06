@@ -36,6 +36,42 @@ this summary:
 - Documentation-only RFC ticket. No composition pin, app tag or runtime pin is
   changed; running apps still need a restart to pick up a v1 skin change.
 
+## [0.6.38] - 2026-11-06 — appearance-plane v2 cutover (SKIN-PLANE-V2)
+
+### Changed
+
+- Program tuple `ags-platform v0.8.0 → v0.9.0`, `contracts v0.6.0 → v0.7.0`,
+  `dotfiles-assets v0.11.0 → v0.12.2`. The v2 plane publishes one composed
+  appearance generation behind the single `current/appearance` pointer.
+- Installer engine pin `v0.1.36 → v0.1.37`; `dotfiles-runtime
+  v0.8.2 → v0.9.2`; `assets.yaml` tag `v0.11.0 → v0.12.2` with the `skins`
+  class kept.
+- App tags: bar `v0.5.0`, notifications `v0.4.0`, capture `v0.6.0`, clipboard
+  `v0.4.0`, wallpaper-selector `v0.4.1`, icme `v0.4.1`,
+  btop-theme-studio `v0.4.0`.
+- `scripts/ags_app_consumption.py` asserts the final released app tags;
+  `scripts/deploy-coverage.py` documents the contracts v0.7.0 rules.
+
+### Added
+
+- `docs/105-appearance-plane-v2.md` is now the live v2 record: implementation
+  status, the final device map (configDir, generation sheet, refresh lane,
+  supervision), the live tuple and the operator deploy command.
+- `docs/epics/SKIN-PLANE-V2-appearance-plane.md` is marked done with the full
+  cross-repo child rollup.
+- `docs/104-skin-plane-composition.md` is retained as the historical v1 record
+  and points at v2 as the live plane.
+
+### Notes
+
+- Cross-repo children: contracts REQ-015 v0.7.0; assets req-015 v0.12.0 +
+  req-016 v0.12.1 + req-017 v0.12.2; platform REQ-017 v0.9.0; runtime REQ-014
+  v0.9.0 / REQ-016 v0.9.1 / REQ-017 v0.9.2; provisioning REQ-023 v0.1.37;
+  bar REQ-004 v0.5.0; clipboard REQ-004 v0.4.0; notifications REQ-004 v0.4.0;
+  wallpaper REQ-003 v0.4.0 + REQ-004 v0.4.1; capture REQ-016 v0.6.0; icme
+  REQ-005 v0.4.0 + REQ-006 v0.4.1; btop REQ-004 v0.4.0.
+- Composition-only ticket: no bootstrap, apply or provision is run here.
+
 ## [0.6.37] - 2026-11-06 — per-app skin pointers
 
 ### Changed

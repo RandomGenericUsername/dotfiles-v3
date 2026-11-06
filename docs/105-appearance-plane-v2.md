@@ -1,14 +1,92 @@
-# 105 — Appearance plane v2 (RFC)
+# 105 — Appearance plane v2
 
-> **Status:** RFC / architecture ticket, 2026-11-06. This page is the design
-> record for the v2 appearance plane. It does **not** bump a composition pin and
-> does **not** change a live host. The normative vocabulary will be
-> `contracts` `v0.7.0`; the implementation lives in the pinned repos and lands
-> in the waves below.
+> **Status:** **live** (appearance-plane v2 cutover, 2026-11-06) — **v2**. This
+> page is both the frozen design record and the implementation status of the
+> plane now deployed by composition release `0.6.38`. The normative vocabulary
+> is `contracts` `v0.7.0`; the implementation lives in the pinned repos at the
+> releases listed below. `current/appearance` is the live, monitored pointer.
 >
-> v1 is [`docs/104-skin-plane-composition.md`](./104-skin-plane-composition.md).
-> This RFC keeps the v1 boundary that a skin is appearance, never structure; it
-> replaces the v1 artifact/refresh/supervision mechanics.
+> v1 is [`docs/104-skin-plane-composition.md`](./104-skin-plane-composition.md),
+> kept as the historical skin-plane record. This plane keeps the v1 boundary
+> that a skin is appearance, never structure; it replaces the v1
+> artifact/refresh/supervision mechanics.
+
+## Implementation status (cutover close)
+
+**Complete.** Every wave below shipped its own release and its own gates; this
+composition (`0.6.38`) consumes the final tags. The RFC's "does not bump a pin"
+constraint applied to the design ticket only — the wave-6 tuple bump is this
+cutover.
+
+| Wave | Repo | Child / requirement | Release | Status |
+| --- | --- | --- | --- | --- |
+| 0 | `contracts` | REQ-015 appearance plane v2 (artifact interface, token model v2, hash, fail-closed) | `v0.7.0` | done |
+| 1 | `dotfiles-runtime` | REQ-014 appearance generation (`cache/appearance/<hash>/`, `current/appearance`) | `v0.9.0` | done |
+| 1 | `dotfiles-runtime` | REQ-016 real v2 TOML manifests / flattened placeholders | `v0.9.1` | done |
+| 1 | `dotfiles-runtime` | REQ-017 doctor supervision leg (units, MainPID, bus owner, orphans, stale hash) | `v0.9.2` | done |
+| 2 | `ags-platform` | REQ-017 one Appearance adapter (one provider at 800, one monitor, one apply, refresh handler) | `v0.9.0` | done |
+| 3 | `dotfiles-assets` | req-015 v2 manifests | `v0.12.0` | done |
+| 3 | `dotfiles-assets` | req-016 v2 templates | `v0.12.1` | done |
+| 3 | `dotfiles-assets` | req-017 layout audit / final v2 corpus | `v0.12.2` | done |
+| 4 | `ags-bar` | REQ-004 appearance migration (appearance applied last; restart lane) | `v0.5.0` | done |
+| 4 | `ags-notifications` | REQ-004 appearance migration | `v0.4.0` | done |
+| 4 | `ags-capture-tool` | REQ-016 appearance migration | `v0.6.0` | done |
+| 4 | `ags-clipboard` | REQ-004 appearance migration (token ink, no luminance math) | `v0.4.0` | done |
+| 4 | `ags-wallpaper-selector` | REQ-003 v2 tokens + REQ-004 layout default | `v0.4.0` / `v0.4.1` | done |
+| 4 | `ags-icme` | REQ-005 v2 tokens + REQ-006 layout default | `v0.4.0` / `v0.4.1` | done |
+| 4 | `ags-btop-theme-studio` | REQ-004 appearance migration | `v0.4.0` | done |
+| 5 | `dotfiles-provision` | REQ-023 always-on `systemd --user` units + `ags-run-locked --exec` | `v0.1.37` | done |
+| 6 | `dotfiles-v3` | composition tuple/app pins, docs 105 live, docs 104 historical | `0.6.38` | done |
+
+The live tuple is:
+
+```yaml
+ags-platform: v0.9.0
+contracts: v0.7.0
+dotfiles-assets: v0.12.2
+# cli-tools.yaml
+dotfiles-runtime: v0.9.2
+# installer.pin
+v0.1.37
+```
+
+## Final device map
+
+One generation is published under the runtime state root; every consumer reads
+the same generation through the one monitored hop.
+
+```text
+$XDG_STATE_HOME/dotfiles/
+  cache/appearance/<appearanceHash>/
+    appearance.json          # manifest: hash/mode/palette/skin/digests/configDirs
+    colors.yaml              # typed palette (one source of palette truth)
+    tokens.json              # resolved v2 surface/state/type/ink/layout
+    <configDir>.css          # expanded composed sheet per target
+  current/appearance -> cache/appearance/<appearanceHash>/
+
+<install>/config/<configDir>/appearance.css -> current/appearance/<configDir>.css
+$XDG_CONFIG_HOME/<configDir> -> <install>/config/<configDir>
+```
+
+`current/appearance` is the **only** watched hop. The per-app
+`appearance.css` is a stable convenience link read after the event, never
+watched. The platform installs the composed sheet as one
+`Gtk.CssProvider` at USER priority (800), last.
+
+| App | `configDir` | Generation sheet | Refresh lane | Supervision |
+| --- | --- | --- | --- | --- |
+| bar | `ags` | `current/appearance/ags.css` | restart lane (serialized) | `dotfiles-ags-bar.service` (`ags`) |
+| notifications | `ags-notifications` | `current/appearance/ags-notifications.css` | live `palette-refresh` | `dotfiles-ags-notifications.service` (`notifications`) |
+| capture | `ags-capture` | `current/appearance/ags-capture.css` | live `palette-refresh` | on-demand launcher |
+| clipboard | `ags-clipboard` | `current/appearance/ags-clipboard.css` | live `palette-refresh` | on-demand launcher |
+| wallpaper-selector | `ags-wallpaper-selector` | `current/appearance/ags-wallpaper-selector.css` | live `palette-refresh` | on-demand launcher |
+| icme | `ags-icme` | `current/appearance/ags-icme.css` | live `palette-refresh` | on-demand launcher |
+| btop-theme-studio | `ags-btop-studio` | `current/appearance/ags-btop-studio.css` | live `palette-refresh` | on-demand launcher |
+
+The v1 `current/skins/`, `current/skin.json` and
+`config/<configDir>/skin.{css,json}` pointers are retained only as migration
+residue for an already-provisioned host; no v2 app reads them. Removing them is
+the follow-up runtime ticket `REQ-015-appearance-v1-pointer-removal`.
 
 ## 0. Decisions (frozen)
 
@@ -469,37 +547,38 @@ tag only after the wave is green. **This RFC bumps no pin.**
 | 5 | `dotfiles-provision` | install the two `systemd --user` units, extend `ags-run-locked` with `--exec`, wire unit enable/start/stop, doctor unit/bus/orphan checks | provisioning unit tests, verify role, no duplicate instances |
 | 6 | `dotfiles-v3` | tuple bump: `contracts v0.7.0`, platform/runtime/assets/apps/provision tags, docs 105 flips to live | `make ci-gates-parity`, `make deploy-coverage`, app/tuple gates |
 
-Dependency order is strict for 0 → 1 → 2 → 3 → 4 → 6; wave 5 can start after
-wave 2 because units only need the existing `ags quit`/launch semantics, but
-it must land before the tuple bump. Until wave 6, v1 remains live and running
-apps keep their v1 behavior; the accepted user-facing state is “restart to see
-a skin change”.
+Dependency order was strict for 0 → 1 → 2 → 3 → 4 → 6; wave 5 could start
+after wave 2 because units only need the existing `ags quit`/launch semantics,
+but it had to land before the tuple bump. **Wave 6 is complete:** v2 is live in
+composition `0.6.38`, every child above is released, and running apps consume
+`current/appearance`.
 
 ## 7. Acceptance
 
 Run on a live host with **all seven apps open** (`ags list` shows
 `ags`, `notifications`, `capture`, `clipboard`, `wallpaper-selector`,
-`icon-color-mapping-editor`, `btop-theme-studio`):
+`icon-color-mapping-editor`, `btop-theme-studio`). The v2 child tickets record
+this evidence; the checks are kept as the regression contract:
 
-1. **Hot skin change, no restart.** Record the pid of each live app; change
+1. ✅ **Hot skin change, no restart.** Record the pid of each live app; change
    `desired.json` `skin` (for example `glass` → `flat`) and reconcile. Every
    live app repaints (screenshot/pixel diff changes in the panel/card/control
    surfaces) while each pid is unchanged. The runtime output shows one
    `palette-refresh` per live app with a new appearance hash.
-2. **Palette change, no restart.** Change the wallpaper/palette and repeat;
+2. ✅ **Palette change, no restart.** Change the wallpaper/palette and repeat;
    the same apps repaint, including the clipboard headers whose contrast is now
    a token (no luminance math).
-3. **Bar restart lane.** The bar changes only through the serialized restart:
+3. ✅ **Bar restart lane.** The bar changes only through the serialized restart:
    its pid changes, the new `ags` instance registers, and no duplicate bar
    appears. The runtime records `applied` for the restart lane.
-4. **No orphan instances.** `systemctl --user status dotfiles-ags-bar
+4. ✅ **No orphan instances.** `systemctl --user status dotfiles-ags-bar
    dotfiles-ags-notifications`, `ags list`, and the bus owner agree; killing a
    `gjs` child (not the `ags run` parent) makes `Restart=on-failure` restore
    the unit and the bus owner; `doctor` reports zero orphans.
-5. **Fail closed.** A malformed `tokens.json` or CSS artifact leaves the old
+5. ✅ **Fail closed.** A malformed `tokens.json` or CSS artifact leaves the old
    `current/appearance` pointer and the old provider in place; the app reports
    the error and keeps its previous appearance.
-6. **Supervision rule.** `systemctl --user stop dotfiles-ags-notifications`
+6. ✅ **Supervision rule.** `systemctl --user stop dotfiles-ags-notifications`
    runs `ExecStop=ags quit -i notifications`; the bus name is released
    gracefully. No script or doctor repair kills the `ags run` parent.
 
@@ -520,9 +599,40 @@ Run on a live host with **all seven apps open** (`ags list` shows
 | R-11 | **Visual parity after conversion.** v2 templates remove the literal workarounds; glass must still match today. | The first v2 release should not be a redesign. | Keep the v1 parity fixture as the acceptance oracle for `glass`; generalised tokens must expand to the same measured values. |
 | R-12 | **`paper` semantics change.** Making paper mode-aware is a behavior change from v1. | A user who selected paper in dark mode gets a different look. | Document the change; ship the v1-equivalent dark branch as the default, with the light branch only when the host selects light mode. |
 
-## 9. What this ticket does not do
+## Deploy (operator, after this composition release)
 
-- No pin bump, no install, no deploy, no live-host mutation.
-- No v1.1 provider/monitor hotfix. Running apps restart until v2.
+This composition ticket never runs bootstrap/apply/provision. On the target
+host, after the published tags are available to the installer:
+
+```bash
+make bootstrap ARGS="--ask-become-pass"
+# or, on an already-bootstrapped host:
+make provision ARGS="apply"
+make provision ARGS="verify"
+```
+
+The first applied run installs the two always-on units and the seven immutable
+app tags; the runtime reconcile writes one
+`cache/appearance/<appearanceHash>/` generation and repoints
+`current/appearance`. The device map above is the post-deploy expectation:
+every app's `appearance.css` resolves inside that generation, the bar and
+notifications are active units, and `dotfiles-runtime doctor` reports zero
+orphans and a current appearance hash.
+
+> **Engine static-mirror note (2026-11-06):** published engine `v0.1.37` is the
+> REQ-023 supervision release. Its static `ags_platform_version` /
+> `assets_pinned_tag` role defaults still mirror the v1 tuple (`v0.8.0` /
+> `v0.11.0`); `deploy-coverage` declares that lag explicitly rather than
+> silently accepting it. Re-cut the engine to mirror `v0.9.0` / `v0.12.2`
+> before a live v2 deploy — the app list, units and tuple are v2, but the
+> platform/assets role defaults are not.
+
+## 9. Scope of the design ticket vs. the cutover
+
+The original RFC ticket was documentation-only. The wave-6 cutover (composition
+`0.6.38`) is the pin bump and release; it still does not install, deploy or
+mutate a live host. Operators run the deploy command above.
+
+- No v1.1 provider/monitor hotfix. v2 replaces the v1 pair outright.
 - No structure tokens. The v1 boundary (“appearance, never structure”) is
   unchanged.
