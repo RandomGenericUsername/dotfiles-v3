@@ -69,7 +69,7 @@ ENGINE_VERIFY_VARS = "ansible/roles/verify/vars/main.yml"
 ENGINE_VERIFY_TASKS = "ansible/roles/verify/tasks/main.yml"
 ENGINE_VERIFY_STANDALONE = "ansible/roles/verify/tasks/_verify_standalone.yml"
 ENGINE_APP_LIST_FIXTURES = "tests/fixtures/ags-apps/app-list"
-ENGINE_AUTOSTART_FIXTURE = "tests/fixtures/ags-apps/autostart/v0.6.2.lua"
+ENGINE_AUTOSTART_FIXTURE_DIR = "tests/fixtures/ags-apps/autostart"
 ENGINE_FAKE_APP_FIXTURE = "tests/fixtures/ags-apps/fake-app"
 ENGINE_LAUNCHER_TEMPLATE = "ansible/roles/ags_apps_units/templates/ags-app-launcher.j2"
 ENGINE_UNITS_TEST = "tests/unit/test_ags_apps_units_role.py"
@@ -891,31 +891,31 @@ def assert_engine_standalone_surfaces(
                 f"launcher lost its lock/toggle behavior"
             )
 
-    autostart = _engine_text(engine_root, ENGINE_AUTOSTART_FIXTURE)
+    fixture_dir = engine_root / ENGINE_AUTOSTART_FIXTURE_DIR
+    fixtures = sorted(fixture_dir.glob("v*.lua"))
+    if not fixtures:
+        raise ValueError(f"{fixture_dir}: no assets autostart fixture found")
+    autostart_fixture = str(fixtures[-1].relative_to(engine_root))
+    autostart = _engine_text(engine_root, autostart_fixture)
     if "ags-run-locked" not in autostart:
         raise ValueError(
-            f"{ENGINE_AUTOSTART_FIXTURE}: the assets autostart corpus does not "
+            f"{autostart_fixture}: the assets autostart corpus does not "
             f"route through the shared launch lock"
         )
     for entry in entries:
         identity = entry.get("autostart")
-        needle = f"--expect-instance {identity}" if identity else ""
-        if identity is not None:
-            count = autostart.count(needle)
-            if count != 1:
-                raise ValueError(
-                    f"{ENGINE_AUTOSTART_FIXTURE}: {entry['app']!r} declares "
-                    f"autostart {identity!r}, but the corpus starts it {count} "
-                    f"time(s) — exactly once is required"
-                )
-        else:
-            unexpected = f"--expect-instance {entry['instance']}"
-            if unexpected in autostart:
-                raise ValueError(
-                    f"{ENGINE_AUTOSTART_FIXTURE}: on-demand app "
-                    f"{entry['app']!r} has no autostart field, but the corpus "
-                    f"still starts {entry['instance']!r}"
-                )
+        if identity is None:
+            continue
+        # Always-on apps are owned by their systemd user unit: autostart must
+        # NOT launch them. On-demand overlays keep exactly one locked launch.
+        expected = 0 if entry.get("launch") == "always" else 1
+        count = autostart.count(f"--expect-instance {identity}")
+        if count != expected:
+            raise ValueError(
+                f"{autostart_fixture}: {entry['app']!r} declares autostart "
+                f"{identity!r} with launch {entry.get('launch')!r}, but the "
+                f"corpus starts it {count} time(s) — expected {expected}"
+            )
 
     bin_links = [entry["app"] for entry in entries if entry.get("binLink")]
     if bin_links != ["capture"]:
