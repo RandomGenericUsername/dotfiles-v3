@@ -3,13 +3,17 @@
 > **id:** `SKIN-PLANE-V3`
 > **kind:** epic (container; the RFC ticket `SKIN-PLANE-V3` / slug
 > `generations-v3-rfc` carries the design)
-> **status:** **planned** (design only, 2026-11-06)
+> **status:** **delivered** (2026-11-08) — cut over live; see
+> [Delivery evidence](#delivery-evidence)
 > **design:** [`docs/107-generations-v3.md`](../107-generations-v3.md)
 > **predecessor:** [`docs/105-appearance-plane-v2.md`](../105-appearance-plane-v2.md)
 > **ticket:** worktree `.worktrees/SKIN-PLANE-V3/`, branch
 > `ticket/SKIN-PLANE-V3-generations-v3-rfc`
-> **pins:** none — this epic plans the work and changes no composition pin,
-> app tag or runtime pin.
+> **delivered pins:** contracts `v0.8.0` · ags-platform `v1.0.1` ·
+> dotfiles-runtime `v1.0.4` · dotfiles-assets `v0.13.0` ·
+> dotfiles-provision `v0.1.48` · composition `v0.1.50` · apps bar `v0.6.0`,
+> notifications `v0.5.0`, capture `v0.7.0`, clipboard `v0.6.0`,
+> wallpaper-selector `v0.5.0`, icme `v0.5.0`, btop-theme-studio `v0.5.0`.
 
 This epic replaces the v2 *multi-pointer* and *two-pipeline* mechanics with a
 single committed generation and one convergence function. It keeps the v2
@@ -47,22 +51,22 @@ The live findings that force this epic are in the RFC:
 The full rationale, layout, manifest, transaction, crash matrix and tests are
 in [`docs/107`](../107-generations-v3.md).
 
-## Child workstreams (planned)
+## Child workstreams (delivered)
 
 | Repo | Child | Scope | Acceptance criteria | Status |
 | --- | --- | --- | --- | --- |
-| `contracts` | Generation + refresh v3 contract | `schemaVersion: 3` manifest and `genHash` identity; generation-bound request/ack; `refresh`/`supervision` vocabulary; retire `{"ok":true}` as applied | Schemas validate a manifest and reject a v3 generation without `genHash`; a refresh ack without the requested `genHash` is invalid; exactly one `refresh` value is enforceable; conformance fixtures cover live/restart and unit/launcher | planned |
-| `dotfiles-runtime` | Generation store + one convergence | Content-addressed layers -> `generations/<genHash>`; one commit rename; `converge(intent)`; daemon converge job queue; fallback lock; mode as input; GC; event-driven readiness | Concurrency and crash-injection tests from RFC A-1/A-2/A-7; one mutation path; mode change works without `wallpaper set`; no `.seed.lock`/appearance lock split; no runtime write outside state | planned |
-| `ags-platform` | Generation-bound consumer | Apply/ack keyed by `genHash`; read `state/current/appearance/<configDir>.css`; watch `current`; D-Bus `NameOwnerChanged` registration | Stale/missing generation answers deferred and never applies; one provider, USER priority, last; no config/tag read path; registration success comes from the bus event | planned |
-| `dotfiles-provision` | State and stable links | State directories; provisioning-owned stable links for non-runtime consumers; mirror `refresh`/`supervision`; verify immutability | No runtime artifact inside any app tag; every stable link resolves through `current`; verify fails when a runtime file is planted in a tag; app-list lane fields validated | planned |
-| `ags-bar` | Restart lane | Keep no appearance refresh handler; restart through systemd when unit-managed; declare `refresh: restart`, `supervision: unit` | Appearance change restarts once, one instance, no duplicate; no live fallback; no post-appearance provider | planned |
-| `ags-notifications` | Live lane | Generation-bound handler; preserve open cards/daemon/bus; declare `refresh: live`, `supervision: unit` | `{"applied":"<genHash>"}` only after the requested generation is installed; pid unchanged; open cards preserved; unit supervision unaffected | planned |
-| `ags-capture-tool` | Live lane | Generation-bound handler; declare `refresh: live`, `supervision: launcher` | Requested generation applied; no restart; launch policy unchanged | planned |
-| `ags-clipboard` | Live lane | Generation-bound handler; declare `refresh: live`, `supervision: launcher` | Requested generation applied; token ink preserved; no luminance math; no restart | planned |
-| `ags-wallpaper-selector` | Live lane | Generation-bound handler; declare `refresh: live`, `supervision: launcher` | Requested generation applied; layout default preserved; no restart | planned |
-| `ags-icme` | Live lane | Generation-bound handler; declare `refresh: live`, `supervision: launcher` | Unsaved-state rule preserved; requested generation applied or deferred, never discarded; no restart | planned |
-| `ags-btop-theme-studio` | Live lane | Generation-bound handler; declare `refresh: live`, `supervision: launcher` | Unsaved-state rule preserved; requested generation applied or deferred, never discarded; no restart | planned |
-| `dotfiles-v3` | Composition cutover | Consume the wave tags in a separate cutover; docs 106 live; gates | `make ci-gates-parity` + `make deploy-coverage` green; the RFC A-1…A-10 suite run against the tuple; no pin before the cutover ticket | planned |
+| `contracts` | Generation + refresh v3 contract | `schemaVersion: 3` manifest and `genHash` identity; generation-bound request/ack; `refresh`/`supervision` vocabulary; retire `{"ok":true}` as applied | Schemas validate a manifest and reject a v3 generation without `genHash`; a refresh ack without the requested `genHash` is invalid; exactly one `refresh` value is enforceable; conformance fixtures cover live/restart and unit/launcher | delivered |
+| `dotfiles-runtime` | Generation store + one convergence | Content-addressed layers -> `generations/<genHash>`; one commit rename; `converge(intent)`; daemon converge job queue; fallback lock; mode as input; GC; event-driven readiness | Concurrency and crash-injection tests from RFC A-1/A-2/A-7; one mutation path; mode change works without `wallpaper set`; no `.seed.lock`/appearance lock split; no runtime write outside state | delivered |
+| `ags-platform` | Generation-bound consumer | Apply/ack keyed by `genHash`; read `state/current/appearance/<configDir>.css`; watch `current`; D-Bus `NameOwnerChanged` registration | Stale/missing generation answers deferred and never applies; one provider, USER priority, last; no config/tag read path; registration success comes from the bus event | delivered |
+| `dotfiles-provision` | State and stable links | State directories; provisioning-owned stable links for non-runtime consumers; mirror `refresh`/`supervision`; verify immutability | No runtime artifact inside any app tag; every stable link resolves through `current`; verify fails when a runtime file is planted in a tag; app-list lane fields validated | delivered |
+| `ags-bar` | Restart lane | Keep no appearance refresh handler; restart through systemd when unit-managed; declare `refresh: restart`, `supervision: unit` | Appearance change restarts once, one instance, no duplicate; no live fallback; no post-appearance provider | delivered |
+| `ags-notifications` | Live lane | Generation-bound handler; preserve open cards/daemon/bus; declare `refresh: live`, `supervision: unit` | `{"applied":"<genHash>"}` only after the requested generation is installed; pid unchanged; open cards preserved; unit supervision unaffected | delivered |
+| `ags-capture-tool` | Live lane | Generation-bound handler; declare `refresh: live`, `supervision: launcher` | Requested generation applied; no restart; launch policy unchanged | delivered |
+| `ags-clipboard` | Live lane | Generation-bound handler; declare `refresh: live`, `supervision: launcher` | Requested generation applied; token ink preserved; no luminance math; no restart | delivered |
+| `ags-wallpaper-selector` | Live lane | Generation-bound handler; declare `refresh: live`, `supervision: launcher` | Requested generation applied; layout default preserved; no restart | delivered |
+| `ags-icme` | Live lane | Generation-bound handler; declare `refresh: live`, `supervision: launcher` | Unsaved-state rule preserved; requested generation applied or deferred, never discarded; no restart | delivered |
+| `ags-btop-theme-studio` | Live lane | Generation-bound handler; declare `refresh: live`, `supervision: launcher` | Unsaved-state rule preserved; requested generation applied or deferred, never discarded; no restart | delivered |
+| `dotfiles-v3` | Composition cutover | Consume the wave tags in a separate cutover; docs 106 live; gates | `make ci-gates-parity` + `make deploy-coverage` green; the RFC A-1…A-10 suite run against the tuple; no pin before the cutover ticket | delivered |
 
 `launch` (`always|on-demand`) remains a composition app-list field. It is not
 the refresh lane. `supervision` says how a restart is performed; `refresh` says
@@ -83,32 +87,58 @@ whether a restart is the lane.
 Waves may overlap only in their own repos; the composition consumes released
 tags in wave 5, never a floating branch.
 
-## Acceptance (epic-level, planned)
+## Acceptance (epic-level, delivered)
 
-- [ ] All ten RFC acceptance tests (A-1…A-10) pass against the cutover tuple.
-- [ ] A consumer never sees palette N with appearance N+1 (or any other
+- [x] All ten RFC acceptance tests (A-1…A-10) pass against the cutover tuple.
+- [x] A consumer never sees palette N with appearance N+1 (or any other
       cross-generation pair).
-- [ ] One converge mutates one generation; a stopped daemon uses the same
+- [x] One converge mutates one generation; a stopped daemon uses the same
       function under the same lock; concurrent daemon + CLI has exactly one
       commit.
-- [ ] A stale or forged ack is never recorded as `applied`.
-- [ ] No runtime file exists inside any `<install>/apps/<installDir>/<tag>/`.
-- [ ] A mode change with all apps open converges without `wallpaper set` and
+- [x] A stale or forged ack is never recorded as `applied`.
+- [x] No runtime file exists inside any `<install>/apps/<installDir>/<tag>/`.
+- [x] A mode change with all apps open converges without `wallpaper set` and
       without a restart of live apps.
-- [ ] Lane policy is one declared value per app; unit-managed changes only the
+- [x] Lane policy is one declared value per app; unit-managed changes only the
       restart mechanism.
-- [ ] No sleep/name poll is a success condition; registration/restart success
+- [x] No sleep/name poll is a success condition; registration/restart success
       comes from the bus/systemd event.
-- [ ] GC keeps active, newest, pinned and ledger-referenced generations and
+- [x] GC keeps active, newest, pinned and ledger-referenced generations and
       removes only unreferenced entries older than grace.
-- [ ] No composition pin, app tag or runtime pin changes before wave 5.
+- [x] No composition pin, app tag or runtime pin changes before wave 5.
+
+## Delivery evidence
+
+Live cutover completed 2026-11-08:
+
+- `state/current -> generations/43d62e17e2da58da2ea43da41bde41fb30e9d0077611a8c34fe30e8d50ef7fc8`,
+  manifest `schemaVersion: 3`, `terminal` skin, `smart` intent → `dark`.
+- `dotfiles-provision apply` → `failed=0`; `verify` → `ok=327 failed=0`,
+  `failed=0`; `make deploy-coverage` PASS.
+- `dotfiles-runtime doctor` → clean, 27 items, supervision `ok`; both
+  always-on apps fresh (`stale_appearance=False`).
+- App tags are immutable: recursive tag-file checksums unchanged across
+  skin/mode changes; no runtime artifact remains in any tag; every stable
+  consumer link resolves through `current/palette/`.
+- Live lane proof with apps open: `terminal → flat`/`light` applied; bar
+  restarted through systemd, notifications applied in-place with the same PID.
+  Pure watcher-driven mode changes (`desired.json` only, no `wallpaper set`)
+  converged `light` in ~2.7s and back to `smart`/dark in ~18.2s; ledger,
+  history tail and manifest agreed; `doctor` clean.
+- Concurrency/crash invariants: two simultaneous `wallpaper set` runs both
+  exited 0, left one `current`, zero `.staging-*` generations, one history
+  tail, and a clean `doctor`.
+- Child releases: contracts `v0.8.0`, ags-platform `v1.0.1`, runtime `v1.0.4`,
+  assets `v0.13.0`, engine `v0.1.48`, composition `v0.1.50`; apps at the tags
+  listed above.
 
 ## Non-goals
 
 - No structure tokens or layout trees; appearance remains palette + skin +
   mode, and structure stays app-owned.
 - No new app list, no per-file GUI list, no in-repo runtime/app/engine source.
-- No live host deploy in this epic; the cutover remains a composition pin bump
-  and the operator's normal bootstrap/provision.
+- The cutover itself was an ordinary composition pin bump +
+  bootstrap/provision on the live host (2026-11-08); it is not a second
+  deployment mechanism.
 - No v2 hotfix branch: v3 is the replacement, not a patch of the multi-pointer
   family.

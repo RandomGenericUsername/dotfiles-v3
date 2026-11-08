@@ -1,14 +1,22 @@
-# 106 — Generations v3
+# 107 — Generations v3
 
-> **Status:** **planned** (RFC, 2026-11-06) — ticket `SKIN-PLANE-V3`, slug
-> `generations-v3-rfc`. This is a design record only. It changes **no**
-> composition pin, app tag, runtime pin or live host.
+> **Status:** **delivered** (RFC 2026-11-06; live 2026-11-08) — ticket
+> `SKIN-PLANE-V3`, slug `generations-v3-rfc`. The cutover tuple is
+> contracts `v0.8.0`, ags-platform `v1.0.1`, dotfiles-runtime `v1.0.4`,
+> dotfiles-assets `v0.13.0`, dotfiles-provision `v0.1.48`, composition
+> `v0.1.50`, with the seven app tags listed in the
+> [epic](./epics/SKIN-PLANE-V3-generations.md#delivery-evidence).
 >
-> v2 ([`docs/105-appearance-plane-v2.md`](./105-appearance-plane-v2.md)) is the
-> live plane until the v3 cutover. v3 replaces the v2 *multi-pointer* and
-> *two-pipeline* mechanics with one committed generation and one convergence
-> function; it keeps the v2 artifact interface (composed palette + skin + mode,
-> one provider, one watched hop) and the v2 token vocabulary.
+> v3 ([`docs/107`](./107-generations-v3.md)) is the live plane. It replaces the
+> v2 ([`docs/105-appearance-plane-v2.md`](./105-appearance-plane-v2.md))
+> *multi-pointer* and *two-pipeline* mechanics with one committed generation and
+> one convergence function; it keeps the v2 artifact interface (composed palette
+> + skin + mode, one provider, one watched hop) and the v2 token vocabulary.
+>
+> Live evidence: `current -> generations/43d62e17…` (terminal, smart→dark),
+> `doctor` clean, `verify` `ok=327 failed=0`, immutable app tags, watcher-driven
+> mode changes without `wallpaper set`, and one `current` under concurrent
+> writers.
 
 ## 0. Decisions (frozen)
 
