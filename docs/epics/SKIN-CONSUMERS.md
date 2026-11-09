@@ -2,13 +2,15 @@
 
 > **id:** `SKIN-CONSUMERS`
 > **kind:** epic (follow-on to [`SKIN-PLANE-V3`](./SKIN-PLANE-V3-generations.md))
-> **status:** **proposed** — criteria only; no pin, tag or live host is changed
+> **status:** **in progress** — wlogout Phase 1/2 delivered live (2026-11-09);
+> Hyprland host defaults remain planned. Criteria record; no host-default
+> contract/pin has been changed yet.
 > **designs:** [`docs/108`](../108-non-ags-skin-consumers.md) ·
 > [`docs/109`](../109-hyprland-host-defaults.md)
 > **predecessor:** [`SKIN-PLANE-V3`](./SKIN-PLANE-V3-generations.md) — delivered
 > **baseline:** contracts `v0.8.0`, ags-platform `v1.0.1`,
-> dotfiles-runtime `v1.0.6`, dotfiles-assets `v0.13.0`,
-> dotfiles-provision `v0.1.49`, composition `v0.1.53`; apps `bar v0.6.1`,
+> dotfiles-runtime `v1.0.8`, dotfiles-assets `v0.14.0`,
+> dotfiles-provision `v0.1.50`, composition `v0.1.55`; apps `bar v0.6.1`,
 > `notifications v0.5.1`, `capture v0.7.1`, `clipboard v0.6.1`,
 > `wallpaper-selector/icme/btop-theme-studio v0.5.1`.
 
@@ -46,10 +48,10 @@ rhythm; structure stays app-owned.
 
 | Repo / workstream | Scope | Acceptance criteria | Status |
 | --- | --- | --- | --- |
-| `dotfiles-assets` — wlogout template | `wlogout.gtk.css.j2` paint/rhythm; README/tests; every skin ships it | `W-2.1`–`W-2.3`, `W-2.9`, `W-2.10` in [108](../108-non-ags-skin-consumers.md) | planned |
-| `dotfiles-provision` — wlogout consumer | stable `appearance.css` link; verify; static style import last; no layout/icons in generated sheet | `W-2.5`–`W-2.8` in [108](../108-non-ags-skin-consumers.md) | planned |
-| `dotfiles-runtime` — wlogout regression | prove target/template publication; no production adapter expected | `W-2.3` in [108](../108-non-ags-skin-consumers.md) | planned |
-| `dotfiles-v3` — wlogout cutover | composition/app-consumption pins only after releases | `SC-1`–`SC-7`; `W-2.*` | planned |
+| `dotfiles-assets` — wlogout template | `wlogout.gtk.css.j2` paint/rhythm; README/tests; every skin ships it | `W-2.1`–`W-2.3`, `W-2.9`, `W-2.10` in [108](../108-non-ags-skin-consumers.md) | delivered `v0.14.0` |
+| `dotfiles-provision` — wlogout consumer | stable `appearance.css` link; verify; static style import last; no layout/icons in generated sheet | `W-2.5`–`W-2.8` in [108](../108-non-ags-skin-consumers.md) | delivered `v0.1.50` |
+| `dotfiles-runtime` — wlogout regression | prove target/template publication; no production adapter expected | `W-2.3` in [108](../108-non-ags-skin-consumers.md) | delivered `v1.0.7` + doctor `v1.0.8` |
+| `dotfiles-v3` — wlogout cutover | composition/app-consumption pins only after releases | `SC-1`–`SC-7`; `W-2.*` | delivered `v0.1.55` |
 | `contracts` — host policy | optional `[host]` policy; generation `host` block; `appearance.v3` | `H-1.1`–`H-1.5` in [109](../109-hyprland-host-defaults.md) | planned |
 | `dotfiles-runtime` — host defaults | Hyprland adapter, resolver, hashing, doctor, one lock | `H-2.1`–`H-2.10` in [109](../109-hyprland-host-defaults.md) | planned |
 | `dotfiles-assets` — host opt-in | glass/paper `[host]`; terminal/flat explicit; schema/README/tests | `H-1.5` in [109](../109-hyprland-host-defaults.md) | planned |

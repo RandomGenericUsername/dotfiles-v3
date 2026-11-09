@@ -4,8 +4,8 @@
 > is part of this document.
 > **Epic:** [`SKIN-CONSUMERS`](./epics/SKIN-CONSUMERS.md)
 > **Baseline:** contracts `v0.8.0`, ags-platform `v1.0.1`,
-> dotfiles-runtime `v1.0.6`, dotfiles-assets `v0.13.0`,
-> dotfiles-provision `v0.1.49`, composition `v0.1.53`.
+> dotfiles-runtime `v1.0.8`, dotfiles-assets `v0.14.0`,
+> dotfiles-provision `v0.1.50`, composition `v0.1.55`.
 > **Prototype:** `/tmp/opencode/host_defaults_prototype.py`,
 > `/tmp/opencode/HOST-DEFAULTS-REPORT.md` (ephemeral; reproduce with the
 > checks below).

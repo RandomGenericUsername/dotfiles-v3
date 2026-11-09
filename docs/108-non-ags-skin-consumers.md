@@ -1,13 +1,30 @@
 # 108 — Non-AGS skin consumers (wlogout first)
 
-> **Status:** proposed — criteria only. No production change, tag or live apply
-> is part of this document.
+> **Status:** **delivered** (2026-11-09) — wlogout Phase 1/2 live. This
+> document remains the criteria record; the implementation evidence is at the
+> end.
 > **Epic:** [`SKIN-CONSUMERS`](./epics/SKIN-CONSUMERS.md)
 > **Baseline:** contracts `v0.8.0`, ags-platform `v1.0.1`,
 > dotfiles-runtime `v1.0.6`, dotfiles-assets `v0.13.0`,
 > dotfiles-provision `v0.1.49`, composition `v0.1.53`.
 > **Investigation evidence:** generated wlogout sheet + GTK3/Broadway probes in
 > `/tmp/opencode/wlogout-skin/` (ephemeral; reproduce with the checks below).
+
+## Delivery evidence
+
+- `dotfiles-assets v0.14.0` — `wlogout.gtk.css.j2`, required-target gate,
+  static `appearance.css` import last; GTK3/Broadway green.
+- `dotfiles-runtime v1.0.7` — byte-identical fixture; generic pipeline publishes
+  `appearance/wlogout.css` and the manifest target; no production adapter.
+- `dotfiles-provision v0.1.50` — `config/wlogout/appearance.css ->
+  state/current/appearance/wlogout.css`; verify covers raw target, resolution
+  and wrong/generation/app-tag negatives; assets pinned `v0.14.0`.
+- `dotfiles-runtime v1.0.8` — doctor accepts the provisioning-owned stable
+  appearance link only when it resolves exactly to
+  `current/appearance/<dir>.css`; still flags old/wrong/dangling links.
+- Live: generation `6de6e687…`, targets include `wlogout`; apply rc 0, verify
+  ok=329 failed=0, doctor clean; GTK3 parses combined sheet; Broadway wlogout
+  stays alive (rc 124) with no CSS warnings.
 
 ## Decision
 
