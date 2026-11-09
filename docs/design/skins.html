@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Skin gallery — glass / flat / paper / terminal</title>
+<style>
+:root {
+  --background: #121318;
+  --surface: #121318;
+  --surface-container: #1f1f25;
+  --surface-container-high: #292a2f;
+  --surface-container-highest: #34343a;
+  --surface-container-low: #1b1b21;
+  --surface-container-lowest: #0d0e13;
+  --on-surface: #e3e1e9;
+  --on-surface-variant: #c6c5d0;
+  --primary: #b9c3ff;
+  --on-primary: #212c61;
+  --primary-container: #384379;
+  --on-primary-container: #dde1ff;
+  --outline: #90909a;
+  --outline-variant: #45464f;
+  --shadow: #000000;
+}
+* { box-sizing: border-box; }
+html { color-scheme: dark; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--on-surface);
+  font-family: system-ui, "Cantarell", "Noto Sans", sans-serif;
+  background:
+    radial-gradient(1200px 700px at 10% -10%, rgba(185,195,255,.16), transparent 60%),
+    radial-gradient(900px 600px at 110% 20%, rgba(221,225,255,.08), transparent 55%),
+    linear-gradient(145deg, #0b0c11 0%, #121318 50%, #0d0e13 100%);
+}
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: .16;
+  background-image:
+    linear-gradient(45deg, rgba(255,255,255,.05) 25%, transparent 25%, transparent 75%, rgba(255,255,255,.05) 75%),
+    linear-gradient(45deg, rgba(255,255,255,.05) 25%, transparent 25%, transparent 75%, rgba(255,255,255,.05) 75%);
+  background-size: 22px 22px;
+  background-position: 0 0, 11px 11px;
+  mask-image: radial-gradient(ellipse at center, black, transparent 78%);
+}
+main { max-width: 1320px; margin: 0 auto; padding: 36px 28px 60px; position: relative; }
+header { max-width: 860px; margin-bottom: 28px; }
+h1 { margin: 0 0 10px; font-size: clamp(28px, 4vw, 44px); letter-spacing: -.03em; }
+.lede { margin: 0; color: var(--on-surface-variant); font-size: 16px; line-height: 1.55; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.legend span, .chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  border: 1px solid var(--outline-variant); border-radius: 999px;
+  padding: 5px 10px; font-size: 11px; color: var(--on-surface-variant);
+  background: rgba(41,42,47,.35);
+}
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; }
+@media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+.skin {
+  min-width: 0;
+  border: 1px solid var(--outline-variant);
+  border-radius: 14px;
+  overflow: hidden;
+  background: rgba(13,14,19,.55);
+  box-shadow: 0 16px 50px rgba(0,0,0,.25);
+}
+.skin-head { display: flex; justify-content: space-between; gap: 14px; padding: 18px 18px 14px; }
+.skin-head h2 { margin: 0 0 5px; font-size: 20px; letter-spacing: -.02em; }
+.skin-head p { margin: 0; max-width: 46ch; color: var(--on-surface-variant); font-size: 12.5px; line-height: 1.45; }
+.chip { flex: none; color: var(--on-primary-container); background: var(--primary-container); border-color: transparent; }
+.frame { padding: 0 18px 20px; }
+.panel {
+  background: var(--panel-bg);
+  border: var(--panel-border-w) solid var(--panel-border);
+  border-radius: var(--panel-radius);
+  padding: var(--panel-pad);
+  box-shadow: var(--panel-shadow);
+  backdrop-filter: var(--panel-blur);
+  font-family: var(--skin-font);
+  font-size: var(--skin-size);
+}
+.bar { display: flex; align-items: center; gap: 8px; padding: 2px 2px 9px; border-bottom: 1px solid var(--bar-border); color: var(--on-surface-variant); }
+.dots { display: inline-flex; gap: 5px; margin-right: 4px; }
+.dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--outline-variant); display: block; }
+.dots i:first-child { background: var(--error, #ffb4ab); }
+.dots i:nth-child(2) { background: var(--primary); }
+.ws { padding: 2px 7px; border-radius: var(--pill-radius); font-size: 11px; }
+.ws.active { background: var(--primary-container); color: var(--on-primary-container); }
+.spacer { flex: 1; }
+.mono { color: var(--primary); font-weight: 600; font-size: 11px; }
+.clock { font-variant-numeric: tabular-nums; color: var(--on-surface); font-size: 11px; }
+.batt { font-size: 10px; }
+.stack { display: grid; gap: var(--stack-gap); padding-top: var(--stack-pad); }
+.card {
+  background: var(--card-bg);
+  border: var(--card-border-w) solid var(--card-border);
+  border-radius: var(--card-radius);
+  padding: var(--card-pad);
+  min-width: 0;
+}
+.card-top { display: flex; justify-content: space-between; color: var(--on-surface-variant); font-size: 10px; margin-bottom: 5px; }
+.notif strong { font-size: var(--title-size); letter-spacing: -.01em; }
+.notif p { margin: 4px 0 10px; color: var(--on-surface-variant); font-size: var(--body-size); }
+.actions { display: flex; gap: 7px; }
+.btn, .pill { display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--outline-variant); border-radius: var(--pill-radius); padding: 3px 9px; font-size: 10px; color: var(--on-surface-variant); }
+.btn.primary { background: var(--primary-container); color: var(--on-primary-container); border-color: transparent; }
+.row { display: grid; grid-template-columns: 1.1fr .9fr; gap: var(--stack-gap); }
+@media (max-width: 520px) { .row { grid-template-columns: 1fr; } }
+.eyebrow { display: block; color: var(--primary); font-size: 9px; text-transform: uppercase; letter-spacing: .12em; margin-bottom: 6px; }
+.clip code { display: block; font-size: var(--mono-size); color: var(--on-surface); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.clip .meta { display: block; margin-top: 7px; color: var(--on-surface-variant); font-size: 9.5px; }
+.meter { height: 5px; border-radius: var(--meter-radius); background: rgba(227,225,233,.12); overflow: hidden; margin: 5px 0; }
+.meter i { display: block; height: 100%; background: var(--primary); border-radius: inherit; }
+footer { max-width: 1320px; margin: 0 auto; padding: 0 28px 46px; color: var(--on-surface-variant); font-size: 12px; line-height: 1.6; }
+footer code { color: var(--primary); }
+.skin.glass {
+  --panel-bg: rgba(18,19,24,.94); --panel-border: var(--primary); --panel-border-w: 1.5px; --panel-radius: 12px; --panel-pad: 11px; --panel-shadow: none; --panel-blur: none;
+  --card-bg: rgba(41,42,47,.18); --card-border: rgba(227,225,233,.10); --card-border-w: 1px; --card-radius: 9px; --card-pad: 10px;
+  --bar-border: rgba(227,225,233,.10); --stack-gap: 9px; --stack-pad: 10px; --pill-radius: 20px;
+  --skin-font: system-ui, "Cantarell", "Noto Sans", sans-serif; --skin-size: 13px; --title-size: 12.5px; --body-size: 11px; --mono-size: 10.5px; --meter-radius: 3px;
+}
+.skin.flat {
+  --panel-bg: transparent; --panel-border: transparent; --panel-border-w: 0; --panel-radius: 0; --panel-pad: 11px; --panel-shadow: none; --panel-blur: none;
+  --card-bg: transparent; --card-border: transparent; --card-border-w: 0; --card-radius: 0; --card-pad: 10px;
+  --bar-border: transparent; --stack-gap: 7px; --stack-pad: 7px; --pill-radius: 999px;
+  --skin-font: system-ui, "Cantarell", "Noto Sans", sans-serif; --skin-size: 13px; --title-size: 15px; --body-size: 11px; --mono-size: 10.5px; --meter-radius: 999px;
+}
+.skin.paper {
+  --panel-bg: var(--surface-container-lowest); --panel-border: rgba(227,225,233,.22); --panel-border-w: 1px; --panel-radius: 6px; --panel-pad: 11px; --panel-shadow: 0 10px 28px rgba(0,0,0,.22); --panel-blur: none;
+  --card-bg: var(--surface-container-low); --card-border: rgba(227,225,233,.10); --card-border-w: 1px; --card-radius: 4px; --card-pad: 10px;
+  --bar-border: rgba(227,225,233,.10); --stack-gap: 9px; --stack-pad: 10px; --pill-radius: 999px;
+  --skin-font: system-ui, "Cantarell", "Noto Sans", sans-serif; --skin-size: 13px; --title-size: 15px; --body-size: 11px; --mono-size: 10.5px; --meter-radius: 2px;
+}
+.skin.terminal {
+  --panel-bg: var(--surface); --panel-border: rgba(227,225,233,.22); --panel-border-w: 1px; --panel-radius: 0; --panel-pad: 9px; --panel-shadow: none; --panel-blur: none;
+  --card-bg: var(--surface-container); --card-border: rgba(227,225,233,.18); --card-border-w: 1px; --card-radius: 0; --card-pad: 8px;
+  --bar-border: rgba(227,225,233,.14); --stack-gap: 7px; --stack-pad: 8px; --pill-radius: 2px;
+  --skin-font: "JetBrainsMono Nerd Font", "JetBrains Mono", monospace; --skin-size: 12px; --title-size: 13px; --body-size: 10.5px; --mono-size: 10px; --meter-radius: 0;
+}
+.skin.terminal .panel { letter-spacing: .01em; }
+.skin.flat .card { border-width: 0; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Skin gallery</h1>
+    <p class="lede">Four skins over the exact same app structure. The palette is the live <strong>terminal / dark</strong> role set; each panel changes only paint, rhythm, type and radius. Layout and content are app-owned and identical everywhere.</p>
+    <div class="legend">
+      <span>palette: terminal / dark</span>
+      <span>structure: app-owned</span>
+      <span>contract: palette + paint + rhythm</span>
+      <span>no literal hex in the skin contract</span>
+    </div>
+  </header>
+  <div class="grid">
+<section class="skin glass">
+  <div class="skin-head">
+    <div>
+      <h2>Glass</h2>
+      <p>The default/fallback look: a translucent panel, low-alpha cards, a primary frame, no shadow or blur.</p>
+    </div>
+    <span class="chip">default · v1 parity</span>
+  </div>
+  <div class="frame">
+    <div class="panel">
+      <div class="bar">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="ws active">1</span><span class="ws">2</span><span class="ws">3</span>
+        <span class="spacer"></span>
+        <span class="mono">glass</span>
+        <span class="clock">09:41</span>
+        <span class="batt">88%</span>
+      </div>
+      <div class="stack">
+        <div class="card notif">
+          <div class="card-top"><span class="app">dotfiles</span><span class="time">now</span></div>
+          <strong>Generation committed</strong>
+          <p>terminal · smart → dark · 7 app targets</p>
+          <div class="actions"><span class="btn primary">Open</span><span class="btn">Dismiss</span></div>
+        </div>
+        <div class="row">
+          <div class="card clip">
+            <span class="eyebrow">clipboard</span>
+            <code>dotfiles-runtime wallpaper set …</code>
+            <span class="meta">3 lines · just now</span>
+          </div>
+          <div class="card btop">
+            <span class="eyebrow">btop</span>
+            <div class="meter"><i style="width:62%"></i></div>
+            <div class="meter"><i style="width:34%"></i></div>
+            <div class="meter"><i style="width:81%"></i></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+<section class="skin flat">
+  <div class="skin-head">
+    <div>
+      <h2>Flat</h2>
+      <p>Zero chrome. Panels and borders disappear; rhythm tightens and ink sits directly over the wallpaper.</p>
+    </div>
+    <span class="chip">zero chrome</span>
+  </div>
+  <div class="frame">
+    <div class="panel">
+      <div class="bar">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="ws active">1</span><span class="ws">2</span><span class="ws">3</span>
+        <span class="spacer"></span>
+        <span class="mono">flat</span>
+        <span class="clock">09:41</span>
+        <span class="batt">88%</span>
+      </div>
+      <div class="stack">
+        <div class="card notif">
+          <div class="card-top"><span class="app">dotfiles</span><span class="time">now</span></div>
+          <strong>Generation committed</strong>
+          <p>terminal · smart → dark · 7 app targets</p>
+          <div class="actions"><span class="btn primary">Open</span><span class="btn">Dismiss</span></div>
+        </div>
+        <div class="row">
+          <div class="card clip">
+            <span class="eyebrow">clipboard</span>
+            <code>dotfiles-runtime wallpaper set …</code>
+            <span class="meta">3 lines · just now</span>
+          </div>
+          <div class="card btop">
+            <span class="eyebrow">btop</span>
+            <div class="meter"><i style="width:62%"></i></div>
+            <div class="meter"><i style="width:34%"></i></div>
+            <div class="meter"><i style="width:81%"></i></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+<section class="skin paper">
+  <div class="skin-head">
+    <div>
+      <h2>Paper</h2>
+      <p>The light/palette axis: opaque lowest surface, hairline borders, small radii and a soft panel shadow.</p>
+    </div>
+    <span class="chip">palette axis · dark-paper branch</span>
+  </div>
+  <div class="frame">
+    <div class="panel">
+      <div class="bar">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="ws active">1</span><span class="ws">2</span><span class="ws">3</span>
+        <span class="spacer"></span>
+        <span class="mono">paper</span>
+        <span class="clock">09:41</span>
+        <span class="batt">88%</span>
+      </div>
+      <div class="stack">
+        <div class="card notif">
+          <div class="card-top"><span class="app">dotfiles</span><span class="time">now</span></div>
+          <strong>Generation committed</strong>
+          <p>terminal · smart → dark · 7 app targets</p>
+          <div class="actions"><span class="btn primary">Open</span><span class="btn">Dismiss</span></div>
+        </div>
+        <div class="row">
+          <div class="card clip">
+            <span class="eyebrow">clipboard</span>
+            <code>dotfiles-runtime wallpaper set …</code>
+            <span class="meta">3 lines · just now</span>
+          </div>
+          <div class="card btop">
+            <span class="eyebrow">btop</span>
+            <div class="meter"><i style="width:62%"></i></div>
+            <div class="meter"><i style="width:34%"></i></div>
+            <div class="meter"><i style="width:81%"></i></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+<section class="skin terminal">
+  <div class="skin-head">
+    <div>
+      <h2>Terminal</h2>
+      <p>Dense monospace, square corners and 1px hairlines. An opaque panel and surface-container cards read like a terminal.</p>
+    </div>
+    <span class="chip">dense · monospace</span>
+  </div>
+  <div class="frame">
+    <div class="panel">
+      <div class="bar">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="ws active">1</span><span class="ws">2</span><span class="ws">3</span>
+        <span class="spacer"></span>
+        <span class="mono">terminal</span>
+        <span class="clock">09:41</span>
+        <span class="batt">88%</span>
+      </div>
+      <div class="stack">
+        <div class="card notif">
+          <div class="card-top"><span class="app">dotfiles</span><span class="time">now</span></div>
+          <strong>Generation committed</strong>
+          <p>terminal · smart → dark · 7 app targets</p>
+          <div class="actions"><span class="btn primary">Open</span><span class="btn">Dismiss</span></div>
+        </div>
+        <div class="row">
+          <div class="card clip">
+            <span class="eyebrow">clipboard</span>
+            <code>dotfiles-runtime wallpaper set …</code>
+            <span class="meta">3 lines · just now</span>
+          </div>
+          <div class="card btop">
+            <span class="eyebrow">btop</span>
+            <div class="meter"><i style="width:62%"></i></div>
+            <div class="meter"><i style="width:34%"></i></div>
+            <div class="meter"><i style="width:81%"></i></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+  </div>
+</main>
+<footer>
+  Static design reference, not a runtime surface. Values mirror <code>dotfiles-assets/skins/manifests/*.toml</code> and the live <code>current/palette/colors.gtk.css</code> roles. Glass is the default parity target; flat removes chrome; paper is the palette-axis skin (dark-paper branch shown); terminal is the dense monospace skin.
+</footer>
+</body>
+</html>

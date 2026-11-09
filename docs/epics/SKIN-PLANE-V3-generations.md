@@ -51,6 +51,9 @@ The live findings that force this epic are in the RFC:
 The full rationale, layout, manifest, transaction, crash matrix and tests are
 in [`docs/107`](../107-generations-v3.md).
 
+Visual reference: [`docs/design/skins.html`](../design/skins.html) — a static
+gallery of the four skins over one identical app structure.
+
 ## Child workstreams (delivered)
 
 | Repo | Child | Scope | Acceptance criteria | Status |
