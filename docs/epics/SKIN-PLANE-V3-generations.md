@@ -123,12 +123,15 @@ Live cutover completed 2026-11-08:
 - Live lane proof with apps open: `terminal → flat`/`light` applied; bar
   restarted through systemd, notifications applied in-place with the same PID.
   Pure watcher-driven mode changes (`desired.json` only, no `wallpaper set`)
-  converged `light` in ~2.7s and back to `smart`/dark in ~18.2s; ledger,
-  history tail and manifest agreed; `doctor` clean.
+  converged end-to-end in ~18s (`light`) and ~47s (`smart`/dark) on the final
+  v1.0.5 run, including generation commit, bar restart and ledger apply (the
+  inotify debounce itself is 0.25s); ledger, history tail and manifest agreed;
+  `doctor` clean and the current palette/wallpaper cache survived both GC
+  cycles.
 - Concurrency/crash invariants: two simultaneous `wallpaper set` runs both
   exited 0, left one `current`, zero `.staging-*` generations, one history
   tail, and a clean `doctor`.
-- Child releases: contracts `v0.8.0`, ags-platform `v1.0.1`, runtime `v1.0.4`,
+- Child releases: contracts `v0.8.0`, ags-platform `v1.0.1`, runtime `v1.0.5`,
   assets `v0.13.0`, engine `v0.1.49`, composition `v0.1.52`; apps at the tags
   listed above.
 
