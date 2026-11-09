@@ -14,6 +14,10 @@
 > dotfiles-provision `v0.1.49` · composition `v0.1.53` · apps bar `v0.6.1`,
 > notifications `v0.5.1`, capture `v0.7.1`, clipboard `v0.6.1`,
 > wallpaper-selector `v0.5.1`, icme `v0.5.1`, btop-theme-studio `v0.5.1`.
+> **follow-on:** [`SKIN-CONSUMERS`](./SKIN-CONSUMERS.md) — non-AGS consumers
+> (wlogout first) and Hyprland-sourced skin defaults; criteria in
+> [`docs/108`](../108-non-ags-skin-consumers.md) and
+> [`docs/109`](../109-hyprland-host-defaults.md).
 
 This epic replaces the v2 *multi-pointer* and *two-pipeline* mechanics with a
 single committed generation and one convergence function. It keeps the v2
