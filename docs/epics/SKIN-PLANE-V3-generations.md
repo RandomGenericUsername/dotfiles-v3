@@ -11,9 +11,9 @@
 > `ticket/SKIN-PLANE-V3-generations-v3-rfc`
 > **delivered pins:** contracts `v0.8.0` · ags-platform `v1.0.1` ·
 > dotfiles-runtime `v1.0.4` · dotfiles-assets `v0.13.0` ·
-> dotfiles-provision `v0.1.48` · composition `v0.1.50` · apps bar `v0.6.0`,
-> notifications `v0.5.0`, capture `v0.7.0`, clipboard `v0.6.0`,
-> wallpaper-selector `v0.5.0`, icme `v0.5.0`, btop-theme-studio `v0.5.0`.
+> dotfiles-provision `v0.1.49` · composition `v0.1.51` · apps bar `v0.6.1`,
+> notifications `v0.5.1`, capture `v0.7.1`, clipboard `v0.6.1`,
+> wallpaper-selector `v0.5.1`, icme `v0.5.1`, btop-theme-studio `v0.5.1`.
 
 This epic replaces the v2 *multi-pointer* and *two-pipeline* mechanics with a
 single committed generation and one convergence function. It keeps the v2
@@ -129,7 +129,7 @@ Live cutover completed 2026-11-08:
   exited 0, left one `current`, zero `.staging-*` generations, one history
   tail, and a clean `doctor`.
 - Child releases: contracts `v0.8.0`, ags-platform `v1.0.1`, runtime `v1.0.4`,
-  assets `v0.13.0`, engine `v0.1.48`, composition `v0.1.50`; apps at the tags
+  assets `v0.13.0`, engine `v0.1.49`, composition `v0.1.51`; apps at the tags
   listed above.
 
 ## Non-goals
