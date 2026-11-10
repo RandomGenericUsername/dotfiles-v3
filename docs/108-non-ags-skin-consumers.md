@@ -22,9 +22,12 @@
 - `dotfiles-runtime v1.0.8` — doctor accepts the provisioning-owned stable
   appearance link only when it resolves exactly to
   `current/appearance/<dir>.css`; still flags old/wrong/dangling links.
-- Live: generation `6de6e687…`, targets include `wlogout`; apply rc 0, verify
-  ok=329 failed=0, doctor clean; GTK3 parses combined sheet; Broadway wlogout
-  stays alive (rc 124) with no CSS warnings.
+- assets `v0.15.1`: static wlogout sheet owns only structure/motion; generated
+  paint/rhythm wins.
+- runtime `v1.1.1`: the provisioning-owned wlogout stable link survives skin
+  reconvergence; only runtime-owned AGS appearance links are pruned.
+- Live: apply rc 0, verify ok=329 failed=0, doctor clean; GTK3 parses combined
+  sheet; Broadway wlogout stays alive with no CSS warnings.
 
 ## Decision
 

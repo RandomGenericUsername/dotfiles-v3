@@ -1,7 +1,8 @@
 # 109 — Hyprland settings as skin defaults
 
-> **Status:** proposed — criteria only. No production change, tag or live apply
-> is part of this document.
+> **Status:** **delivered** (2026-11-10) — Hyprland host defaults Phase 1 live.
+> This document remains the criteria record; implementation evidence is at the
+> end.
 > **Epic:** [`SKIN-CONSUMERS`](./epics/SKIN-CONSUMERS.md)
 > **Baseline:** contracts `v0.8.0`, ags-platform `v1.0.1`,
 > dotfiles-runtime `v1.0.8`, dotfiles-assets `v0.14.0`,
@@ -9,6 +10,21 @@
 > **Prototype:** `/tmp/opencode/host_defaults_prototype.py`,
 > `/tmp/opencode/HOST-DEFAULTS-REPORT.md` (ephemeral; reproduce with the
 > checks below).
+
+## Delivery evidence
+
+- contracts `v0.9.0`: `[host]` policy, generation `host`/`intent.host`,
+  `appearance.v3`.
+- assets `v0.15.0`: glass/paper opt in; terminal/flat explicit.
+- runtime `v1.1.0`: Hyprland adapter/resolver/hostHash, GC protection, doctor
+  host drift; `v1.1.1` preserves the non-AGS wlogout stable link across prune.
+- engine `v0.1.53`: contracts v0.9.0/assets v0.15.1 mirrors; composition
+  `v0.1.58`.
+- Live: `glass` resolved `surface.panel.radius=0` / `border-width=1` from
+  Hyprland (live `decoration:rounding=0`, `general:border_size=1`), with
+  `host.fingerprint` recorded; `terminal` resolved `host: None` and kept its
+  explicit values. `doctor` clean in both states; wlogout link survived both
+  reconverges and GTK3 parsed the combined sheet.
 
 ## Decision
 
