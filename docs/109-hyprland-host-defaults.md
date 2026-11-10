@@ -22,6 +22,11 @@
   fills; panel radius/border follow the delegated host.
 - assets `v0.16.0`: `terminal-host` skin opt-in; `terminal` remains explicit.
 - engine `v0.1.58`; composition `v0.1.61`.
+- runtime `v1.1.2`: strict `icons regenerate` idempotency (no new generation
+  on cache hit).
+- runtime `v1.2.0`: socket2 `configreloaded` watcher with 0.25s debounce;
+  live `rounding 0→8` produced host radius 8 automatically in ~1.25s, then
+  restored to 0. Composition `v0.1.63`.
 - Live: `terminal-host` resolved host radius 0 / border 1; `terminal` stayed
   `host: None`; wlogout link survived both reconverges; doctor clean.
 - engine `v0.1.53`: contracts v0.9.0/assets v0.15.1 mirrors; composition
