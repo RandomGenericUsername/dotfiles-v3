@@ -18,8 +18,12 @@
 - assets `v0.15.0`: glass/paper opt in; terminal/flat explicit.
 - runtime `v1.1.0`: Hyprland adapter/resolver/hostHash, GC protection, doctor
   host drift; `v1.1.1` preserves the non-AGS wlogout stable link across prune.
-- assets `v0.15.2`: wlogout card mapping uses panel radius/border from the
-  delegated host; engine `v0.1.56`; composition `v0.1.59`.
+- assets `v0.15.2`/`v0.15.3`: wlogout card mapping and correct focus/hover
+  fills; panel radius/border follow the delegated host.
+- assets `v0.16.0`: `terminal-host` skin opt-in; `terminal` remains explicit.
+- engine `v0.1.58`; composition `v0.1.61`.
+- Live: `terminal-host` resolved host radius 0 / border 1; `terminal` stayed
+  `host: None`; wlogout link survived both reconverges; doctor clean.
 - engine `v0.1.53`: contracts v0.9.0/assets v0.15.1 mirrors; composition
   `v0.1.58`.
 - Live: `glass` resolved `surface.panel.radius=0` / `border-width=1` from

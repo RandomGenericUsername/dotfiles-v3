@@ -26,6 +26,8 @@
   paint/rhythm wins.
 - assets `v0.15.2` (Phase 2b): wlogout buttons use `surface.card` fill/padding;
   radius/border use `surface.panel` and follow the host; GTK3/Broadway green.
+- assets `v0.15.3` (Phase 2c): focus/hover keep the card background and use
+  ring/ink only; active uses selected fill.
 - runtime `v1.1.1`: the provisioning-owned wlogout stable link survives skin
   reconvergence; only runtime-owned AGS appearance links are pruned.
 - Live: apply rc 0, verify ok=329 failed=0, doctor clean; GTK3 parses combined

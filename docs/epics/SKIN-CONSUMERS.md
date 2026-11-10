@@ -2,15 +2,15 @@
 
 > **id:** `SKIN-CONSUMERS`
 > **kind:** epic (follow-on to [`SKIN-PLANE-V3`](./SKIN-PLANE-V3-generations.md))
-> **status:** **delivered** (Phase 1/2 + wlogout Phase 2b, 2026-11-10) —
-> wlogout cards and Hyprland host defaults are live. Phase 3 format-aware
-> consumers/reload remain explicitly deferred.
+> **status:** **delivered** (Phase 1/2 + wlogout Phase 2b/2c + terminal-host,
+> 2026-11-10) — wlogout cards and Hyprland host defaults are live. Phase 3
+> format-aware consumers/reload remain explicitly deferred.
 > **designs:** [`docs/108`](../108-non-ags-skin-consumers.md) ·
 > [`docs/109`](../109-hyprland-host-defaults.md)
 > **predecessor:** [`SKIN-PLANE-V3`](./SKIN-PLANE-V3-generations.md) — delivered
 > **baseline:** contracts `v0.9.0`, ags-platform `v1.0.1`,
-> dotfiles-runtime `v1.1.1`, dotfiles-assets `v0.15.2`,
-> dotfiles-provision `v0.1.56`, composition `v0.1.59`; apps `bar v0.6.1`,
+> dotfiles-runtime `v1.1.1`, dotfiles-assets `v0.16.0`,
+> dotfiles-provision `v0.1.58`, composition `v0.1.61`; apps `bar v0.6.1`,
 > `notifications v0.5.1`, `capture v0.7.1`, `clipboard v0.6.1`,
 > `wallpaper-selector/icme/btop-theme-studio v0.5.1`.
 
@@ -54,7 +54,7 @@ rhythm; structure stays app-owned.
 | `dotfiles-v3` — wlogout cutover | composition/app-consumption pins only after releases | `SC-1`–`SC-7`; `W-2.*` | delivered `v0.1.55` |
 | `contracts` — host policy | optional `[host]` policy; generation `host` block; `appearance.v3` | `H-1.1`–`H-1.5` in [109](../109-hyprland-host-defaults.md) | delivered `v0.9.0` |
 | `dotfiles-runtime` — host defaults | Hyprland adapter, resolver, hashing, doctor, one lock | `H-2.1`–`H-2.10` in [109](../109-hyprland-host-defaults.md) | delivered `v1.1.1` |
-| `dotfiles-assets` — host opt-in | glass/paper `[host]`; terminal/flat explicit; schema/README/tests | `H-1.5` in [109](../109-hyprland-host-defaults.md) | delivered `v0.15.0` |
+| `dotfiles-assets` — host opt-in | glass/paper `[host]`; terminal/flat explicit; `terminal-host` opt-in variant | `H-1.5` in [109](../109-hyprland-host-defaults.md) | delivered `v0.16.0` |
 | `dotfiles-v3` — host cutover | tuple/app pins only after releases | `H-1.*`–`H-2.*` | delivered `v0.1.59` |
 | Phase 3 consumers | GTK3/4, rofi, kitty format-aware targets; btop/Hyprland palette-only | `W-3.1`–`W-3.7`; `H-3.1`–`H-3.5` | deferred |
 | Phase 3 host refresh | socket2 `configreloaded` + debounce; other compositor sources | `H-3.4`, `H-3.5` | deferred |
