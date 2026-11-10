@@ -3,8 +3,8 @@
 > **Status:** **delivered** (RFC 2026-11-06; live 2026-11-08) — ticket
 > `SKIN-PLANE-V3`, slug `generations-v3-rfc`. The cutover tuple is
 > contracts `v0.9.0`, ags-platform `v1.0.1`, dotfiles-runtime `v1.1.1`,
-> dotfiles-assets `v0.15.1`, dotfiles-provision `v0.1.53`, composition
-> `v0.1.58`, with the seven app tags listed in the
+> dotfiles-assets `v0.15.2`, dotfiles-provision `v0.1.56`, composition
+> `v0.1.59`, with the seven app tags listed in the
 > [epic](./epics/SKIN-PLANE-V3-generations.md#delivery-evidence).
 >
 > v3 ([`docs/107`](./107-generations-v3.md)) is the live plane. It replaces the
