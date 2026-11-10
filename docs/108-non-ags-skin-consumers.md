@@ -158,6 +158,40 @@ no contract schema change.
 - Negative: missing target, missing import, literal hex, structure selector,
   `var()` on GTK3.
 
+## Phase 2b — wlogout card mapping and host alignment
+
+wlogout's buttons are wide action cards, not compact controls. The initial
+Phase 2 template used `surface.control`, which is intentionally transparent for
+the terminal skin. This follow-up makes the visual ownership and Hyprland
+alignment explicit.
+
+### Criteria
+
+- **W-2.11** wlogout `button` uses `surface.card` for background, border colour
+  and padding. It must be visibly filled for glass/paper/terminal; flat remains
+  transparent by its own card token.
+- **W-2.12** wlogout button radius and border width use the **panel** host
+  tokens (`surface.panel.radius`, `surface.panel.border-width`) so the action
+  cards follow the same outer geometry as the compositor/panel. Fill and border
+  colour still come from `surface.card`.
+- **W-2.13** `button:hover`, `button:focus`, `button:active` use `state.*` paint;
+  `button span` uses `type.*` typography.
+- **W-2.14** the static sheet remains structure-only (wallpaper, icons, layout
+  IDs, sizing, motion); it must not own fill/border/radius/padding/type.
+- **W-2.15** `glass` with a delegated host resolves wlogout button radius/border
+  from the live Hyprland values; `terminal` remains explicit; the generated
+  sheet proves both through a GTK3/broadway probe.
+- **W-2.16** generated sheets contain no literal hex, transition, structure or
+  layout IDs; GTK3 parses static/combined sheets and Broadway wlogout emits no
+  CSS warnings.
+
+### Verification
+
+- assets `make validate-skins`, `test-skins`, `gates-ci`;
+- GTK3 `CssProvider` combined parse under terminal/glass/paper/flat;
+- Broadway wlogout combined smoke;
+- visual check: buttons have a filled card background and panel-aligned radius.
+
 ## Phase 3 — non-CSS / toolkit consumers
 
 **Goal:** generalize only where the format is real; do not force every app into

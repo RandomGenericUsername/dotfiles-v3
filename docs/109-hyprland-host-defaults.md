@@ -142,6 +142,11 @@ needs a future `surface.window` role, not overloading card radius.
 
 ## Phase 2 / Phase 3 criteria (deferred)
 
+Wlogout Phase 2b may consume the same delegated `surface.panel.radius` and
+`surface.panel.border-width` for its action-card radius/border while taking the
+card fill from `surface.card`. That is a consumer-template mapping, not a new
+host token or a change to the host allowlist.
+
 - **H-3.1** Additional mappings require a contract enum addition and a semantic
   match; opacity gets its own token, never an overloaded fill/ink alpha.
 - **H-3.2** Blur/shadow mapping is considered only if a real GTK backdrop path
