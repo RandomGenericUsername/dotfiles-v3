@@ -187,6 +187,19 @@ alignment explicit.
   layout IDs; GTK3 parses static/combined sheets and Broadway wlogout emits no
   CSS warnings.
 
+### Phase 2c — card state fill correctness
+
+`state.focus.fill` and `state.hover.fill` are control-state paints; they must not
+replace a card's surface. For wlogout action cards:
+
+- **W-2.17** base, hover and focus keep `surface.card.bg`; hover/focus use
+  `state.hover.*`/`state.focus.*` **ring and ink only**, never their `fill` as
+  the background.
+- **W-2.18** active uses `state.selected.fill`/ink/ring as the deliberate
+  selected paint.
+- **W-2.19** GTK3/Broadway proof must show a focused card retains the card
+  background while its border/ring changes.
+
 ### Verification
 
 - assets `make validate-skins`, `test-skins`, `gates-ci`;
