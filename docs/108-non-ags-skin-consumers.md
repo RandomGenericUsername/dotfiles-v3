@@ -235,6 +235,20 @@ a CSS target.
 - **W-3.7** Every new consumer declares its refresh lane: `live` (only where a
   real handler exists), `restart`, or `launch`. No false live lane is allowed.
 
+### Phase 3A delivery
+
+Format-aware targets are live:
+
+- `appearance.targets` adds `gtk3`/`gtk4` CSS targets;
+- `appearance.artifacts` adds `rofi:rasi`;
+- stable links: `config/gtk-3.0/appearance.css -> current/appearance/gtk3.css`,
+  `gtk-4.0 -> gtk4.css`, `rofi/appearance.rasi -> rofi.rasi`;
+- GTK static configs import `appearance.css` last; rofi imports `appearance.rasi`
+  last;
+- GTK3/GTK4 providers parse, rofi `-dump-theme` has clean stderr, verify and
+  doctor are clean.
+- btop and kitty remain palette-only; `conf`/`theme` formats remain reserved.
+
 ## Release and collision rules
 
 - Implement assets + provisioning + runtime-test slice first; do not edit

@@ -9,9 +9,9 @@
 > **predecessor:** [`docs/105-appearance-plane-v2.md`](../105-appearance-plane-v2.md)
 > **ticket:** worktree `.worktrees/SKIN-PLANE-V3/`, branch
 > `ticket/SKIN-PLANE-V3-generations-v3-rfc`
-> **delivered pins:** contracts `v0.9.0` · ags-platform `v1.0.1` ·
-> dotfiles-runtime `v1.2.0` · dotfiles-assets `v0.16.0` ·
-> dotfiles-provision `v0.1.58` · composition `v0.1.63` · apps bar `v0.6.1`,
+> **delivered pins:** contracts `v0.10.0` · ags-platform `v1.0.1` ·
+> dotfiles-runtime `v1.3.1` · dotfiles-assets `v0.17.0` ·
+> dotfiles-provision `v0.1.60` · composition `v0.1.65` · apps bar `v0.6.1`,
 > notifications `v0.5.1`, capture `v0.7.1`, clipboard `v0.6.1`,
 > wallpaper-selector `v0.5.1`, icme `v0.5.1`, btop-theme-studio `v0.5.1`.
 > **follow-on:** [`SKIN-CONSUMERS`](./SKIN-CONSUMERS.md) — non-AGS consumers
@@ -139,7 +139,7 @@ Live cutover completed 2026-11-08:
   exited 0, left one `current`, zero `.staging-*` generations, one history
   tail, and a clean `doctor`.
 - Child releases: contracts `v0.8.0`, ags-platform `v1.0.1`, runtime `v1.0.5`,
-  assets `v0.13.0`, engine `v0.1.58`, composition `v0.1.63`; apps at the tags
+  assets `v0.13.0`, engine `v0.1.60`, composition `v0.1.65`; apps at the tags
   listed above.
 
 ## Non-goals
