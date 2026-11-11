@@ -13,6 +13,15 @@
 > `/tmp/opencode/HOST-DEFAULTS-REPORT.md` (ephemeral; reproduce with the
 > checks below).
 
+## Rectangle radii revision
+
+The allowlist now delegates outer and inner rectangle radii:
+`surface.panel.radius`, `surface.panel.border-width`, `surface.card.radius`,
+`surface.control.radius`, `surface.cell.radius`. `surface.pill.radius` stays
+explicit. Live `terminal-host` at host rounding 9 produced panel/card/control/
+cell 9, rofi window/mainbox/inputbar/element 9, wlogout card 9, GTK card/control
+9; terminal remained explicit. Composition `v0.1.66`.
+
 ## Delivery evidence
 
 - contracts `v0.9.0`: `[host]` policy, generation `host`/`intent.host`,

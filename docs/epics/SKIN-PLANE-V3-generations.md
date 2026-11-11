@@ -9,7 +9,7 @@
 > **predecessor:** [`docs/105-appearance-plane-v2.md`](../105-appearance-plane-v2.md)
 > **ticket:** worktree `.worktrees/SKIN-PLANE-V3/`, branch
 > `ticket/SKIN-PLANE-V3-generations-v3-rfc`
-> **delivered pins:** contracts `v0.10.0` · ags-platform `v1.0.1` ·
+> **delivered pins:** contracts `v0.11.0` · ags-platform `v1.0.1` ·
 > dotfiles-runtime `v1.3.1` · dotfiles-assets `v0.17.0` ·
 > dotfiles-provision `v0.1.60` · composition `v0.1.65` · apps bar `v0.6.1`,
 > notifications `v0.5.1`, capture `v0.7.1`, clipboard `v0.6.1`,

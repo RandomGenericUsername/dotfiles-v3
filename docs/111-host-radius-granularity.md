@@ -1,17 +1,6 @@
 # 111 — Host rounding granularity
 
-> **Status:** **design decision proposed** (2026-11-11) — no schema, runtime,
-> assets, provisioning or tag change. This document decides the semantic scope
-> of Hyprland `decoration:rounding` in the skin plane and defines the guard
-> slice that would lock it in.
-> **Epic:** [`SKIN-CONSUMERS`](./epics/SKIN-CONSUMERS.md)
-> **Related:** [`108`](./108-non-ags-skin-consumers.md) ·
-> [`109`](./109-hyprland-host-defaults.md) ·
-> [`110`](./110-format-aware-skin-consumers.md)
-> **Tracking ticket:** [`REQ-111`](./tickets/REQ-111-host-radius-granularity.md)
-> **Live baseline observed:** Hyprland `0.57.2`; terminal-host generation
-> `af4c31a8…` with delegated host radius `9`; current `terminal` generation
-> `95f418e3…` with explicit radius `0`.
+> **Status:** **delivered** (2026-11-11) — rectangle radii delegated; pill explicit; live matrix passed.
 
 ## Question
 
@@ -260,3 +249,11 @@ should select `glass` or `paper`, which already author them.
    inheritance.
 4. Is the docs wording "outer window/panel corner" sufficient, or should
    `surface.panel` get an explicit role glossary entry in the skins README?
+
+## Delivery evidence
+
+- contracts v0.11.0, assets v0.18.0, runtime v1.4.0, engine v0.1.61, composition v0.1.66.
+- Live `terminal-host` with Hyprland rounding 9: panel/card/control/cell = 9;
+  rofi window/mainbox/inputbar/element = 9px; wlogout card = 9px; GTK3
+  button/entry/popover/card = 9px; doctor clean.
+- `terminal` remained explicit (0/0/2/0, host None); GTK3/GTK4 parse.
