@@ -4,6 +4,8 @@
 > This document remains the criteria record; implementation evidence is at the
 > end.
 > **Epic:** [`SKIN-CONSUMERS`](./epics/SKIN-CONSUMERS.md)
+> **Granularity decision:** [`111`](./111-host-radius-granularity.md) keeps host
+> rounding outer-only; inner radii stay skin-owned.
 > **Baseline:** contracts `v0.8.0`, ags-platform `v1.0.1`,
 > dotfiles-runtime `v1.0.8`, dotfiles-assets `v0.14.0`,
 > dotfiles-provision `v0.1.50`, composition `v0.1.55`.
@@ -76,7 +78,10 @@ Recommended built-in policy:
 
 Do **not** map `gaps_in`/`gaps_out` (window structure), padding, type or
 colours. Notifications use `surface.card.radius`; full notification alignment
-needs a future `surface.window` role, not overloading card radius.
+needs a future `surface.window` role, not overloading card radius. Host
+rounding is **outer-only** by decision [`111`](./111-host-radius-granularity.md):
+inner `card`/`control`/`cell`/`pill` radii are authored skin identity and are
+never host-inheritable.
 
 ## Evidence that constrains the design
 
@@ -162,7 +167,9 @@ host token or a change to the host allowlist.
   match; opacity gets its own token, never an overloaded fill/ink alpha.
 - **H-3.2** Blur/shadow mapping is considered only if a real GTK backdrop path
   exists; host shadow colour is never injected (no literal hex). A future
-  `surface.window` role may cover notification outer cards.
+  `surface.window` role may cover notification outer cards; per
+  [`111`](./111-host-radius-granularity.md) it is a separate proposal and inner
+  card radii are never host-inheritable.
 - **H-3.3** `gaps_in`/`gaps_out` remain structure and are never mapped to
   padding/rhythm.
 - **H-3.4** A socket2 `configreloaded` watcher with a short debounce re-reads
