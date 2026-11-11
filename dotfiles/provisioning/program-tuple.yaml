@@ -11,5 +11,5 @@
 # shape plus the engine/assets pin agreement.
 schemaVersion: 1
 ags-platform: v1.0.1
-contracts: v0.10.0
-dotfiles-assets: v0.17.0
+contracts: v0.11.0
+dotfiles-assets: v0.18.0
