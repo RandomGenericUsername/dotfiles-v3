@@ -11,8 +11,8 @@
 > [`docs/111`](../111-host-radius-granularity.md) (host rounding outer-only)
 > **predecessor:** [`SKIN-PLANE-V3`](./SKIN-PLANE-V3-generations.md) — delivered
 > **baseline:** contracts `v0.11.0`, ags-platform `v1.0.1`,
-> dotfiles-runtime `v1.4.0`, dotfiles-assets `v0.18.0`,
-> dotfiles-provision `v0.1.61`, composition `v0.1.66`; apps `bar v0.6.1`,
+> dotfiles-runtime `v1.4.0`, dotfiles-assets `v0.18.1`,
+> dotfiles-provision `v0.1.62`, composition `v0.1.67`; apps `bar v0.6.1`,
 > `notifications v0.5.1`, `capture v0.7.1`, `clipboard v0.6.1`,
 > `wallpaper-selector/icme/btop-theme-studio v0.5.1`.
 

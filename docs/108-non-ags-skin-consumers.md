@@ -235,6 +235,13 @@ a CSS target.
 - **W-3.7** Every new consumer declares its refresh lane: `live` (only where a
   real handler exists), `restart`, or `launch`. No false live lane is allowed.
 
+### Rofi import-order correction
+
+Assets `v0.18.1` fixes the rofi launcher: palette import first, static radii as
+fallbacks, generated `appearance.rasi` **last**. Live probe: terminal-host at
+host radius 9 produced rofi `window/mainbox/inputbar/element` = 9px; terminal
+explicit produced 0/0/2/0; pill remained 2.
+
 ### Phase 3A delivery
 
 Format-aware targets are live:
