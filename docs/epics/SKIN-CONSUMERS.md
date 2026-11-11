@@ -8,7 +8,8 @@
 > **designs:** [`docs/108`](../108-non-ags-skin-consumers.md) ·
 > [`docs/109`](../109-hyprland-host-defaults.md) ·
 > [`docs/110`](../110-format-aware-skin-consumers.md) ·
-> [`docs/111`](../111-host-radius-granularity.md) (host rounding outer-only)
+> [`docs/111`](../111-host-radius-granularity.md) (host rounding rectangle roles) ·
+> [`docs/113`](../113-window-role-kitty-projection.md) (window role + kitty conf)
 > **predecessor:** [`SKIN-PLANE-V3`](./SKIN-PLANE-V3-generations.md) — delivered
 > **baseline:** contracts `v0.11.0`, ags-platform `v1.0.1`,
 > dotfiles-runtime `v1.4.0`, dotfiles-assets `v0.18.1`,
@@ -60,7 +61,8 @@ rhythm; structure stays app-owned.
 | `dotfiles-v3` — host cutover | tuple/app pins only after releases | `H-1.*`–`H-2.*` | delivered `v0.1.59` |
 | Phase 3 consumers | GTK3/4, rofi, kitty format-aware targets; btop/Hyprland palette-only | `W-3.1`–`W-3.7`; `H-3.1`–`H-3.5` | GTK3/GTK4/rofi delivered; rectangle host radii delivered; kitty/btop palette-only; other compositors deferred |
 | Phase 3 host refresh | socket2 `configreloaded` + debounce; other compositor sources | `H-3.4`, `H-3.5` | socket2 delivered `v1.2.0`; other compositors deferred |
-| Host rounding granularity | Keep `decoration:rounding` outer-only; inner radii stay skin-owned; guard the allowlist | `HG-1.1`–`HG-1.8` in [111](../111-host-radius-granularity.md) | proposed — design + guard slice |
+| Host rounding granularity | Keep `decoration:rounding` rectangle roles host-delegated; pill stays explicit; guard the allowlist | `HG-1.1`–`HG-1.8` in [111](../111-host-radius-granularity.md) | proposed — design + guard slice |
+| Appearance v3 window role + kitty conf | Required `surface.window` (8 tokens), seven-path host allowlist, rofi/wlogout/GTK remap, paint-free `appearance/kitty.conf` with px→pt/font/opacity rules | `W-*`, `H-*`, `K-*`, `M-*` in [113](../113-window-role-kitty-projection.md) | proposed — design/contract only (REQ-113) |
 
 ## Sequencing and collision rules
 

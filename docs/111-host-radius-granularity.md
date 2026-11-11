@@ -335,6 +335,9 @@ rectangles already has `terminal-host`, `glass` or `paper`.
 3. Should the future outer role be named `surface.window` or `surface.outer`?
    It should not imply “only real toplevels” if wlogout-style action cards also
    need it; this remains the separate Phase 2 question from the original doc.
+   **Settled by [`113`](./113-window-role-kitty-projection.md): `surface.window`
+   is the real toplevel role; wlogout action cards stay `card` with window
+   frame geometry.**
 4. Does any consumer plan to promote notification cards from layer-shell cards
    to a real toplevel? If yes, start the `surface.window` proposal; if no, keep
    it deferred. Pills are unaffected either way.

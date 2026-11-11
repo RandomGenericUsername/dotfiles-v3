@@ -3,6 +3,12 @@
 > **Status:** design/investigation only (2026-11-11). No schema, runtime,
 > assets, provisioning or live-config change. Visual review artifact:
 > [`design/kitty-btop-window-roles.html`](./design/kitty-btop-window-roles.html).
+>
+> **Superseded in part (2026-11-11):** approved decisions D4-B and D2-B reverse
+> this document's deferral of `surface.window` and its font-family-only kitty
+> slice. See [`113`](./113-window-role-kitty-projection.md) for the approved
+> window role, host delegation, skin migration and full kitty `conf`
+> projection. The unit/btop/notification evidence below still stands.
 
 This note answers three questions that were left open by
 [`110`](./110-format-aware-skin-consumers.md) and

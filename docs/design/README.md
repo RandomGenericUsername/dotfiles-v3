@@ -12,13 +12,22 @@
   explicit (`2px` here; `999px` capsules in flat/paper). It also marks the
   rejected “pill follows 9px” result. See
   [`111`](../111-host-radius-granularity.md).
+- [`window-role-kitty-projection.html`](./window-role-kitty-projection.html) —
+  a self-contained review of the approved `surface.window` role and the
+  paint-free kitty `conf` projection. It shows the window/panel/card split, the
+  rofi/wlogout/GTK/AGS/kitty consumer map, the seven-path host allowlist and
+  the exact kitty px→pt/font/opacity rules. See
+  [`113`](../113-window-role-kitty-projection.md).
 - [`kitty-btop-window-roles.html`](./kitty-btop-window-roles.html) — a
   self-contained side-by-side of kitty's palette-only config and the one
   honest next skin knob (`font_family`), btop's 48-key colour-only theme and
   its “not applicable” geometry/type surface, and the role map
   `panel` (outer) / `card` (inner) / `control` / `cell` / `pill` with a
   deferred `surface.window`. It makes clear that notification cards are not an
-  outer surface. See [`112`](../112-kitty-btop-window-roles.md).
+  outer surface. See [`112`](../112-kitty-btop-window-roles.md). Its deferral
+  and font-only kitty slice are superseded by
+  [`113`](../113-window-role-kitty-projection.md); the unit and btop evidence
+  remains current.
 
 Open it directly in a browser; there are no external assets, scripts or
 network dependencies. It is a design reference, not a runtime surface.

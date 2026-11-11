@@ -97,8 +97,9 @@ Recommended built-in policy:
 
 Do **not** map `gaps_in`/`gaps_out` (window structure), padding, type or
 colours. Notifications use `surface.card.radius`; full notification alignment
-needs a future `surface.window` role, not overloading card radius. Host
-rounding delegates the rectangle roles (panel/card/control/cell) through an
+needs a future `surface.window` role, not overloading card radius. The role is
+now proposed in [`113`](./113-window-role-kitty-projection.md); it is not part
+of this host-defaults baseline. Host rounding delegates the rectangle roles (panel/card/control/cell) through an
 explicit skin opt-in; `surface.pill.radius` stays explicit because a pill is a
 capsule/chip identity, not a rectangle corner. See
 [`111` §Pill decision and guards](./111-host-radius-granularity.md#pill-decision-and-guards).
