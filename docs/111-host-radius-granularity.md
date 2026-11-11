@@ -1,62 +1,121 @@
-# 111 — Host rounding granularity
+# 111 — Host rounding granularity and the pill exception
 
-> **Status:** **delivered** (2026-11-11) — rectangle radii delegated; pill explicit; live matrix passed.
+> **Status:** **delivered** (2026-11-11) — panel/card/control/cell follow the
+> host; `surface.pill.radius` stays explicit.
+> **Supersedes:** the original “outer-only” wording in this document for the
+> rectangle roles. The rectangle revision (contracts `v0.11.0`) delegated
+> `surface.card.radius`, `surface.control.radius` and `surface.cell.radius`;
+> this revision records the remaining pill decision and the visual criteria.
 
 ## Question
 
-Should Hyprland `decoration:rounding` reach **inner consumer components** —
-`surface.card.radius`, `surface.control.radius`, `surface.cell.radius`,
-`surface.pill.radius` — or only the outer surface role it feeds today,
-`surface.panel.radius`?
+Should Hyprland `decoration:rounding` reach inner consumer components, and
+specifically should `surface.pill.radius` ever be host-delegated?
 
-Observed with `terminal-host` and live rounding `9`:
+The question was settled in two parts:
+
+1. **Rectangle roles may follow the host.** `surface.panel.radius`,
+   `surface.card.radius`, `surface.control.radius` and
+   `surface.cell.radius` are an explicit `[host].inherit` allowlist. The
+   compositor’s corner value is a rectangle-geometry value, and a skin may
+   deliberately opt into it.
+2. **The pill never follows the host.** `surface.pill.radius` remains an
+   authored skin value. It is a shape identity (capsule/fully-rounded chip),
+   not another rectangle corner.
+
+Observed with `terminal-host` and live Hyprland rounding `9`:
 
 | Consumer slot | Token | Rendered radius |
 | --- | --- | ---: |
 | rofi `window` | `surface.panel.radius` | 9px |
-| rofi `mainbox` | `surface.card.radius` | 0px |
-| rofi `inputbar` | `surface.control.radius` | 2px |
-| rofi `element` | `surface.cell.radius` | 0px |
+| rofi `mainbox` | `surface.card.radius` | 9px |
+| rofi `inputbar` | `surface.control.radius` | 9px |
+| rofi `element` | `surface.cell.radius` | 9px |
 | wlogout `button` | `surface.panel.radius` | 9px |
+| AGS notification card | `surface.card.radius` | 9px |
+| AGS notification pill | `surface.pill.radius` | **2px** |
+| GTK card / control | `surface.card.radius` / `surface.control.radius` | 9px / 9px |
 
-The question is whether the 0/2/0 inner values are a defect.
+The 9px values are the delegated rectangle result. The unchanged 2px pill is
+the deliberate exception, not a missed host mapping.
 
 ## Decision
 
-**`decoration:rounding` is an outer-window/outer-surface value only. It must not
-be mapped to inner cards, controls, cells or pills. The host allowlist stays
-exactly `surface.panel.radius` and `surface.panel.border-width`.**
+**`decoration:rounding` may reach the rectangle roles through the explicit
+`[host].inherit` allowlist. It must never reach `surface.pill.radius`. The
+contract allowlist stays exactly the five current paths:**
+
+```text
+surface.panel.radius
+surface.panel.border-width
+surface.card.radius
+surface.control.radius
+surface.cell.radius
+```
+
+`surface.pill.radius` remains explicit in every skin. No `host.pill` mode, no
+derived/capped pill radius and no separate pill-host policy is introduced now.
 
 Consequences:
 
-1. **Outer-only host semantics.** Hyprland rounds a toplevel window's bounding
-   box. It has no concept of a card inside that window, a control inside a card,
-   or a layer-shell child. Treating the scalar as a general "roundness" knob is
-   a semantic escalation the compositor does not make.
-2. **`surface.panel` is the canonical outer-surface role.** A consumer that owns
-   an outer window/panel maps that outermost geometry to `surface.panel.radius`
-   and `surface.panel.border-width`. This already covers rofi `window`, wlogout
-   `window`, and the AGS bar panel. It does **not** mean "the bar panel only".
-   The role name is historical and remains frozen; renaming it is not worth a
-   contract/version migration.
-3. **Inner radii are skin-owned design.** `card`, `control`, `cell` and `pill`
-   radii express the skin's internal rhythm. `terminal-host` deliberately keeps
-   the terminal's square inner identity (`0/2/0`) while following the host for
-   the outer frame; `glass` and `paper` already provide rounded inner roles.
-   A user who wants rounded inner components selects a skin whose inner roles
-   are rounded, rather than making the host setting rewrite the skin.
-4. **wlogout action cards are an outer-surface exception by mapping, not by
-   host policy.** `wlogout.gtk.css.j2` maps `button` radius/border to the panel
-   tokens because those buttons are wide action cards, not compact controls
-   (docs/108 `W-2.12`). That is a consumer-template mapping decision and stays.
-   It is not evidence that every inner control should inherit.
-5. **No `surface.window` role now.** Adding a second outer role would duplicate
-   `surface.panel`, force every skin and mode override to author it, and change
-   the resolved surface vocabulary without solving the inner-radius question.
-   A future `surface.window` is justified only by a real consumer whose
-   outermost surface cannot honestly use `panel` (for example a notification
-   toplevel rather than the current layer-shell card). That needs its own
-   additive contract proposal; see Phase 2.
+1. **Host value = rectangle corner geometry.** Hyprland rounds a toplevel
+   window’s bounding box. The delegated rectangle roles are the skin’s opt-in
+   way to echo that geometry inward. The compositor still has no concept of a
+   card, control, cell or pill inside the window; delegation is a skin policy,
+   not a compositor semantic.
+2. **Pill value = shape declaration.** A pill radius answers “is this a capsule
+   or a squared chip?”, not “how round is this rectangle?”. `999` is a sentinel
+   for “fully rounded”, clamped to half the shortest side. `20`, `999` and `2`
+   are different shape identities, not different points on one radius scale.
+3. **A fixed host scalar cannot express a capsule.** Substituting `9` for
+   `999` (flat/paper) collapses a capsule into a rounded rectangle. Substituting
+   `9` for `20` (glass) changes the capsule proportion rather than following
+   the compositor. Substituting `9` for `2` (terminal-host) erases the squared
+   chip identity that makes that skin terminal-like.
+4. **Nested pill geometry is height-dependent.** The correct capsule radius is
+   derived from the rendered pill height, not from the outer window. A pill in
+   a notification row, a toolbar chip and a large badge can have different
+   heights inside the same card. The host cannot know those heights, so one
+   scalar cannot keep every pill a capsule.
+5. **Pill and control must stay distinguishable.** terminal-host authors
+   `control=2` and `pill=2`; after the rectangle revision the control follows
+   the host at `9`, while the pill remains `2`. That contrast is intentional:
+   the control is a rectangle, the pill is a chip. Delegating the pill would
+   make the two roles converge and remove a useful visual distinction.
+6. **No extra host policy is justified.** A `host.pill` mode, a separate pill
+   token, or a capped derivation would add contract vocabulary and versioning
+   to model a compositor setting that has no pill concept. If a future product
+   requirement needs host-adjacent pill behavior, it needs its own proposal,
+   not an exception inside this allowlist.
+
+What changes versus what stays:
+
+| Role | terminal-host at host rounding 9 | Why |
+| --- | --- | --- |
+| `panel`, `card`, `control`, `cell` radius | **9px** — delegated | Rectangle geometry; explicit skin opt-in |
+| `panel` border width | **1px** — delegated | Outer frame width; live `general:border_size` |
+| `pill` radius | **2px** — explicit | Shape identity; not a rectangle corner |
+| paint, type, rhythm, padding | unchanged | Never host-inheritable |
+
+## Why pills are different
+
+| Token | Meaning | Value domain | Can the host know it? |
+| --- | --- | --- | --- |
+| `surface.card.radius` | Rounded rectangle corner | Fixed pixel length | Approximately: it sees the outer rectangle; the skin opts in |
+| `surface.control.radius` | Compact rectangle corner | Fixed pixel length | Approximately: same as card, with a smaller authored fallback |
+| `surface.cell.radius` | List-row rectangle corner | Fixed pixel length | Approximately: same as card, with a smaller authored fallback |
+| `surface.pill.radius` | Capsule / fully-rounded chip identity | Sentinel (`999`) or authored chip value (`2`, `20`) | **No**: it depends on the rendered pill height and the skin’s shape language |
+
+Examples:
+
+- `flat` / `paper`: pill `999` → a true capsule at any height.
+- `glass`: pill `20` → a capsule whose softness is part of the glass identity.
+- `terminal` / `terminal-host`: pill `2` → a compact squared chip, not a
+  capsule. This is intentional; “pill” is the role name, not a promise that
+  every skin renders a capsule.
+- A notification action row can mix a 24px action chip and a 16px metadata
+  chip. A fixed 9px host radius makes the first nearly a capsule and the second
+  a rounded rectangle; neither is the authored shape.
 
 ## Evidence
 
@@ -64,66 +123,140 @@ Consequences:
 
 - Live host: `hyprctl -j getoption decoration:rounding` →
   `{"option":"decoration:rounding","int":9,"set":true}`; version `0.57.2`.
-- The runtime maps exactly one token to it:
-  `dotfiles-runtime/src/runtime/domain/host_defaults.py:28-31`:
-  `surface.panel.radius -> decoration:rounding`,
-  `surface.panel.border-width -> general:border_size`.
-- The contract allowlist is closed to those two paths:
-  `contracts/schemas/appearance-manifest.schema.json:76-95`.
+- The runtime maps the delegated rectangle paths to the one rounding value:
+  `dotfiles-runtime/src/runtime/domain/host_defaults.py:25-46`:
+  `surface.panel.radius`, `surface.card.radius`, `surface.control.radius` and
+  `surface.cell.radius` → `decoration:rounding`;
+  `surface.panel.border-width` → `general:border_size`.
+- `surface.pill.radius` is deliberately absent from `HOST_MAP`. The module
+  comment states that a pill is a capsule whose identity must stay explicit.
+
+### Contract and asset guards
+
+- Contracts `v0.11.0` enum is closed to the five rectangle paths:
+  `contracts/schemas/appearance-manifest.schema.json:76-95`. The description
+  states that `surface.pill.radius` is deliberately absent because the pill’s
+  capsule identity stays explicit.
 - Assets enforces the same list:
-  `dotfiles-assets/scripts/validate-skins.py:187`.
-- Docs/109 already records the intent: `surface.panel.radius` is the "outer
-  window/panel corner" (docs/109 §Phase 1 scope), and future notification outer
-  alignment "needs a future `surface.window` role, not overloading card radius"
-  (docs/109 §Decision; §H-3.2).
+  `dotfiles-assets/scripts/validate-skins.py:197-203` (`HOST_INHERITABLE`),
+  and the host probe at `:1137-1191` asserts that a supplied host value moves
+  only inherited rectangle paths.
+- The negative fixture
+  `dotfiles-assets/skins/tests/fixtures/invalid/host-pill-radius.toml` makes
+  `surface.pill.radius` the representative invalid path; the test suite expects
+  the allowlist failure (`skins/tests/test_skins.py:1447-1448`, `:2060-2063`).
+  That is the executable guard; this docs-only slice does not need a second one.
 
 ### Observed rendering at host radius 9
 
-Generation `af4c31a8a15293a83de9c71c3e1d8d6c970a1793276baf51ee0ff7623f4b31b7`:
+Generation `af4c31a8a15293a83de9c71c3e1d8d6c970a1793276baf51ee0ff7623f4b31b7`
+(the original matrix) plus the rectangle revision:
 
 - manifest host defaults: `surface.panel.radius=9`,
   `surface.panel.border-width=1`;
-- resolved tokens: panel radius `9`, card `0`, control `2`, cell `0`,
-  pill `2`;
-- `appearance/rofi.rasi`: `window` 9px, `mainbox` 0px, `inputbar` 2px,
-  `element` 0px;
-- `appearance/wlogout.css`: `button` 9px.
+- resolved tokens: panel `9`, card `9`, control `9`, cell `9`, pill `2`;
+- `appearance/rofi.rasi`: `window` 9px, `mainbox` 9px, `inputbar` 9px,
+  `element` 9px;
+- `appearance/wlogout.css`: `button` 9px;
+- GTK3/GTK4: card/control 9px; pill stays its authored value;
+- `terminal` remains explicit: panel/card/control/cell/pill = `0/0/2/0/2`,
+  `host: None`.
 
-This is exactly the outer-only contract, not a resolution failure.
-
-### Consumer mappings are already explicit
+### Consumer mappings are explicit
 
 - `dotfiles-assets/skins/templates/rofi.rasi.j2`: `window → panel`,
   `mainbox → card`, `inputbar → control`, `element → cell`.
 - `dotfiles-assets/skins/templates/wlogout.gtk.css.j2`: window paint from panel,
-  button fill from card, button radius/border from panel.
+  button fill from card, button radius/border from panel. wlogout action cards
+  are an outer-action-card mapping, not an inner-control precedent (docs/108
+  `W-2.12`).
 - `dotfiles-assets/skins/templates/ags-notifications.gtk.css.j2`: notification
-  cards use `surface.card.*`; the notification surface is a layer-shell overlay,
-  not a compositor-rounded toplevel.
+  cards use `surface.card.*`; pill/chip elements use `surface.pill.*`.
+- `dotfiles-assets/skins/manifests/terminal-host.toml`: `[host].inherit`
+  contains the five rectangle paths and **not** `surface.pill.radius`; its pill
+  group is explicit `radius = 2`.
+
+### Docs linkage
+
+- Docs/109 records the rectangle revision and states that
+  `surface.pill.radius` stays explicit; its Phase 2/3 wording links this
+  decision and keeps `surface.window` as a separate future proposal.
+- Docs/design/README links the visual mockup
+  [`terminal-host-radius.html`](./design/terminal-host-radius.html).
 
 ## Options considered
 
 | Option | What changes | Verdict |
 | --- | --- | --- |
-| **A. Expand the host allowlist** with `surface.card.radius`, `surface.control.radius`, `surface.cell.radius`, `surface.pill.radius` | Contract enum + generation bounds/defaults, runtime `HOST_MAP`/`HOST_BOUNDS`, assets validator, skins opt in, every consumer renders host radius on every inner role | **Reject.** Semantic mismatch; over-rounds small controls; flattens pill `999` to `9`; nested corners become non-concentric; turns a compositor window hint into a global design scalar. |
-| **B. Add a `surface.window` role** and map consumer outer surfaces to it; inner radii stay explicit | New role in skin/appearance/resolved schemas; every skin and mode override authors it; templates migrate outer mappings; runtime validation and assets gate update | **Defer.** It can improve naming for a second outer surface, but does not answer inner rounding and duplicates panel today. Needs a real consumer and a separate contract change. |
-| **C. Keep outer-only; document `surface.panel` as the outer-surface role and inner radii as skin-owned** | Docs + regression guards only; no contract/runtime/assets behavior change | **Choose.** Matches the compositor, preserves skin identity, zero migration. |
-| **D. Derive inner radii from the host value** (for example `max(0, host − padding)`) | New token arithmetic/derivation in the skin plane; new identity/versioning questions | **Reject.** No contract vocabulary for computed tokens; nested-context radius is design-owned; would make every skin's inner rhythm depend on unrelated compositor state. |
+| **A. Keep the pill explicit** (current) | No contract/runtime change; skins keep authored pill values; existing negative fixture remains the guard | **Choose.** Shape semantics are preserved, zero migration, no version churn. |
+| **B. Add `surface.pill.radius` to `[host].inherit`** | Contract enum + generation defaults/bounds, runtime `HOST_MAP`/`HOST_BOUNDS`, assets validator, opt-in skins, every pill consumer renders the host scalar | **Reject.** Flattens `999`/`20` capsules to `9`; turns a fixed scalar into a capsule; erases terminal-host’s `2px` chip; cannot keep mixed-height pills consistent. |
+| **C. Separate pill policy/token** (for example `surface.pill.shape` or a host-only `pill.inherit`) | New contract vocabulary, schema/versioning, skin/mode authoring, runtime and assets changes | **Reject/defer.** It still has no compositor source. A separate policy would be a design-system feature, not host delegation, and needs its own proposal if a real need appears. |
+| **D. Derived or capped pill radius** (`min(host, height/2)`, `max(2, host - inset)`, etc.) | Computed tokens or paint-time arithmetic in the skin plane; new identity/versioning rules; per-consumer height awareness | **Reject.** No contract vocabulary for computed tokens; the correct value is height- and context-dependent; a cap does not restore capsule semantics. |
+| **E. `host.pill` mode** (`inherit`/`explicit`/`capsule`) | New host policy surface, schema enum, docs, runtime and asset support | **Reject.** Hyprland has no pill concept; a mode would only rename an explicit skin decision and multiply test states. |
+| **F. Add a `surface.window` role instead** | New outer role, schemas, migration for every skin/mode, template remapping | **Defer, unrelated.** It may improve naming for a second outer surface, but it does not make pills host-geometry; see Phase 2. |
+| **G. Original outer-only wording** (no inner rectangle delegation) | Revert the rectangle revision | **Superseded.** The delivered rectangle policy is explicit skin opt-in and passed the live matrix; this document records that history rather than reopening it. |
+
+## Acceptance criteria
+
+### Pill decision and guards
+
+- **PG-1.1** The host allowlist is exactly `surface.panel.radius`,
+  `surface.panel.border-width`, `surface.card.radius`,
+  `surface.control.radius` and `surface.cell.radius`.
+  `surface.pill.radius` is absent from the contract enum, runtime `HOST_MAP` /
+  `HOST_BOUNDS`, generation defaults and assets `HOST_INHERITABLE`.
+- **PG-1.2** `terminal-host` keeps an explicit pill `radius = 2` while its
+  `[host].inherit` lists only the five rectangle paths. `terminal` stays
+  `[host]`-free. `flat`/`paper` keep whatever pill shape they author (`999`
+  capsules where declared). No skin gains a pill host path.
+- **PG-1.3** The assets negative fixture `host-pill-radius.toml` fails with the
+  allowlist message, and the host-probe test proves a supplied host value moves
+  only the five inherited paths; non-inherited pill values remain authored.
+- **PG-1.4** Docs/109, docs/111 and docs/design/README state the same split:
+  rectangle roles may follow the host; the pill stays explicit. The mockup
+  shows the actual live values and marks the rejected “pill follows 9px”
+  result as not chosen.
+- **PG-1.5** No contract, runtime, provisioning, composition, app or skin value
+  changes in this docs slice; no tag moves; no generation identity churn.
+- **PG-1.6** `make gates-ci` in the composition is green after the docs change;
+  the design HTML parses without errors and needs no network access.
+
+### Future pill policy (only if triggered)
+
+- **PG-2.1** Trigger: a real consumer needs pill geometry to vary with the host
+  in a way the skin cannot author — for example a compositor-provided “shape
+  family” rather than a corner radius. Wanting rounded pills is **not** a
+  trigger; author them in the skin.
+- **PG-2.2** Any future pill policy is a separate contract proposal with its
+  own vocabulary, bounds, identity rules and migration. It must not be added to
+  the current `[host].inherit` allowlist.
+- **PG-2.3** If the proposal ever maps a host value, it must preserve the
+  capsule/chip distinction and cannot make one scalar stand for both a fixed
+  rectangle corner and a height-relative capsule.
+
+### Explicitly rejected
+
+- **PG-X1** Mapping `surface.pill.radius` to `decoration:rounding`.
+- **PG-X2** Computing or capping pill radii from the host value inside the skin
+  plane.
+- **PG-X3** Adding a `host.pill` mode or a second pill token to the current
+  contract as a shortcut.
+- **PG-X4** Treating layer-shell content as compositor-rounded toplevels.
 
 ## Contract, version and identity impact
 
-### Chosen option C
+### Chosen option A
 
 | Surface | Impact |
 | --- | --- |
-| Contracts schema | **None.** `host.inherit` stays the two-path enum; generation `host.defaults` stays two properties; no schema version bump. |
-| Runtime | **None.** `HOST_MAP`, `HOST_BOUNDS`, `HOST_MAP_VERSION=1`, `hostHash`, generation manifest, doctor drift comparison unchanged. |
-| Assets | **Documentation + guard tests only.** `HOST_INHERITABLE` already rejects inner paths; add an explicit negative fixture/test and a rofi host-probe render assertion. |
-| Skins | **None.** glass/paper/terminal-host keep their current inner radii; terminal/flat remain explicit/off. |
+| Contracts schema | **None.** The current five-path enum already excludes the pill; no schema version bump. |
+| Runtime | **None.** `HOST_MAP`, `HOST_BOUNDS`, `HOST_MAP_VERSION=1`, `hostHash`, generation manifest and `doctor` drift comparison are unchanged. |
+| Assets | **Documentation + existing guard.** `HOST_INHERITABLE` already rejects pill paths; the negative fixture and host probe already cover it. No new test is required for this docs slice. |
+| Skins | **None.** glass/paper/terminal-host keep their current pill radii; terminal/flat remain explicit/off. |
 | Provisioning / consumers | **None.** No link, target, template or app change. |
 | Composition / tags | **None.** No pin or tag moves; no generation churn. |
 
-### If option A were ever reconsidered
+### If option B were ever reconsidered
 
 - Contract: enum and generation `defaults` properties need new entries and
   bounds; this is an additive contract release, not a patch.
@@ -133,127 +266,91 @@ This is exactly the outer-only contract, not a resolution failure.
   (all host generations change identity and churn once). The contract/docs must
   state which; the current schema `version: const 1` makes a bump a breaking
   migration unless the schema accepts both.
-- Assets: opt-in skins gain `[host]` entries; every template using those roles
-  renders host values; `validate-skins` host probe must cover each new path.
-- Consumer risk is the blocker: every inner control across GTK/rofi/wlogout
-  changes at once, with no per-context control.
+- Assets: opt-in skins gain `[host]` entries; `validate-skins` host probe must
+  cover the new path, and the negative fixture flips to a positive case.
+- Consumer risk is the blocker: every pill across GTK/rofi/wlogout changes at
+  once, with no per-context control.
 
-### If option B were ever reconsidered
+### If option F were ever reconsidered
 
 - Add an additive role to the surface vocabulary (skin manifest, appearance
   manifest, resolved appearance JSON), define whether it is required or
   optional, and decide how mode overrides replace it.
 - If it is host-inheritable, add `surface.window.radius` to the allowlist and
   generation defaults. Do **not** alias it to `surface.panel` implicitly.
-- Migrate only consumers with a genuine outer surface; inner mappings never
-  move to `window`.
+- Migrate only consumers with a genuine outer surface; pills never move to
+  `window`.
 
 ## Visual risks
 
 | Risk | Why it matters |
 | --- | --- |
-| Small controls over-round | A 9–12px radius on a 24–28px input/button reads as a capsule. `surface.control.radius` is 2–7 in the bundled skins for a reason. |
-| Pills collapse | `surface.pill.radius` is `999` in flat/paper to mean "fully round". Replacing it with host `9` silently turns pills into rounded rectangles. |
-| Nested corners are not concentric | An inner card at radius 9 inside a window radius 9 with 9px padding has an effective 18px corner; the correct nested value is usually `max(0, outer − inset)`, which the host cannot know. |
-| Double rounding | rofi `mainbox` fills the window's padded content area; giving it the outer radius creates a second rounded rectangle inside the first. |
-| Per-context GTK damage | A global `button { border-radius }` also hits headerbar buttons, entries, popovers and dialogs; Hyprland rounding says nothing about those contexts. |
-| Layer-shell mismatch | AGS surfaces are layer-shell; the compositor does not round them the way it rounds toplevels. Inheriting inner card radii from `decoration:rounding` would invent geometry the compositor never applies. |
-| wlogout divergence | wlogout action cards already look right at panel radius. Expanding the allowlist would not improve them and would risk changing their identity under skins that opt in. |
-| Skin identity loss | `terminal-host` exists precisely to keep square inner components while following the outer host frame. Option A would erase that distinction. |
-
-## Acceptance criteria
-
-### Phase 1 — decision record and guards (next slice)
-
-- **HG-1.1** `decoration:rounding` is documented as an outer-window/outer-surface
-  value; the host allowlist remains exactly `surface.panel.radius` and
-  `surface.panel.border-width`. No inner radius path is host-inheritable.
-- **HG-1.2** Docs/109 links this decision and its Phase 2/3 wording agrees:
-  inner radii are skin-owned; `surface.window` remains a future, separate
-  proposal.
-- **HG-1.3** Assets has an explicit negative fixture proving
-  `[host].inherit` with `surface.card.radius` (representative of any inner role)
-  fails with the allowlist message; `validate-skins` behavior is unchanged.
-- **HG-1.4** Assets has a host-probe render assertion: under a probe host
-  radius, rofi `window` equals the probe, while `mainbox`/`inputbar`/`element`
-  equal their authored skin values. The assertion runs for terminal-host and
-  glass/paper.
-- **HG-1.5** wlogout's panel-radius button mapping is documented as an
-  outer-action-card mapping, not an inner-control precedent.
-- **HG-1.6** No contract, runtime, provisioning, composition, app or skin value
-  changes in the guard slice; no tag moves; no generation identity churn.
-- **HG-1.7** A read-only visual check records host rounding `0`, `9` (or the
-  live value) and a large value: rofi outer follows; inner roles do not; nested
-  corners remain visually clean; wlogout cards follow.
-- **HG-1.8** `make gates-ci` in the composition is green; the assets repo's
-  `make gates` / `validate-skins` and the runtime host-default tests are green
-  in the implementing slice.
-
-### Phase 2 — future `surface.window` (only if triggered)
-
-- **HG-2.1** Trigger: a real consumer owns a **toplevel outer surface** whose
-  geometry cannot honestly be expressed by `surface.panel` (candidate: a future
-  notification window, not the current layer-shell cards).
-- **HG-2.2** A separate contract proposal defines the role additively, with a
-  migration for bundled skins and mode overrides; no implicit alias to panel.
-- **HG-2.3** If host-inheritable, `surface.window.radius` is added to the
-  allowlist with its own bounds and identity rule; inner roles remain excluded.
-- **HG-2.4** The role is never used for cards, controls, cells or pills.
-
-### Explicitly rejected
-
-- **HG-X1** Mapping `surface.card.radius`, `surface.control.radius`,
-  `surface.cell.radius` or `surface.pill.radius` to `decoration:rounding`.
-- **HG-X2** Computing inner radii from the host value inside the skin plane.
-- **HG-X3** Treating layer-shell content as compositor-rounded toplevels.
+| Capsule collapse | `surface.pill.radius` is `999` in flat/paper to mean “fully round”. Replacing it with host `9` silently turns capsules into rounded rectangles; `glass` pill `20` loses its authored proportion too. |
+| Shape ambiguity | terminal-host authors pill `2` as a squared chip. Host `9` would make it look like every other delegated rectangle and erase the pill/control distinction. |
+| Height inconsistency | A fixed host radius on pills of different heights produces some near-capsules and some rounded rectangles; only the rendered height can define a true capsule. |
+| Nested corners are not concentric | An inner card at radius 9 inside a window radius 9 with 9px padding has an effective 18px corner; the correct nested value is usually `max(0, outer − inset)`, which the host cannot know. This is a rectangle risk the skin accepts by opting in; pills should not inherit it. |
+| Double rounding | rofi `mainbox` fills the window’s padded content area; giving it the outer radius creates a second rounded rectangle inside the first. The rectangle policy accepts this as skin-owned rhythm; pills are smaller and worse. |
+| Per-context GTK damage | A global pill/button radius also hits headerbar buttons, entries, popovers and dialogs; Hyprland rounding says nothing about those contexts. |
+| Layer-shell mismatch | AGS surfaces are layer-shell; the compositor does not round them the way it rounds toplevels. Inheriting pill radii from `decoration:rounding` would invent geometry the compositor never applies. |
+| Skin identity loss | terminal-host exists precisely to keep a terminal-like inner identity while following the outer host frame. Delegating pills would erase a remaining explicit distinction. |
 
 ## Migration and compatibility
 
 - No migration: no manifest, generation, cache, consumer link or app changes.
 - Existing generations remain valid. `doctor` continues to compare only the
-  delegated outer values.
-- Rollback: nothing to roll back for the decision. If the guard slice is
-  reverted, behavior is unchanged; it is tests/docs only.
-- If a future opt-in is added, rollback is removing the path from the skin's
-  `[host].inherit` and reconverging; it is per-skin and local.
+  five delegated paths.
+- Rollback: nothing to roll back for this decision. If this docs slice is
+  reverted, behavior is unchanged; it is documentation and a static mockup.
+- If a future pill policy is added, rollback is removing the new policy from
+  the skin and reconverging; it must be per-skin and versioned.
 
 ## Phased plan
 
 | Phase | Scope | Repo | IDs |
 | --- | --- | --- | --- |
-| 0 | This design doc + tracking ticket + epic/109 links | `dotfiles-v3` | — |
-| 1 | Negative inner-radius fixture + rofi host-probe render assertion + docstring/README clarification | `dotfiles-assets` | `HG-1.3`, `HG-1.4`, `HG-1.5` |
-| 1 | Read-only live visual probe at host 0/9/large | local, no apply | `HG-1.7` |
-| 2 | Optional `surface.window` proposal, only if a genuine outer consumer appears | `contracts` → runtime/assets → composition | `HG-2.1`–`HG-2.4` |
-| — | Inner-radius host mapping | rejected | `HG-X1`–`HG-X3` |
+| 0 | Rectangle radius delegation (delivered) | contracts/runtime/assets/composition | contracts `v0.11.0`, assets `v0.18.0`, runtime `v1.4.0` |
+| 1 | Pill decision record + docs/109 link + self-contained visual mockup | `dotfiles-v3` | `PG-1.1`–`PG-1.6` |
+| 2 | Optional separate pill policy, only if a genuine trigger appears | contracts → runtime/assets → composition | `PG-2.1`–`PG-2.3` |
+| — | Pill host mapping / derived pill radius / `host.pill` shortcut | rejected | `PG-X1`–`PG-X4` |
 
 ## Recommendation
 
-Adopt **Option C: outer-only**. Keep the host allowlist unchanged, document
-`surface.panel` as the outer-surface role, and keep inner radii as authored skin
-identity. The observed rofi `mainbox=0`, `inputbar=2`, `element=0` under
-`terminal-host` is correct: `terminal-host` is a hybrid that follows the host
-outside and keeps the terminal inside. A user wanting rounded inner components
-should select `glass` or `paper`, which already author them.
+Adopt **Option A: keep the pill explicit**. The rectangle roles already follow
+the host through an explicit skin opt-in, which is the honest part of the
+compositor’s geometry. The pill is a shape identity — `999`/`20` capsules or
+terminal-host’s `2px` chip — and a fixed host scalar cannot express it. Keep the
+host allowlist unchanged at five paths, keep the existing negative fixture as
+the guard, and use the mockup as the review artifact. A user who wants a
+different pill shape selects or authors a skin; a user who wants rounded inner
+rectangles already has `terminal-host`, `glass` or `paper`.
 
 ## Open questions
 
-1. Should the future outer role be named `surface.window` or `surface.outer`?
-   It should not imply "only real toplevels" if wlogout-style action cards also
-   need it.
-2. Does any consumer plan to promote notification cards from layer-shell cards
-   to a real toplevel? If yes, start `HG-2.1`; if no, keep `surface.window`
-   deferred.
-3. Should glass/paper inner radii be audited for concentric corners against the
-   panel radius and padding? This is a skin-design review, independent of host
-   inheritance.
-4. Is the docs wording "outer window/panel corner" sufficient, or should
-   `surface.panel` get an explicit role glossary entry in the skins README?
+1. Is a separate pill-shape policy ever needed, or is the current skin-authored
+   token sufficient? Treat this as `PG-2.1`; do not expand the host allowlist
+   pre-emptively.
+2. Should the skins README explicitly document `999` as a capsule sentinel so
+   authors do not read it as a literal corner radius? This is a documentation
+   improvement, not a contract change.
+3. Should the future outer role be named `surface.window` or `surface.outer`?
+   It should not imply “only real toplevels” if wlogout-style action cards also
+   need it; this remains the separate Phase 2 question from the original doc.
+4. Does any consumer plan to promote notification cards from layer-shell cards
+   to a real toplevel? If yes, start the `surface.window` proposal; if no, keep
+   it deferred. Pills are unaffected either way.
 
 ## Delivery evidence
 
-- contracts v0.11.0, assets v0.18.0, runtime v1.4.0, engine v0.1.61, composition v0.1.66.
+- Contracts `v0.11.0`: five-path rectangle allowlist; `surface.pill.radius`
+  absent and documented as explicit.
+- Assets `v0.18.0`: `HOST_INHERITABLE` rectangle-only; negative fixture
+  `host-pill-radius.toml`; host probe leaves non-inherited tokens untouched.
+- Runtime `v1.4.0`, engine `v0.1.61`, composition `v0.1.66`.
 - Live `terminal-host` with Hyprland rounding 9: panel/card/control/cell = 9;
-  rofi window/mainbox/inputbar/element = 9px; wlogout card = 9px; GTK3
-  button/entry/popover/card = 9px; doctor clean.
-- `terminal` remained explicit (0/0/2/0, host None); GTK3/GTK4 parse.
+  rofi window/mainbox/inputbar/element = 9px; wlogout card = 9px; GTK3/GTK4
+  card/control = 9px; pill = 2px explicit; doctor clean.
+- `terminal` remained explicit (0/0/2/0/2, host None).
+- Docs/mockup:
+  [`docs/design/terminal-host-radius.html`](./design/terminal-host-radius.html)
+  (self-contained, live terminal/dark palette and actual radius values; no
+  scripts, external assets or network).

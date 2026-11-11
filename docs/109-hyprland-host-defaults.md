@@ -4,8 +4,9 @@
 > This document remains the criteria record; implementation evidence is at the
 > end.
 > **Epic:** [`SKIN-CONSUMERS`](./epics/SKIN-CONSUMERS.md)
-> **Granularity decision:** [`111`](./111-host-radius-granularity.md) keeps host
-> rounding outer-only; inner radii stay skin-owned.
+> **Granularity decision:** [`111`](./111-host-radius-granularity.md) delegates
+> the rectangle roles (panel/card/control/cell) and keeps the pill explicit;
+> inner pill shape stays skin-owned.
 > **Baseline:** contracts `v0.8.0`, ags-platform `v1.0.1`,
 > dotfiles-runtime `v1.0.8`, dotfiles-assets `v0.14.0`,
 > dotfiles-provision `v0.1.50`, composition `v0.1.55`.
@@ -21,6 +22,14 @@ The allowlist now delegates outer and inner rectangle radii:
 explicit. Live `terminal-host` at host rounding 9 produced panel/card/control/
 cell 9, rofi window/mainbox/inputbar/element 9, wlogout card 9, GTK card/control
 9; terminal remained explicit. Composition `v0.1.66`.
+
+The pill is the deliberate exception: a pill radius is a capsule/chip identity
+(flat/paper `999`, glass `20`, terminal-host `2`), not a rectangle corner.
+Replacing it with the host scalar would collapse capsules into rounded
+rectangles and make mixed-height pills inconsistent. The contract allowlist,
+the assets negative fixture and the design mockup therefore keep the pill
+explicit; see [`111` §Pill decision and guards](./111-host-radius-granularity.md#pill-decision-and-guards)
+and [`docs/design/terminal-host-radius.html`](./design/terminal-host-radius.html).
 
 ## Delivery evidence
 
@@ -82,15 +91,17 @@ Recommended built-in policy:
 | --- | ---: | ---: | --- |
 | `glass` | yes | yes | default parity should follow compositor |
 | `paper` | yes | yes | role-based skin; authored `mode.light` stays explicit |
+| `terminal-host` | yes | yes | follows the rectangle roles while keeping the pill explicit |
 | `terminal` | no | no | square/hairline identity is an explicit override |
 | `flat` | no | no | zero-chrome identity is an explicit override |
 
 Do **not** map `gaps_in`/`gaps_out` (window structure), padding, type or
 colours. Notifications use `surface.card.radius`; full notification alignment
 needs a future `surface.window` role, not overloading card radius. Host
-rounding is **outer-only** by decision [`111`](./111-host-radius-granularity.md):
-inner `card`/`control`/`cell`/`pill` radii are authored skin identity and are
-never host-inheritable.
+rounding delegates the rectangle roles (panel/card/control/cell) through an
+explicit skin opt-in; `surface.pill.radius` stays explicit because a pill is a
+capsule/chip identity, not a rectangle corner. See
+[`111` §Pill decision and guards](./111-host-radius-granularity.md#pill-decision-and-guards).
 
 ## Evidence that constrains the design
 
@@ -177,8 +188,9 @@ host token or a change to the host allowlist.
 - **H-3.2** Blur/shadow mapping is considered only if a real GTK backdrop path
   exists; host shadow colour is never injected (no literal hex). A future
   `surface.window` role may cover notification outer cards; per
-  [`111`](./111-host-radius-granularity.md) it is a separate proposal and inner
-  card radii are never host-inheritable.
+  [`111`](./111-host-radius-granularity.md) it is a separate proposal.
+  Rectangle radii are delegated only through the explicit five-path allowlist;
+  `surface.pill.radius` is never host-inheritable.
 - **H-3.3** `gaps_in`/`gaps_out` remain structure and are never mapped to
   padding/rhythm.
 - **H-3.4** A socket2 `configreloaded` watcher with a short debounce re-reads
