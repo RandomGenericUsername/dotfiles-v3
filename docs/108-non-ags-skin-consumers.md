@@ -177,7 +177,11 @@ alignment explicit.
 - **W-2.12** wlogout button radius and border width use the **panel** host
   tokens (`surface.panel.radius`, `surface.panel.border-width`) so the action
   cards follow the same outer geometry as the compositor/panel. Fill and border
-  colour still come from `surface.card`.
+  colour still come from `surface.card`. This remains an **outer action-card**
+  mapping under the revised [`111`](./111-host-radius-granularity.md)
+  skin-delegated rectangle model: wlogout does not consume the delegable inner
+  `card`/`control`/`cell` roles for its buttons, so its identity is unchanged by
+  a skin opting those roles in.
 - **W-2.13** `button:hover`, `button:focus`, `button:active` use `state.*` paint;
   `button span` uses `type.*` typography.
 - **W-2.14** the static sheet remains structure-only (wallpaper, icons, layout

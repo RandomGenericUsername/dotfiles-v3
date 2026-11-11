@@ -1,8 +1,8 @@
 ---
 id: REQ-111
-title: "Host radius granularity: outer-only decision and guards"
+title: "Host radius granularity: skin-delegated rectangle radii"
 kind: requirement
-status: proposed
+status: design-accepted
 lane: design
 links:
   openspec: none
@@ -12,93 +12,133 @@ worktree: .worktrees/REQ-111/
 branch: ticket/REQ-111-host-radius-granularity
 ---
 
-# Host radius granularity: outer-only decision and guards
+# Host radius granularity: skin-delegated rectangle radii
 
 ## Requirement
 
-Decide and record whether Hyprland `decoration:rounding` may reach inner
-consumer roles, then define the smallest slice that prevents semantic drift.
+Decide and record how Hyprland `decoration:rounding` reaches consumer surface
+roles, then define the implementation slices that lock it in.
 
-- **Outer-only.** `decoration:rounding` is an outer-window/outer-surface value.
-  The host allowlist remains exactly `surface.panel.radius` and
-  `surface.panel.border-width`.
-- **`surface.panel` is the outer-surface role.** Consumers map their outermost
-  window/panel geometry to it. It is not limited to the AGS bar panel.
-- **Inner radii are skin-owned.** `surface.card.radius`,
-  `surface.control.radius`, `surface.cell.radius` and `surface.pill.radius`
-  are authored design values and must not be host-inheritable.
-- **No new role now.** A `surface.window` role is deferred until a real
-  toplevel outer surface cannot honestly use `panel`; it is not needed for the
-  current rofi/wlogout/layer-shell consumers.
-- **No behavior change.** This ticket is docs + regression guards only; no
-  schema, runtime, assets value, provisioning, composition or tag change.
+- **Skin-delegated rectangles.** A skin may delegate `surface.panel.radius`,
+  `surface.card.radius`, `surface.control.radius` and `surface.cell.radius` to
+  the host, plus `surface.panel.border-width` to `general:border_size`.
+- **Pill stays explicit.** `surface.pill.radius` is never host-inheritable; a
+  capsule must not become a rounded rectangle because the compositor changed.
+- **Opt-in per skin and per path.** `glass`, `paper` and `terminal-host` will
+  delegate the full rectangle set in the assets slice. `terminal` and `flat`
+  remain explicit with no `[host]` policy.
+- **Consumers keep their mappings.** rofi `window`/`mainbox`/`inputbar`/
+  `element` map to panel/card/control/cell; wlogout action cards remain panel
+  (outer action cards, not inner controls); GTK cards/controls use card/control.
+- **No new role.** `surface.window` stays deferred; no inner border-width,
+  padding, gap, type or colour delegation; no derived radii.
+
+This ticket records the design and cross-links. It changes no schema, runtime,
+assets value, provisioning, engine, composition or tag.
 
 ## Scope of this ticket
 
-1. Design record: `docs/111-host-radius-granularity.md`.
-2. Link the decision from docs/109 and the `SKIN-CONSUMERS` epic.
-3. Name the guard slice for `dotfiles-assets` (does not run here):
-   - negative fixture for an inner-radius `[host].inherit` path;
-   - rofi host-probe render assertion (window follows; mainbox/inputbar/element
-     do not);
-   - README/docstring clarification that wlogout buttons are outer action cards.
-4. Read-only visual evidence at host rounding 0 / live 9 / a large value.
+1. Revise `docs/111-host-radius-granularity.md` from outer-only to the
+   skin-delegated rectangle model, with criteria `HG-2.1`–`HG-2.12`, a
+   validation matrix, risks, non-goals and the implementation sequence.
+2. Update docs/109 granularity wording, docs/108 `W-2.12`, and the
+   `SKIN-CONSUMERS` epic row.
+3. Mark the prior outer-only assets guards (REQ-025) as needing deliberate
+   inversion in the assets slice: the `host-inner-radius` fixture and the
+   "only the outer window moves" rofi test are obsolete; add a pill negative
+   fixture.
+4. Record the read-only validation plan at host rounding 0 / 9 / large for
+   rofi, wlogout and GTK.
 
 ## Acceptance
 
-- [x] `docs/111-host-radius-granularity.md` records the decision, options,
-  contract/runtime/assets impact, visual risks, criteria, migration and
-  open questions.
-- [x] Docs/109 links the granularity decision and still defers
-  `surface.window` to a separate proposal.
-- [x] `docs/epics/SKIN-CONSUMERS.md` lists this design/tracking ticket.
-- [x] The ticket names the exact next implementation slice in
-  `dotfiles-assets` and states explicitly that it changes no behavior.
-- [ ] Read-only live probe at rounding 0, 9 and a large value confirms rofi
-  outer follows while inner roles do not, and wlogout cards follow. (To run in
-  the guard slice; this design pass records the existing 9px evidence.)
+- [x] `docs/111` records the revised model, options, contract/version impact,
+  implementation sequence, validation matrix, risks, criteria, migration and
+  non-goals.
+- [x] docs/109 links the revision and supersedes the outer-only wording;
+  docs/108 `W-2.12` states wlogout stays a panel-mapped outer action card.
+- [x] `docs/epics/SKIN-CONSUMERS.md` links the revised design and criteria IDs.
+- [x] This ticket names the exact implementation slices and states that this
+  design pass changes no behavior.
+- [ ] Contracts/runtime/assets/engine/composition slices implemented and tagged
+  (`HG-2.3`–`HG-2.9`).
+- [ ] Read-only validation matrix V-1…V-11 recorded (`HG-2.10`).
 - [x] `make gates-ci` in this worktree is green before merge. Observed 2026-11-11:
-  all four gates PASS (docs-only change).
+  docs-only change; gates recorded in the commit report.
 - [x] No schema/runtime/assets/provisioning/composition/app change and no tag
   moved in this ticket.
 
 ## Evidence
 
 - Live: `hyprctl -j getoption decoration:rounding` → int 9 on Hyprland 0.57.2.
-- Generation `af4c31a8…`: host radius 9; rofi window 9 / mainbox 0 /
-  inputbar 2 / element 0; wlogout button 9.
+- Existing generation `af4c31a8…` under panel-only policy: rofi window 9 /
+  mainbox 0 / inputbar 2 / element 0; wlogout button 9. This is the baseline the
+  revised model changes for opted-in skins.
 - Contract allowlist: `contracts/schemas/appearance-manifest.schema.json`
-  `hostPolicy.inherit.items.enum` (two paths).
+  `hostPolicy.inherit.items.enum` (two paths today).
 - Runtime mapping: `dotfiles-runtime/src/runtime/domain/host_defaults.py`
-  `HOST_MAP` (two paths).
+  `HOST_MAP`/`HOST_BOUNDS` (two paths today).
 - Assets guard: `dotfiles-assets/scripts/validate-skins.py`
-  `HOST_INHERITABLE` (two paths).
+  `HOST_INHERITABLE`/`HOST_PROBE`; obsolete negative fixture
+  `skins/tests/fixtures/invalid/host-inner-radius.toml`; obsolete rofi test
+  `test_rofi_host_probe_moves_only_the_outer_window_radius`.
+- wlogout mapping: `dotfiles-assets/skins/templates/wlogout.gtk.css.j2`
+  (button radius/border from panel, fill from card).
 - Prior intent: docs/109 §Phase 1 scope and §H-3.2; docs/108 `W-2.12`.
 
-## Next implementation slice (after this design is accepted)
+## Next implementation slices
 
-**Repo:** `dotfiles-assets`, one ticket/branch/worktree.
+**1. `contracts` — additive allowlist (`HG-2.3`)**
 
-1. Add `skins/tests/fixtures/invalid/host-inner-radius.toml` — a valid manifest
-   whose `[host].inherit` names `surface.card.radius`; assert `validate-skins`
-   fails with the known-path/allowlist message. Mirror the existing
-   `host-unknown-inherit.toml` pattern.
-2. Add a host-probe render test: resolve `terminal-host` with a probe radius,
-   render `rofi.rasi`, assert `window` equals the probe and
-   `mainbox`/`inputbar`/`element` equal the skin's card/control/cell radii.
-   Repeat for `glass` and `paper`.
-3. Extend the `validate-skins` module docstring / skins README with the
-   outer-only rule and the wlogout action-card exception.
-4. Run `make gates` / `validate-skins`; no runtime or contract change is
-   expected.
+- Add `surface.card.radius`, `surface.control.radius`, `surface.cell.radius`
+  to `hostPolicy.inherit.items.enum` and to generation `host.defaults`
+  (`0..64`). Pill remains absent.
+- Tests: new paths accepted; pill and inner border-width rejected; old
+  manifests/generations validate; `appearance.v3` unchanged.
+- Release additive minor; do not bump `HOST_MAP_VERSION`.
 
-**Follow-on only if triggered:** a separate contract proposal for
-`surface.window` (`HG-2.1`–`HG-2.4`).
+**2. `dotfiles-runtime` — mapping (`HG-2.4`)**
+
+- Add the three paths to `HOST_MAP` (same `decoration:rounding` source) and
+  `HOST_BOUNDS` (`0..64`); validate generation defaults; doctor compares all
+  delegated paths; `hostHash` includes only participating paths.
+- Tests: values reach every delegated role; pill rejected; panel-only
+  generations keep identity; host 0/9/24 and bound 64 pass, 65 fails.
+
+**3. `dotfiles-assets` — skins and guards (`HG-2.5`–`HG-2.7`)**
+
+- Expand `HOST_INHERITABLE` to the five paths and `HOST_PROBE` to cover all
+  five.
+- `glass`, `paper`, `terminal-host` opt in to the four radii + panel border;
+  `terminal`/`flat` unchanged.
+- Remove/convert `host-inner-radius.toml`; add a `surface.pill.radius`
+  negative fixture; replace the outer-only rofi test with the delegated matrix.
+- Add wlogout panel-action-card and GTK3/GTK4 delegated card/control probes;
+  assert pills stay authored. Update README/docstring.
+- Release minor.
+
+**4. `dotfiles-provision` / engine (`HG-2.8`)**
+
+- Update any mirrored schema/token constants; the verify token-path list
+  already names panel/card/cell/control. No consumer link/template/layout
+  changes. Bump the engine pin after upstream tags.
+
+**5. `dotfiles-v3` composition (`HG-2.9`)**
+
+- Update `program-tuple.yaml` and pins only after releases; run `make gates-ci`
+  and `make deploy-coverage`; tag the composition.
+
+**6. Local read-only validation (`HG-2.10`)**
+
+- Probe rofi/wlogout/GTK at host 0/9/large using temp XDG roots; no apply and
+  no live generation commit.
 
 ## Non-goals
 
-- No inner-radius host mapping (`HG-X1`), no computed/derived inner radii
-  (`HG-X2`), no layer-shell/toplevel conflation (`HG-X3`).
-- No `surface.window` role in this ticket.
-- No change to `surface.panel.radius`, host hash, generation identity, doctor,
-  provisioning links, consumer templates or app skins.
+- No pill delegation (`HG-X1`), no derived/scaled radii (`HG-X2`), no forced
+  delegation (`HG-X3`), no inner border/padding/type/colour delegation
+  (`HG-X4`), no `surface.window` role (`HG-X5`).
+- No claim that the compositor rounds layer-shell content or inner widgets
+  (`HG-X6`); the outer-only rule is no longer universal (`HG-X7`).
+- No change to `terminal`/`flat`, app layout, provisioning links, consumer
+  templates or host mapping version in the design slice.

@@ -4,8 +4,11 @@
 > This document remains the criteria record; implementation evidence is at the
 > end.
 > **Epic:** [`SKIN-CONSUMERS`](./epics/SKIN-CONSUMERS.md)
-> **Granularity decision:** [`111`](./111-host-radius-granularity.md) keeps host
-> rounding outer-only; inner radii stay skin-owned.
+> **Granularity decision (revised 2026-11-11):**
+> [`111`](./111-host-radius-granularity.md) adopts a **skin-delegated rectangle
+> model**: panel/card/control/cell radii and panel border-width may follow the
+> host when a skin opts in per path; `surface.pill.radius` is never delegated.
+> The earlier outer-only rule is superseded.
 > **Baseline:** contracts `v0.8.0`, ags-platform `v1.0.1`,
 > dotfiles-runtime `v1.0.8`, dotfiles-assets `v0.14.0`,
 > dotfiles-provision `v0.1.50`, composition `v0.1.55`.
@@ -60,14 +63,14 @@ Precedence, highest first:
 A token not listed in `inherit` is always the skin's explicit value. A host
 value must never be injected into a token the skin did not delegate.
 
-## Phase 1 scope (only these mappings)
+## Phase 1 scope (delivered mappings)
 
 | Skin token | Hyprland source | Why |
 | --- | --- | --- |
 | `surface.panel.radius` | `decoration:rounding` | outer window/panel corner |
 | `surface.panel.border-width` | `general:border_size` | outer frame width |
 
-Recommended built-in policy:
+Recommended built-in policy at Phase 1 delivery:
 
 | Skin | Inherit radius | Inherit border | Reason |
 | --- | ---: | ---: | --- |
@@ -77,11 +80,33 @@ Recommended built-in policy:
 | `flat` | no | no | zero-chrome identity is an explicit override |
 
 Do **not** map `gaps_in`/`gaps_out` (window structure), padding, type or
-colours. Notifications use `surface.card.radius`; full notification alignment
-needs a future `surface.window` role, not overloading card radius. Host
-rounding is **outer-only** by decision [`111`](./111-host-radius-granularity.md):
-inner `card`/`control`/`cell`/`pill` radii are authored skin identity and are
-never host-inheritable.
+colours.
+
+### Granularity revision (2026-11-11, supersedes outer-only)
+
+Decision [`111`](./111-host-radius-granularity.md) expands the delegable set
+(additive contract change) and changes the bundled opt-in policy:
+
+| Skin token | Host source | Delegable |
+| --- | --- | --- |
+| `surface.panel.radius` | `decoration:rounding` | yes |
+| `surface.card.radius` | `decoration:rounding` | yes |
+| `surface.control.radius` | `decoration:rounding` | yes |
+| `surface.cell.radius` | `decoration:rounding` | yes |
+| `surface.panel.border-width` | `general:border_size` | yes |
+| `surface.pill.radius` | — | **never** (capsule identity stays explicit) |
+| `card`/`control`/`cell` border-width, padding, type, colour | — | never |
+
+- Opt-in is per skin and per path. `glass`, `paper` and `terminal-host` will
+  delegate the full rectangle set in the assets slice; `terminal` and `flat`
+  remain explicit with no `[host]` policy.
+- A mode override still wins for the whole `surface` group; `paper` light keeps
+  its authored radii.
+- Notifications continue to use `surface.card.radius`; that card now follows the
+  host only for a skin that delegates it. Full notification outer alignment
+  still needs a future `surface.window` role, a separate proposal.
+- The outer-only wording and its assets guards from `2026-11-11` (REQ-025) are
+  superseded; see `docs/111` §Superseded work and required guard inversion.
 
 ## Evidence that constrains the design
 
@@ -168,8 +193,9 @@ host token or a change to the host allowlist.
 - **H-3.2** Blur/shadow mapping is considered only if a real GTK backdrop path
   exists; host shadow colour is never injected (no literal hex). A future
   `surface.window` role may cover notification outer cards; per
-  [`111`](./111-host-radius-granularity.md) it is a separate proposal and inner
-  card radii are never host-inheritable.
+  [`111`](./111-host-radius-granularity.md) it is a separate proposal. Rectangle
+  radii follow the host only for skins that delegate them; `surface.pill.radius`
+  is never host-inheritable.
 - **H-3.3** `gaps_in`/`gaps_out` remain structure and are never mapped to
   padding/rhythm.
 - **H-3.4** A socket2 `configreloaded` watcher with a short debounce re-reads
