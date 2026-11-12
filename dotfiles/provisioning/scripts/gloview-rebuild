@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# gloview-rebuild — user-run, interactive GloView ABI rebuild.
+#
+# This helper exists so the failure notification can name ONE exact remediation
+# command without giving a login service package-manager privileges. It is
+# never called from autostart.lua or a systemd unit: `yay` and its sudo/polkit
+# prompt need an interactive terminal owned by the user.
+#
+# Never wrap this in sudo, never add a NOPASSWD rule for yay/pacman, and never
+# add --noconfirm. The AUR PKGBUILD is untrusted input; the user reviews it.
+#
+# After a successful rebuild the old .so is still mapped into the running
+# compositor. Relog (or restart the Hyprland session) before using GloView;
+# do not rewrite /usr/lib/gloview.so in place.
+
+readonly rebuild_command="yay -S --rebuild gloview-git"
+
+if ! command -v yay >/dev/null 2>&1; then
+  printf '%s\n' "gloview-rebuild: yay not found on PATH; install yay or run the rebuild manually:" >&2
+  printf '%s\n' "  $rebuild_command" >&2
+  exit 1
+fi
+
+hypr_running="unknown"
+if command -v hyprctl >/dev/null 2>&1; then
+  version_json="$(hyprctl version -j 2>/dev/null || true)"
+  parsed="$(printf '%s' "$version_json" | sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)"
+  [ -n "$parsed" ] && hypr_running="$parsed"
+fi
+
+hypr_installed="unknown"
+if command -v expac >/dev/null 2>&1; then
+  parsed="$(expac -Q '%v' hyprland 2>/dev/null | head -n 1 || true)"
+  [ -n "$parsed" ] && hypr_installed="$parsed"
+fi
+
+printf 'Hyprland running:   %s\n' "$hypr_running"
+printf 'Hyprland installed: %s\n' "$hypr_installed"
+printf 'Rebuilding gloview-git against the installed Hyprland headers...\n\n'
+
+yay -S --rebuild gloview-git
+
+printf '\nRebuild complete. Log out and back in before using GloView.\n'

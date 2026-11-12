@@ -1,70 +1,260 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# gloview-activate — load the GloView plugin into the running Hyprland session.
+# gloview-activate — load the GloView plugin into the running Hyprland session
+# and record an authoritative, durable ABI status.
 #
 # The plugin ships as /usr/lib/gloview.so via the gloview-git AUR package
 # (installed by provisioning — no hyprpm involved anywhere in this flow).
-# Hyprland does not auto-load it, so this activator (fired by autostart.lua
-# at session start) loads it once per session, then reloads the config so
-# the pcall-guarded binds in gloview.lua register against the live plugin.
+# Hyprland does not auto-load it, so this activator (owned by the systemd user
+# oneshot dotfiles-gloview.service, ordered after the notification daemon)
+# loads it once per session, verifies the LOADED PLUGIN LIST, then reloads the
+# config so the pcall-guarded binds in gloview.lua register against the live
+# plugin.
 #
 # ABI contract: the .so must match the running Hyprland EXACTLY. After a
-# Hyprland upgrade the load fails — rebuild with `yay -S gloview-git`
-# (`-git` packages rebuild on every `yay -Syu --devel`) and relog. This
-# script deliberately never rebuilds itself: installing packages needs sudo
-# and a background login task must never block on a password prompt — it
-# warns loud (stderr + desktop notification when available) instead.
+# Hyprland upgrade the load fails — rebuild with `yay -S --rebuild gloview-git`
+# and relog. This script deliberately never rebuilds itself and never invokes
+# sudo, yay, pacman or the network: installing packages needs an interactive
+# user prompt and a login task must never block on it. It warns loud (journal,
+# stderr and one desktop notification) instead.
+#
+# AUTHORITATIVE SIGNAL: `hyprctl plugin load` exits 0 even when the compositor
+# reports a failure (observed on Hyprland 0.57.2 with /nonexistent.so). The
+# only success oracle is `hyprctl plugin list -j` containing name == "GloView".
+# The load exit status is never consulted.
 
-plugin_so="/usr/lib/gloview.so"
+plugin_default="/usr/lib/gloview.so"
+plugin_so="${GLOVIEW_PLUGIN_SO:-$plugin_default}"
+ipc_wait_secs="${GLOVIEW_IPC_WAIT_SECS:-60}"
+verify_wait_secs="${GLOVIEW_VERIFY_WAIT_SECS:-5}"
+rebuild_command="yay -S --rebuild gloview-git"
+
+state_home="${XDG_STATE_HOME:-$HOME/.local/state}"
+state_dir="$state_home/dotfiles/gloview"
+state_file="$state_dir/status.json"
+log_file="$state_dir/activate.log"
+marker="$state_home/dotfiles/gloview-active"
 lock_dir="${XDG_RUNTIME_DIR:-/tmp}/dotfiles-gloview-activate.lock"
+log_max_bytes=262144
 
+# Populated below; declared before any early-exit status write so the JSON
+# builder never reads an unbound value under `set -u`.
+hypr_version=""
+abi_hash=""
+gloview_version=""
+gloview_build=""
+gloview_install=""
+chronology_warning=false
+so_build_id=""
+so_mtime=""
+abi_changed=false
+loader_output=""
+
+# Idempotent per session: a second invocation while one is running is a no-op.
 if ! mkdir "$lock_dir" 2>/dev/null; then
   exit 0
 fi
-trap 'rmdir "$lock_dir"' EXIT
+trap 'rmdir "$lock_dir" 2>/dev/null || true' EXIT
 
-for _ in $(seq 1 60); do
-  if [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] && hyprctl version >/dev/null 2>&1; then
+umask 077
+mkdir -p "$state_dir"
+chmod 700 "$state_dir" 2>/dev/null || true
+
+now_utc() {
+  date -u +%Y-%m-%dT%H:%M:%SZ
+}
+
+json_escape() {
+  # A JSON string body: backslash, quote, tab, CR escaped and newlines
+  # represented as \n. Loader output is the only free-form content we store.
+  printf '%s' "$1" \
+    | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/\t/\\t/g' -e 's/\r/\\r/g' \
+    | awk 'BEGIN { ORS = "" } NR > 1 { print "\\n" } { print }'
+}
+
+jstr() {
+  if [ -n "$1" ]; then
+    printf '"%s"' "$(json_escape "$1")"
+  else
+    printf 'null'
+  fi
+}
+
+jnum() {
+  case "$1" in
+    '' | *[!0-9]*) printf 'null' ;;
+    *) printf '%s' "$1" ;;
+  esac
+}
+
+json_string_value() {
+  # json_string_value <key> <json> — first "key": "value" string, or empty.
+  printf '%s' "$2" \
+    | grep -o "\"$1\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" \
+    | head -n 1 \
+    | sed 's/.*"\([^"]*\)"$/\1/' || true
+}
+
+plugin_listed() {
+  hyprctl plugin list -j 2>/dev/null \
+    | grep -Eq '"name"[[:space:]]*:[[:space:]]*"GloView"'
+}
+
+expac_value() {
+  # expac_value <field> <package> — read the local pacman database without
+  # invoking pacman/yay/sudo. Missing expac leaves the field null.
+  local field="$1" package="$2"
+  command -v expac >/dev/null 2>&1 || return 0
+  expac -Q "%$field" "$package" 2>/dev/null | head -n 1 || true
+}
+
+log_event() {
+  if [ -f "$log_file" ] && [ "$(wc -c < "$log_file")" -gt "$log_max_bytes" ]; then
+    mv -f "$log_file" "$log_file.1"
+  fi
+  printf '%s %s\n' "$(now_utc)" "$1" >>"$log_file"
+}
+
+notify_failure() {
+  command -v notify-send >/dev/null 2>&1 || return 0
+  notify-send -a gloview-activate -u critical "GloView unavailable" "$1" || true
+}
+
+write_status() {
+  # write_status <ok:true|false> <status> <last-error> <loader-output> <loaded-at>
+  local ok="$1" status="$2" last_error="$3" loader="$4" loaded_at="$5"
+  local tmp="$state_file.tmp"
+  {
+    printf '{\n'
+    printf '  "schema": 1,\n'
+    printf '  "updatedAt": %s,\n' "$(jstr "$(now_utc)")"
+    printf '  "loadedAt": %s,\n' "$(jstr "$loaded_at")"
+    printf '  "ok": %s,\n' "$ok"
+    printf '  "status": %s,\n' "$(jstr "$status")"
+    printf '  "abiChanged": %s,\n' "$abi_changed"
+    printf '  "chronologyWarning": %s,\n' "$chronology_warning"
+    printf '  "hyprland": {"version": %s, "abiHash": %s},\n' \
+      "$(jstr "$hypr_version")" "$(jstr "$abi_hash")"
+    printf '  "gloview": {"package": %s, "buildDate": %s, "installDate": %s, "soBuildId": %s, "soMtime": %s, "soPath": %s},\n' \
+      "$(jstr "$gloview_version")" "$(jnum "$gloview_build")" "$(jnum "$gloview_install")" \
+      "$(jstr "$so_build_id")" "$(jnum "$so_mtime")" "$(jstr "$plugin_so")"
+    printf '  "lastError": %s,\n' "$(jstr "$last_error")"
+    printf '  "loaderOutput": %s\n' "$(jstr "$loader")"
+    printf '}\n'
+  } >"$tmp"
+  sync "$tmp" 2>/dev/null || sync 2>/dev/null || true
+  mv -f "$tmp" "$state_file"
+  chmod 600 "$state_file" 2>/dev/null || true
+}
+
+fail() {
+  local reason="$1"
+  local message
+  message="$(printf '%s\nRebuild: %s\n(or run gloview-rebuild in a terminal)\nThen log out and back in (or restart the Hyprland session).' "$reason" "$rebuild_command")"
+  if [ -n "$loader_output" ]; then
+    message="$(printf '%s\nLoader: %s' "$message" "$loader_output")"
+  fi
+  rm -f "$marker"
+  log_event "FAIL: $message"
+  write_status false failed "$message" "$loader_output" ""
+  notify_failure "$message"
+  printf 'gloview-activate: %s\n' "$message" >&2
+  exit 1
+}
+
+# Wait (bounded) for a live IPC session. The systemd user manager normally
+# exports HYPRLAND_INSTANCE_SIGNATURE under uwsm, so this is a fallback.
+for _ in $(seq 1 "$ipc_wait_secs"); do
+  if [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] && hyprctl version -j >/dev/null 2>&1; then
     break
   fi
   sleep 1
 done
 
-if [ -z "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] || ! hyprctl version >/dev/null 2>&1; then
-  printf '%s\n' "gloview-activate: Hyprland IPC was not ready after 60 seconds" >&2
-  exit 1
+if ! version_json="$(hyprctl version -j 2>/dev/null)"; then
+  # Fail-open: a TTY provision or a compositor that is not up yet must not
+  # turn into a failed login unit. There is nothing to remediate.
+  log_event "SKIP: Hyprland IPC unavailable"
+  write_status false ipc_unavailable "Hyprland IPC unavailable" "" ""
+  printf '%s\n' "gloview-activate: Hyprland IPC unavailable; skipping activation" >&2
+  exit 0
 fi
 
-stale_warn() {
-  printf '%s\n' "gloview-activate: $1" >&2
-  if command -v notify-send >/dev/null 2>&1; then
-    notify-send -a gloview-activate -u critical "GloView unavailable" "$1" || true
-  fi
-}
+hypr_version="$(json_string_value version "$version_json")"
+abi_hash="$(json_string_value abiHash "$version_json")"
 
-if hyprctl plugin list 2>/dev/null | grep -qi gloview; then
-  : # already loaded (e.g. manual `hyprctl plugin load` earlier in this session)
+# Early-warning metadata, never a success/failure oracle.
+gloview_version="$(expac_value v gloview-git)"
+gloview_build="$(expac_value b gloview-git)"
+gloview_install="$(expac_value i gloview-git)"
+hyprland_install="$(expac_value i hyprland)"
+
+chronology_warning=false
+if [ -n "$gloview_build" ] && [ -n "$hyprland_install" ]; then
+  if [ "$gloview_build" -lt "$hyprland_install" ] 2>/dev/null; then
+    chronology_warning=true
+  fi
+fi
+
+so_build_id=""
+so_mtime=""
+if [ -f "$plugin_so" ]; then
+  so_mtime="$(stat -c %Y "$plugin_so" 2>/dev/null || stat -f %m "$plugin_so" 2>/dev/null || true)"
+  if command -v readelf >/dev/null 2>&1; then
+    so_build_id="$(readelf -n "$plugin_so" 2>/dev/null | awk '/Build ID/ {print $3; exit}' || true)"
+  fi
+fi
+
+# A stored abiHash names the ABI under which the plugin last loaded. A change
+# is reported, but the load test below is still authoritative (A-4).
+previous_abi=""
+if [ -f "$state_file" ]; then
+  previous_abi="$(json_string_value abiHash "$(cat "$state_file" 2>/dev/null || true)")"
+fi
+abi_changed=false
+if [ -n "$previous_abi" ] && [ -n "$abi_hash" ] && [ "$previous_abi" != "$abi_hash" ]; then
+  abi_changed=true
+fi
+
+loader_output=""
+
+if plugin_listed; then
+  # Already loaded (for example a manual `hyprctl plugin load` earlier in the
+  # session). Verification above is the success oracle; no reload is needed.
+  log_event "OK: GloView already listed"
 else
   if [ ! -f "$plugin_so" ]; then
-    stale_warn "plugin artifact $plugin_so is missing — re-run provisioning (gloview-git AUR package), then relog."
-    exit 1
+    fail "plugin artifact $plugin_so is missing — re-run provisioning (gloview-git AUR package), then relog."
   fi
-  if ! hyprctl plugin load "$plugin_so" >/dev/null 2>&1; then
-    stale_warn "hyprctl plugin load failed — the .so is almost certainly ABI-stale after a Hyprland upgrade. Rebuild with \`yay -S gloview-git\`, then relog."
-    exit 1
+
+  # Capture the compositor's loader output. NEVER trust the exit status: a
+  # reported failure exits 0 on Hyprland 0.57.2.
+  loader_output="$(hyprctl plugin load "$plugin_so" 2>&1)" || true
+  log_event "load-output: $loader_output"
+
+  verified=false
+  deadline=$(( $(date +%s) + verify_wait_secs ))
+  while :; do
+    if plugin_listed; then
+      verified=true
+      break
+    fi
+    [ "$(date +%s)" -ge "$deadline" ] && break
+    sleep 0.25
+  done
+
+  if [ "$verified" != true ]; then
+    fail "GloView did not appear in hyprctl plugin list -j; the .so is almost certainly ABI-stale after a Hyprland upgrade."
   fi
-  # The session config pcall-guards every gloview bind on the live plugin
-  # (gloview.lua), so a freshly loaded plugin needs one re-parse before
-  # gestures and SUPER+TAB exist.
+
+  # The config pcall-guards every GloView bind on the live plugin. One safe
+  # re-parse (G-10) is what registers SUPER+TAB and the gestures after a load.
   hyprctl reload >/dev/null 2>&1 || true
 fi
 
-if ! hyprctl plugin list 2>/dev/null | grep -qi gloview; then
-  stale_warn "GloView is still not listed after load — see above; gestures stay dead until it loads."
-  exit 1
-fi
+mkdir -p "$(dirname "$marker")"
+touch "$marker"
 
-state_home="${XDG_STATE_HOME:-$HOME/.local/state}"
-mkdir -p "$state_home/dotfiles"
-touch "$state_home/dotfiles/gloview-active"
+log_event "OK: GloView loaded (hyprland=$hypr_version abiChanged=$abi_changed chronologyWarning=$chronology_warning)"
+write_status true ok "" "$loader_output" "$(now_utc)"
