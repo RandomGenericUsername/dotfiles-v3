@@ -55,7 +55,7 @@ than duplicated in the editor config.
 
 ## Non-goals
 
-- No skin/appearance tokens (that is `REQ-117`).
+- No skin/appearance tokens (that is `REQ-120`).
 - No live palette reload while Neovim is open; a new palette applies on the next
   start unless a separate Neovim RPC reloader is designed.
 - No changes to the existing gtk/rofi/btop/wlogout/kitty consumers.
