@@ -33,7 +33,7 @@ apps:
     installDir: bar
     owner: standalone
     repo: https://github.com/RandomGenericUsername/ags-bar.git
-    tag: v0.6.2
+    tag: v0.6.4
     instance: ags
     configDir: ags
     configLink: ags
@@ -48,7 +48,7 @@ apps:
     installDir: notifications
     owner: standalone
     repo: https://github.com/RandomGenericUsername/ags-notifications.git
-    tag: v0.5.1
+    tag: v0.5.2
     instance: notifications
     configDir: ags-notifications
     configLink: ags-notifications
@@ -62,7 +62,7 @@ apps:
     installDir: capture
     owner: standalone
     repo: https://github.com/RandomGenericUsername/ags-capture-tool.git
-    tag: v0.7.1
+    tag: v0.7.2
     instance: capture
     configDir: ags-capture
     configLink: ags-capture
@@ -78,7 +78,7 @@ apps:
     installDir: clipboard
     owner: standalone
     repo: https://github.com/RandomGenericUsername/ags-clipboard.git
-    tag: v0.6.1
+    tag: v0.6.2
     instance: clipboard
     configDir: ags-clipboard
     configLink: ags-clipboard
@@ -93,7 +93,7 @@ apps:
     installDir: wallpaper-selector
     owner: standalone
     repo: https://github.com/RandomGenericUsername/ags-wallpaper-selector.git
-    tag: v0.5.1
+    tag: v0.5.2
     instance: wallpaper-selector
     configDir: ags-wallpaper-selector
     configLink: ags-wallpaper-selector
@@ -107,7 +107,7 @@ apps:
     installDir: icme
     owner: standalone
     repo: https://github.com/RandomGenericUsername/ags-icme.git
-    tag: v0.5.1
+    tag: v0.5.2
     instance: icon-color-mapping-editor
     configDir: ags-icme
     configLink: ags-icme
@@ -121,7 +121,7 @@ apps:
     installDir: btop-theme-studio
     owner: standalone
     repo: https://github.com/RandomGenericUsername/ags-btop-theme-studio.git
-    tag: v0.5.1
+    tag: v0.5.2
     instance: btop-theme-studio
     configDir: ags-btop-studio
     configLink: ags-btop-studio

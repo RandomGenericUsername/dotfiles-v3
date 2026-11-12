@@ -94,31 +94,31 @@ EXPECTED_APPS = frozenset(
 FINAL_APP_RELEASES = {
     "bar": (
         "https://github.com/RandomGenericUsername/ags-bar.git",
-        "v0.6.2",
+        "v0.6.4",
     ),
     "notifications": (
         "https://github.com/RandomGenericUsername/ags-notifications.git",
-        "v0.5.1",
+        "v0.5.2",
     ),
     "capture": (
         "https://github.com/RandomGenericUsername/ags-capture-tool.git",
-        "v0.7.1"
+        "v0.7.2"
     ),
     "clipboard": (
         "https://github.com/RandomGenericUsername/ags-clipboard.git",
-        "v0.6.1"
+        "v0.6.2"
     ),
     "wallpaper-selector": (
         "https://github.com/RandomGenericUsername/ags-wallpaper-selector.git",
-        "v0.5.1",
+        "v0.5.2",
     ),
     "icme": (
         "https://github.com/RandomGenericUsername/ags-icme.git",
-        "v0.5.1",
+        "v0.5.2",
     ),
     "btop-theme-studio": (
         "https://github.com/RandomGenericUsername/ags-btop-theme-studio.git",
-        "v0.5.1"
+        "v0.5.2"
     ),
 }
 
