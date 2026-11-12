@@ -1,14 +1,6 @@
 # 113 — `surface.window` role and the kitty `conf` projection
 
-> **Status:** design/contract proposal only (2026-11-11). No schema, runtime,
-> assets, provisioning, live-config or tag change is part of this pass.
-> **Approved decisions combined here:** **D4-B** (add `surface.window` now) and
-> **D2-B** (project a paint-free kitty `conf` artifact).
-> **Supersedes:** [`112`](./112-kitty-btop-window-roles.md) §3 (the decision to
-> defer `surface.window`) and §6 (the font-family-only kitty slice). The
-> evidence in 112 about units, btop and notification cards still stands.
-> **Visual review:** [`design/window-role-kitty-projection.html`](./design/window-role-kitty-projection.html).
-> **Tracking ticket:** [`tickets/REQ-113-window-role-kitty-projection.md`](./tickets/REQ-113-window-role-kitty-projection.md).
+> **Status:** **delivered** (2026-11-11) — surface.window + kitty conf projection live; scoped launches in bar v0.6.2.
 
 This note turns two approved decisions into one reviewable contract slice:
 
@@ -740,3 +732,14 @@ while any in-tree strict validator is still v2.
   [`110`](./110-format-aware-skin-consumers.md) (format families),
   [`111`](./111-host-radius-granularity.md) (rectangle radii),
   [`112`](./112-kitty-btop-window-roles.md) (palette/unit evidence).
+
+## Delivery evidence
+
+- contracts v0.12.0, platform v1.1.0, assets v0.19.0, runtime v1.5.2,
+  engine v0.1.63, composition v0.1.70; ags-bar v0.6.2.
+- Live terminal-host: window role present; at Hyprland rounding 9 rofi/wlogout/
+  GTK window/outer surfaces = 9; pill = 2. Kitty: font_size 9,
+  window_padding_width 6.75, background_opacity 1, load_config bad_lines [].
+- Scoped HyprMod launch installed in bar v0.6.2 (`launchScopedApp`).
+- Renderer version cache identity (`SKIN_RENDERER_VERSION=2`) ensures kitty
+  renderer changes invalidate old generations.

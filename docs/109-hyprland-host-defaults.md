@@ -17,7 +17,7 @@
 ## Rectangle radii revision
 
 The allowlist now delegates outer and inner rectangle radii:
-`surface.panel.radius`, `surface.panel.border-width`, `surface.card.radius`,
+`surface.panel.radius`, `surface.panel.border-width`, `surface.window.radius`, `surface.window.border-width`, `surface.card.radius`,
 `surface.control.radius`, `surface.cell.radius`. `surface.pill.radius` stays
 explicit. Live `terminal-host` at host rounding 9 produced panel/card/control/
 cell 9, rofi window/mainbox/inputbar/element 9, wlogout card 9, GTK card/control
