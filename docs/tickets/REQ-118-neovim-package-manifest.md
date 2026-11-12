@@ -2,13 +2,13 @@
 id: REQ-118
 title: "Composition: request the Neovim package"
 kind: requirement
-status: proposed
+status: in-progress
 lane: 2 — bounded implementation
 links:
   openspec: none
   bmad: none
-worktree: none
-branch: none
+worktree: .worktrees/REQ-118/
+branch: ticket/REQ-118-neovim-package-manifest
 ---
 
 # Composition: request the Neovim package
@@ -49,10 +49,10 @@ Neovim entry, so the engine never installs an editor even though the assets
 
 ## Acceptance
 
-- [ ] `dotfiles/provisioning/packages.yaml` contains `neovim` exactly once.
-- [ ] No pin, tuple, version, or CHANGELOG release metadata changed.
-- [ ] No tag, release, apply, package install, or UI worktree touched.
-- [ ] The existing composition shape gates still pass in the worktree.
+- [x] `dotfiles/provisioning/packages.yaml` contains `neovim` exactly once.
+- [x] No pin, tuple, version, or CHANGELOG release metadata changed.
+- [x] No tag, release, apply, package install, or UI worktree touched.
+- [x] The existing composition shape gates still pass in the worktree.
 
 ## Evidence
 
@@ -74,3 +74,17 @@ bash scripts/worktree-guard.sh create REQ-118 neovim-package-manifest
 
 Implement on `ticket/REQ-118-neovim-package-manifest`. Do not bump pins, tag,
 release, merge, or apply.
+
+
+## Notes
+
+Originally filed as `REQ-115`; renumbered to `REQ-118` because
+`.worktrees/REQ-115/` already exists on the unrelated
+`ticket/REQ-115-evolution-secret-service` branch. The existing worktree was not
+touched. The two follow-up tickets were likewise renumbered to `REQ-119`
+(palette projection) and `REQ-120` (skin appearance).
+
+The branch base already pins assets `v0.20.0` and engine `v0.1.65`. Those are
+not this ticket's changes and were not edited. The eventual release will need a
+new assets tag and a new engine tag after the Neovim package map and the LazyVim
+config land.

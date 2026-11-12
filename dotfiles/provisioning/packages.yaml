@@ -52,6 +52,10 @@ entries:
   - name: rofi               # Application launcher
   - name: thunar             # File manager (GTK-based)
 
+  # Editor. The pinned assets configs/nvim tree is LazyVim; plugin installation
+  # stays with LazyVim/lazy.nvim on first launch, not provisioning.
+  - name: neovim
+
   # System monitor (AGS bar icon launcher)
   - name: btop
 
