@@ -33,7 +33,7 @@ apps:
     installDir: bar
     owner: standalone
     repo: https://github.com/RandomGenericUsername/ags-bar.git
-    tag: v0.6.16
+    tag: v0.6.17
     instance: ags
     configDir: ags
     configLink: ags

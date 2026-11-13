@@ -22,7 +22,7 @@ kind: assets
 
 assets:
   repo: https://github.com/RandomGenericUsername/dotfiles-assets
-  tag: v0.21.2
+  tag: v0.21.3
   classes:
     icons:     { dest: icons,     schema: icons/schema.json }
     templates: { dest: templates, schema: "**/*.vars.schema.json" }
@@ -34,20 +34,20 @@ assets:
 entries:
   - name: wallpapers
     kind: wallpaper
-    source: "{{ install_dir | trim }}/assets/v0.21.2/content/wallpapers/wallpapers.tar.gz"
+    source: "{{ install_dir | trim }}/assets/v0.21.3/content/wallpapers/wallpapers.tar.gz"
   - name: icon-templates
     kind: icon-template
-    source: "{{ install_dir | trim }}/assets/v0.21.2/icons/templates/"
+    source: "{{ install_dir | trim }}/assets/v0.21.3/icons/templates/"
   - name: icon-mappings
     kind: icon-mapping
-    source: "{{ install_dir | trim }}/assets/v0.21.2/icons/mappings/"
+    source: "{{ install_dir | trim }}/assets/v0.21.3/icons/mappings/"
   - name: skins
     kind: skins
     # ROOT-LEVEL DATA: the `skins` class is mirrored to `<install>/skins`, the
     # runtime's FIRST skin root (`derive._skin_roots`). Provisioning never
     # renders or reconciles it; the runtime reads the v2 manifests and publishes
     # the composed `current/appearance` generation from it.
-    source: "{{ install_dir | trim }}/assets/v0.21.2/skins/"
+    source: "{{ install_dir | trim }}/assets/v0.21.3/skins/"
   - name: tpr-templates
     kind: tpr-template
     # Mirror of the engine's `assets_checkout_copies` entry: the palette
