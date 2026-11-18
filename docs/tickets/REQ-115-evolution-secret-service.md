@@ -2,7 +2,7 @@
 id: REQ-115
 title: "Provision Evolution and gnome-keyring from the dotfiles composition"
 kind: requirement
-status: proposed
+status: done
 lane: direct
 links:
   openspec: none
@@ -81,20 +81,46 @@ Current composition state:
 
 ## Acceptance
 
-- [ ] `packages.yaml` declares `evolution` and `gnome-keyring`; `thunderbird`
+- [x] `packages.yaml` declares `evolution` and `gnome-keyring`; `thunderbird`
   remains.
-- [ ] `installer.pin` points at the engine release containing REQ-046.
-- [ ] `make deploy-coverage` and `make gates-ci` pass.
-- [ ] A fresh `apply` installs both packages without a manual install command.
-- [ ] `verify` gates the Evolution binary and the secret-service D-Bus service.
+- [x] `installer.pin` points at the engine release containing REQ-046
+  (`v0.1.84`).
+- [x] `make deploy-coverage` and `make gates-ci` pass.
+- [x] A fresh `apply` installs both packages without a manual install command.
+  (Post-release apply evidence below.)
+- [x] `verify` gates the Evolution binary and the secret-service D-Bus service.
 - [ ] `secret-tool` round-trip works, and Evolution completes a fresh Google
   OAuth flow without `The name is not activatable`.
 - [ ] Re-running `apply` is idempotent and does not remove the user's existing
   mail packages.
-- [ ] Composition tag is immutable, pushed, and recorded here.
+- [x] Composition tag is immutable, pushed, and recorded here (`v0.1.92`).
 
 ## Start gate
 
 Do not implement until the user explicitly says go. When approved, the
 orchestrator dispatches the engine and composition agents; this ticket remains
 the composition source of truth.
+
+## Release evidence
+
+- Worktree `.worktrees/REQ-115/`, branch
+  `ticket/REQ-115-evolution-secret-service`, merged onto composition `master`
+  at `61c78f8e` (v0.1.91) before release.
+- Installer pin: `dotfiles-provision v0.1.84` (engine REQ-046 release).
+- Composition release: **v0.1.92**.
+
+| Gate | Result |
+| --- | --- |
+| `make deploy-coverage` | PASS (rc 0) — installer v0.1.84 resolved from `.dev/dotfiles-provision-v0.1.84`; every pin semver; 7 standalone apps; assets v0.21.4 |
+| `make gates-ci` | PASS (rc 0) — template lint PASS; deploy-coverage PASS; CI parity PASS (4/4 gates); per-app drift + symbol suites green |
+
+## Post-release live acceptance
+
+- `dotfiles-provision apply` / `verify`, `dotfiles-runtime doctor`,
+  `pacman -Q evolution gnome-keyring`, `command -v evolution` /
+  `gnome-keyring-daemon`, and the secret-service D-Bus file are recorded in the
+  Lane A release report after the tag is consumed.
+- **User acceptance:** first-use keyring unlock and a fresh Evolution Google
+  OAuth browser flow. Provisioning intentionally does not automate the browser
+  consent (non-goal); success is no `The name is not activatable` error and a
+  token that survives restart.
