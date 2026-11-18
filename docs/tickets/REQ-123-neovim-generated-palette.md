@@ -1,5 +1,5 @@
 ---
-id: REQ-119
+id: REQ-123
 title: "Neovim consumes the generated palette (tpr nvim projection)"
 kind: requirement
 status: proposed
@@ -55,7 +55,7 @@ than duplicated in the editor config.
 
 ## Non-goals
 
-- No skin/appearance tokens (that is `REQ-120`).
+- No skin/appearance tokens (that is `REQ-124`).
 - No live palette reload while Neovim is open; a new palette applies on the next
   start unless a separate Neovim RPC reloader is designed.
 - No changes to the existing gtk/rofi/btop/wlogout/kitty consumers.

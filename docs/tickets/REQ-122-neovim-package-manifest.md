@@ -1,5 +1,5 @@
 ---
-id: REQ-118
+id: REQ-122
 title: "Composition: request the Neovim package"
 kind: requirement
 status: in-progress
@@ -7,8 +7,8 @@ lane: 2 — bounded implementation
 links:
   openspec: none
   bmad: none
-worktree: .worktrees/REQ-118/
-branch: ticket/REQ-118-neovim-package-manifest
+worktree: .worktrees/REQ-122/
+branch: ticket/REQ-122-neovim-package-manifest
 ---
 
 # Composition: request the Neovim package
@@ -69,20 +69,20 @@ Neovim entry, so the engine never installs an editor even though the assets
 From `dotfiles-v3`:
 
 ```bash
-bash scripts/worktree-guard.sh create REQ-118 neovim-package-manifest
+bash scripts/worktree-guard.sh create REQ-122 neovim-package-manifest
 ```
 
-Implement on `ticket/REQ-118-neovim-package-manifest`. Do not bump pins, tag,
+Implement on `ticket/REQ-122-neovim-package-manifest`. Do not bump pins, tag,
 release, merge, or apply.
 
 
 ## Notes
 
-Originally filed as `REQ-115`; renumbered to `REQ-118` because
+Originally filed as `REQ-115`; renumbered to `REQ-122` because
 `.worktrees/REQ-115/` already exists on the unrelated
 `ticket/REQ-115-evolution-secret-service` branch. The existing worktree was not
-touched. The two follow-up tickets were likewise renumbered to `REQ-119`
-(palette projection) and `REQ-120` (skin appearance).
+touched. The two follow-up tickets were likewise renumbered to `REQ-123`
+(palette projection) and `REQ-124` (skin appearance).
 
 The branch base already pins assets `v0.20.0` and engine `v0.1.65`. Those are
 not this ticket's changes and were not edited. The eventual release will need a

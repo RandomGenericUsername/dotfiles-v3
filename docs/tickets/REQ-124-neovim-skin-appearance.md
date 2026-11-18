@@ -1,5 +1,5 @@
 ---
-id: REQ-120
+id: REQ-124
 title: "Neovim follows the active skin appearance (follow-up)"
 kind: requirement
 status: proposed
@@ -15,7 +15,7 @@ branch: none
 
 ## Why
 
-`REQ-119` makes Neovim consume the generated **palette**. The appearance plane
+`REQ-123` makes Neovim consume the generated **palette**. The appearance plane
 (`state/current/appearance/tokens.json` and the per-consumer artifacts) carries
 the selected skin's surfaces, geometry, typography and opacity. Some editor
 chrome (background, float/panel surfaces, statusline separation, opacity) could
@@ -35,7 +35,7 @@ are a palette concern, while surfaces/geometry are a skin concern.
      artifact would be a contract change with its own schema/release.
 3. Define the mapping boundary:
    - editor backgrounds/floats/statusline → appearance surfaces;
-   - syntax/LSP/diagnostics → palette (from `REQ-119`);
+   - syntax/LSP/diagnostics → palette (from `REQ-123`);
    - explain which skin tokens are meaningful for a terminal editor and which
      are app-only (layer-shell geometry, wlogout paint, etc.).
 4. Design the delivery chain: producer artifact → runtime publication →
@@ -45,7 +45,7 @@ are a palette concern, while surfaces/geometry are a skin concern.
 
 ## Non-goals
 
-- No syntax-highlighting change here; that is `REQ-119`.
+- No syntax-highlighting change here; that is `REQ-123`.
 - No live reload while Neovim is open unless separately designed.
 - No change to the existing app consumers.
 
@@ -79,9 +79,9 @@ are a palette concern, while surfaces/geometry are a skin concern.
 - Stable consumer links and current consumers:
   `dotfiles-provision/ansible/roles/state_links/vars/main.yml:38-46`.
 - Palette projection (predecessor):
-  `dotfiles-v3/docs/tickets/REQ-119-neovim-generated-palette.md`.
+  `dotfiles-v3/docs/tickets/REQ-123-neovim-generated-palette.md`.
 
 ## Next step
 
-Wait for `REQ-119` to settle the palette path, then write this design record.
+Wait for `REQ-123` to settle the palette path, then write this design record.
 Do not implement, tag, release, or bump pins until the user authorizes shipping.
