@@ -1,4 +1,4 @@
-.PHONY: bootstrap provision gates gates-ci ci-gates-parity hermetic ags-platform-dev dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-verify vm-help per-app-drift-symbol-suites
+.PHONY: bootstrap provision gates gates-ci ci-gates-parity hermetic gloview-abi-tests ags-platform-dev dev-deps vm-fresh vm-up vm-down vm-console vm-shell vm-destroy vm-status vm-verify vm-help per-app-drift-symbol-suites
 
 # Bootstrap the host machine (full provisioning).
 # Pass become/check flags through, e.g. `make bootstrap ARGS="--ask-become-pass"`.
@@ -15,8 +15,8 @@ provision:
 
 # Every executable gate, in the order a reviewer should read them: the Ansible
 # embedded-template lint, then the provisioning-shape coverage gate, then the
-# per-app contract drift/symbol suites, then the check that keeps the CI
-# workflow's job set equal to this list.
+# GloView ABI-resilience suite, then the per-app contract drift/symbol suites,
+# then the check that keeps the CI workflow's job set equal to this list.
 #
 # The runtime's gates (test, lint, contracts-check, hermetic, lock-check,
 # docs-check) moved to the `dotfiles-runtime` repo with the code (REQ-002).
@@ -30,8 +30,8 @@ provision:
 #
 # `gates` is the DEVELOPER gate set and runs ALL of them. Nothing is dropped for
 # convenience: a gate that is not run here is a gate nobody runs.
-GATES := ansible-embedded-template-lint deploy-coverage ci-gates-parity \
-         per-app-drift-symbol-suites
+GATES := ansible-embedded-template-lint deploy-coverage gloview-abi-tests \
+         ci-gates-parity per-app-drift-symbol-suites
 gates: $(GATES)
 
 # The CI gate set: every gate that can run on a stock `ubuntu-latest` runner.
@@ -280,6 +280,16 @@ ansible-embedded-template-lint:
 # it reads come from the pinned engine checkout, fetched on demand into `.dev/`.
 deploy-coverage:
 	uv run --no-project --with pyyaml python scripts/deploy-coverage.py
+
+# GloView ABI-resilience suite (REQ-114). The activator is a bash state machine
+# that loads the plugin, verifies the JSON plugin list (not the loader exit
+# status), records durable ABI status and notifies only on failure. These stdlib
+# `unittest` cases drive it through a fake hyprctl/expac/notify-send, so the
+# load/verify/status/notification contract is proven without a live Hyprland
+# session and without touching the host. Stdlib only, no desktop stack: it runs
+# on a stock runner, so it lives in GATES and therefore gates-ci too.
+gloview-abi-tests:
+	python3 scripts/tests/test_gloview_abi.py
 
 # Dev dependencies for the VM harness (also auto-runs on first `make vm-*`
 # when incus is missing and the terminal is interactive).

@@ -2,8 +2,8 @@
 id: REQ-114
 title: "GloView survives Hyprland ABI upgrades"
 kind: requirement
-status: proposed
-lane: design
+status: done
+lane: implementation
 links:
   openspec: none
   bmad: none
@@ -116,3 +116,49 @@ that gap as a design pass only.
 Implement G-1…G-3 (activator verification/state) first, then G-5/G-6 (user
 unit + rebuild helper), then G-8 (bind guards). Keep the design doc as the
 source of truth. Do not add sudo or auto-update behavior.
+
+## Outcome (Lane B release)
+
+**Worktrees:** `.worktrees/REQ-114/` (composition), `.worktrees/REQ-047/`
+(engine), `.worktrees/GLOVIEW/` (assets).
+**Branches:** `ticket/REQ-114-gloview-abi-resilience`,
+`ticket/REQ-047-gloview-abi-resilience`, `ticket/GLOVIEW-abi-resilience`.
+**Release order:** assets **`v0.21.5`** (`2b758f7`) → engine **`v0.1.85`**
+(bumps assets pin; `GloView` unit + rebuild helper + verify coverage) →
+composition **`v0.1.93`** (installer pin `v0.1.85`, assets tuple `v0.21.5`).
+**Composition feature commit:** `c55a1eb7` (rebased onto `88b9e42a`).
+
+### Delivered
+
+| Repo | Path | What changed |
+| --- | --- | --- |
+| composition | `dotfiles/provisioning/scripts/gloview-activate` | authoritative `hyprctl plugin list -j` check, durable `status.json`, ABI-change and chronology warnings, fail-open IPC, safe `hyprctl reload` (G-1…G-4, G-9, G-10) |
+| composition | `dotfiles/provisioning/scripts/gloview-rebuild` | interactive, user-run `yay -S --rebuild gloview-git`; no sudo/`--noconfirm` |
+| composition | `scripts/tests/test_gloview_abi.py` | stdlib suite driving fake `hyprctl`/`expac`/`notify-send`; now a gate |
+| composition | `Makefile`, `.github/workflows/gates.yml` | added `gloview-abi-tests` to `GATES`/`gates-ci` + a CI job; `ci-gates-parity` PASS |
+| engine | `ansible/roles/gloview_plugin/**` | user oneshot `dotfiles-gloview.service` (ordered after `graphical-session.target` and `dotfiles-ags-notifications.service`) + `gloview-rebuild` 0755; session-gated start, manager-less wants-link fallback (G-5/G-6) |
+| engine | `ansible/roles/verify/**`, `tests/unit/test_verify_role.py` | deferred verify coverage: unit/link/ordering/activator and rebuild helper |
+| assets | `configs/hypr/{autostart,input,keybindings}.lua`, `scripts/validate-configs.py` | systemd owns activation; pcall-guarded bind/gestures with native fallbacks (G-8) |
+
+### Gates and evidence
+
+- **Assets** `v0.21.5`: `make gates` PASS (incl. hermetic + shellcheck) and
+  `make ci-gates-parity` PASS.
+- **Engine** `v0.1.85`: `make gates` PASS — test **1077 passed, 3 skipped**;
+  lint all checks passed; hermetic **1042 passed, 38 skipped**; lock-check ok.
+  `make gates-pin` PASS after the `v0.21.5` pin bump.
+- **Composition** `v0.1.93`: `make gates` PASS — `ansible-embedded-template-lint`,
+  `deploy-coverage` (installer `v0.1.85`, assets `v0.21.5`), `gloview-abi-tests`
+  (9/9), `ci-gates-parity`, per-app suites.
+- **Live GloView probe** (healthy host): `dotfiles-gloview.service` active/ok,
+  `status.json` `ok:true`, `hyprctl plugin list -j` contains `GloView`, and no
+  dead `hyprctl gloview…` bind is registered. Failure path exercised only
+  through the fake-`hyprctl` suite; the live plugin was never unloaded.
+
+### Residual
+
+G-7's notification names `yay -S --rebuild gloview-git` and the relog step, but
+the login service does not implement a clickable notification action that opens
+a terminal. This limitation is intentional/documented; remediation is the
+user-run `gloview-rebuild`.
+

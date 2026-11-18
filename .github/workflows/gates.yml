@@ -98,6 +98,16 @@ jobs:
       - name: The external bar + platform units are provisioned (bridge retired)
         run: make deploy-coverage
 
+  gloview-abi-tests:
+    name: gloview-abi-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Stdlib `unittest`; the suite fakes hyprctl/expac/notify-send, so it needs
+      # no Hyprland session and no desktop stack. Stock-runner capable.
+      - name: GloView activation load/verify/status/notification suite
+        run: make gloview-abi-tests
+
   ci-gates-parity:
     name: ci-gates-parity
     runs-on: ubuntu-latest
