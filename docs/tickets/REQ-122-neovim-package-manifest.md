@@ -78,13 +78,16 @@ release, merge, or apply.
 
 ## Notes
 
-Originally filed as `REQ-115`; renumbered to `REQ-122` because
-`.worktrees/REQ-115/` already exists on the unrelated
-`ticket/REQ-115-evolution-secret-service` branch. The existing worktree was not
-touched. The two follow-up tickets were likewise renumbered to `REQ-123`
-(palette projection) and `REQ-124` (skin appearance).
+Originally filed as `REQ-115`; renumbered to `REQ-118` when
+`.worktrees/REQ-115/` was found on the unrelated
+`ticket/REQ-115-evolution-secret-service` branch. It was renumbered again to
+`REQ-122` when the parallel sound work took `REQ-118`
+(`.worktrees/REQ-118-r4/`, `ticket/REQ-118-sound-round4`). Neither existing
+worktree was touched. The two follow-up tickets were likewise renumbered to
+`REQ-123` (palette projection) and `REQ-124` (skin appearance).
 
-The branch base already pins assets `v0.20.0` and engine `v0.1.65`. Those are
-not this ticket's changes and were not edited. The eventual release will need a
-new assets tag and a new engine tag after the Neovim package map and the LazyVim
-config land.
+The ticket was filed against a base that pinned assets `v0.20.0` and engine
+`v0.1.65`. Those pins were not this ticket's changes and were not edited. The
+branch has since been rebased on the current `master`, which pins assets
+`v0.21.5` and engine `v0.1.88`; the eventual release will need a new assets tag
+and a new engine tag after the Neovim package map and the LazyVim config land.
