@@ -123,16 +123,16 @@ source of truth. Do not add sudo or auto-update behavior.
 (engine), `.worktrees/GLOVIEW/` (assets).
 **Branches:** `ticket/REQ-114-gloview-abi-resilience`,
 `ticket/REQ-047-gloview-abi-resilience`, `ticket/GLOVIEW-abi-resilience`.
-**Release order:** assets **`v0.21.5`** (`2b758f7`) → engine **`v0.1.87`**
+**Release order:** assets **`v0.21.5`** (`2b758f7`) → engine **`v0.1.88`**
 (bumps assets pin; `GloView` unit + rebuild helper + verify coverage) →
-composition **`v0.1.95`** (installer pin `v0.1.87`, assets tuple `v0.21.5`).
+composition **`v0.1.96`** (installer pin `v0.1.88`, assets tuple `v0.21.5`).
 **Composition feature commit:** `c55a1eb7` (rebased onto `88b9e42a`).
 
 ### Delivered
 
 | Repo | Path | What changed |
 | --- | --- | --- |
-| composition | `dotfiles/provisioning/scripts/gloview-activate` | authoritative `hyprctl plugin list -j` check, durable `status.json`, ABI-change and chronology warnings, fail-open IPC, safe `hyprctl reload` (G-1…G-4, G-9, G-10) |
+| composition | `dotfiles/provisioning/scripts/gloview-activate` | authoritative `hyprctl plugin list -j` check, durable `status.json`, ABI-change and chronology warnings (expac `%l` install date + epoch seconds), fail-open IPC, safe `hyprctl reload` (G-1…G-4, G-9, G-10) |
 | composition | `dotfiles/provisioning/scripts/gloview-rebuild` | interactive, user-run `yay -S --rebuild gloview-git`; no sudo/`--noconfirm` |
 | composition | `scripts/tests/test_gloview_abi.py` | stdlib suite driving fake `hyprctl`/`expac`/`notify-send`; now a gate |
 | composition | `Makefile`, `.github/workflows/gates.yml` | added `gloview-abi-tests` to `GATES`/`gates-ci` + a CI job; `ci-gates-parity` PASS |
@@ -146,12 +146,13 @@ composition **`v0.1.95`** (installer pin `v0.1.87`, assets tuple `v0.21.5`).
   `make ci-gates-parity` PASS.
 - **Engine** `v0.1.85`: full `make gates` PASS — test **1077 passed, 3
   skipped**; lint all checks passed; hermetic **1042 passed, 38 skipped**;
-  lock-check ok. `v0.1.86` and `v0.1.87` fix the two verify assertions the
-  first applies exposed (quoted `ExecStart`; reject only rebuild-as-`ExecStart`);
-  targeted `TestVerifyGloviewActivation` + `test_gloview_units.py` (**17
-  passed**) and `make gates-pin` PASS on the final release.
-- **Composition** `v0.1.95`: `make gates` PASS — `ansible-embedded-template-lint`,
-  `deploy-coverage` (installer `v0.1.87`, assets `v0.21.5`), `gloview-abi-tests`
+  lock-check ok. `v0.1.86`/`v0.1.87` fix the two verify assertions the first
+  applies exposed (quoted `ExecStart`; reject only rebuild-as-`ExecStart`);
+  `v0.1.88` syncs the composition fixture with the G-4 expac date fix. Targeted
+  `TestVerifyGloviewActivation` + `test_gloview_units.py` and `make gates-pin`
+  PASS on the final release.
+- **Composition** `v0.1.96`: `make gates` PASS — `ansible-embedded-template-lint`,
+  `deploy-coverage` (installer `v0.1.88`, assets `v0.21.5`), `gloview-abi-tests`
   (9/9), `ci-gates-parity`, per-app suites.
 - **Live GloView probe** (healthy host): `dotfiles-gloview.service` active/ok,
   `status.json` `ok:true`, `hyprctl plugin list -j` contains `GloView`, and no

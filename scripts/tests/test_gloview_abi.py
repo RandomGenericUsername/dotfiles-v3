@@ -69,8 +69,12 @@ FAKE_EXPAC = textwrap.dedent(
     args = sys.argv[1:]
     if len(args) < 3 or args[0] != "-Q":
         sys.exit(2)
-    field = args[1].lstrip("%")
-    package = args[2]
+    if args[1] == "-t":
+        field = args[3].lstrip("%")
+        package = args[4]
+    else:
+        field = args[1].lstrip("%")
+        package = args[2]
     value = data.get(package, {}).get(field)
     if value is None:
         sys.exit(1)
@@ -270,17 +274,22 @@ class ActivatorTests(unittest.TestCase):
             fx.set_plugin_list([{"name": "GloView"}])
             fx.set_expac(
                 {
-                    "gloview-git": {"v": "0.3.0", "b": 100, "i": 100},
-                    "hyprland": {"v": "0.57.2", "i": 200},
+                    "gloview-git": {"v": "0.3.0", "b": 100, "l": 100},
+                    "hyprland": {"v": "0.57.2", "l": 200},
                 }
             )
             self.assertEqual(fx.run().returncode, 0)
-            self.assertTrue(fx.status()["chronologyWarning"])
+            status = fx.status()
+            self.assertTrue(status["chronologyWarning"])
+            # Metadata is epoch seconds, not expac's human date string or the
+            # %i install-scriptlet flag (G-4 regression guard).
+            self.assertEqual(status["gloview"]["buildDate"], 100)
+            self.assertEqual(status["gloview"]["installDate"], 100)
 
             fx.set_expac(
                 {
-                    "gloview-git": {"v": "0.3.0", "b": 300, "i": 300},
-                    "hyprland": {"v": "0.57.2", "i": 200},
+                    "gloview-git": {"v": "0.3.0", "b": 300, "l": 300},
+                    "hyprland": {"v": "0.57.2", "l": 200},
                 }
             )
             self.assertEqual(fx.run().returncode, 0)
