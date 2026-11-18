@@ -123,9 +123,9 @@ source of truth. Do not add sudo or auto-update behavior.
 (engine), `.worktrees/GLOVIEW/` (assets).
 **Branches:** `ticket/REQ-114-gloview-abi-resilience`,
 `ticket/REQ-047-gloview-abi-resilience`, `ticket/GLOVIEW-abi-resilience`.
-**Release order:** assets **`v0.21.5`** (`2b758f7`) → engine **`v0.1.86`**
+**Release order:** assets **`v0.21.5`** (`2b758f7`) → engine **`v0.1.87`**
 (bumps assets pin; `GloView` unit + rebuild helper + verify coverage) →
-composition **`v0.1.94`** (installer pin `v0.1.86`, assets tuple `v0.21.5`).
+composition **`v0.1.95`** (installer pin `v0.1.87`, assets tuple `v0.21.5`).
 **Composition feature commit:** `c55a1eb7` (rebased onto `88b9e42a`).
 
 ### Delivered
@@ -146,11 +146,12 @@ composition **`v0.1.94`** (installer pin `v0.1.86`, assets tuple `v0.21.5`).
   `make ci-gates-parity` PASS.
 - **Engine** `v0.1.85`: full `make gates` PASS — test **1077 passed, 3
   skipped**; lint all checks passed; hermetic **1042 passed, 38 skipped**;
-  lock-check ok. `v0.1.86` fixes the quoted-`ExecStart` verify assertion that
-  the first apply exposed; targeted `TestVerifyGloviewActivation` +
-  `test_gloview_units.py` (**17 passed**) and `make gates-pin` PASS.
-- **Composition** `v0.1.94`: `make gates` PASS — `ansible-embedded-template-lint`,
-  `deploy-coverage` (installer `v0.1.86`, assets `v0.21.5`), `gloview-abi-tests`
+  lock-check ok. `v0.1.86` and `v0.1.87` fix the two verify assertions the
+  first applies exposed (quoted `ExecStart`; reject only rebuild-as-`ExecStart`);
+  targeted `TestVerifyGloviewActivation` + `test_gloview_units.py` (**17
+  passed**) and `make gates-pin` PASS on the final release.
+- **Composition** `v0.1.95`: `make gates` PASS — `ansible-embedded-template-lint`,
+  `deploy-coverage` (installer `v0.1.87`, assets `v0.21.5`), `gloview-abi-tests`
   (9/9), `ci-gates-parity`, per-app suites.
 - **Live GloView probe** (healthy host): `dotfiles-gloview.service` active/ok,
   `status.json` `ok:true`, `hyprctl plugin list -j` contains `GloView`, and no
