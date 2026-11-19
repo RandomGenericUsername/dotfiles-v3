@@ -41,6 +41,11 @@ Closed 2026-11-19.
   authoritative and passed.
 - Release: composition `v0.2.6` is tagged on the commit that closes this
   ticket (`v0.2.6: pin ags-icme v0.6.0 (edit-target dropdown)`).
+- GitHub Release **published** (not just the tag) for the existing tag
+  `v0.2.6` — title `v0.2.6 — ags-icme v0.6.0 edit-target dropdown`:
+  https://github.com/RandomGenericUsername/dotfiles-v3/releases/tag/v0.2.6
+  Created with `gh release create --verify-tag`, not draft/prerelease, no
+  assets. Tag `v0.2.6` still points at `802c2236` and was not moved.
 
 ## Status
 
