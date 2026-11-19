@@ -2,7 +2,7 @@
 id: REQ-129
 title: "Pin runtime v1.6.2 (optional nvim palette artifact)"
 kind: requirement
-status: in-progress
+status: done
 lane: 2 — bounded implementation
 links:
   openspec: none
@@ -23,3 +23,7 @@ branch: ticket/REQ-129-runtime-v162-pin
 - [x] deploy-coverage PASS.
 - [x] gates-ci PASS.
 - [x] v0.2.2 tagged/pushed/released.
+
+
+- Runtime v1.6.2: https://github.com/RandomGenericUsername/dotfiles-runtime/releases/tag/v1.6.2
+- Composition v0.2.2: https://github.com/RandomGenericUsername/dotfiles-v3/releases/tag/v0.2.2
