@@ -110,7 +110,7 @@ FINAL_APP_RELEASES = {
     ),
     "wallpaper-selector": (
         "https://github.com/RandomGenericUsername/ags-wallpaper-selector.git",
-        "v0.6.6",
+        "v0.6.7",
     ),
     "icme": (
         "https://github.com/RandomGenericUsername/ags-icme.git",
