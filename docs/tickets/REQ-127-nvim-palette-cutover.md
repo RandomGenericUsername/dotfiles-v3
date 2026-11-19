@@ -2,7 +2,7 @@
 id: REQ-127
 title: "Pin the Neovim palette cutover (tpr v0.7.0, runtime v1.6.0, assets v0.21.8, engine v0.1.92)"
 kind: requirement
-status: in-progress
+status: done
 lane: 2 — bounded implementation
 links:
   openspec: none
@@ -23,7 +23,14 @@ branch: ticket/REQ-127-nvim-palette-cutover
 
 ## Acceptance
 
-- [ ] Pins are tpr `v0.7.0`, runtime `v1.6.0`, assets `v0.21.8`, engine `v0.1.92`.
-- [ ] `make deploy-coverage` PASS.
-- [ ] `make gates-ci` PASS.
-- [ ] `v0.2.0` tagged/pushed/released.
+- [x] Pins are tpr `v0.7.0`, runtime `v1.6.0`, assets `v0.21.8`, engine `v0.1.92`.
+- [x] `make deploy-coverage` PASS.
+- [x] `make gates-ci` PASS.
+- [x] `v0.2.0` tagged/pushed/released.
+
+
+- tpr v0.7.0: https://github.com/RandomGenericUsername/theme-producer/releases/tag/v0.7.0
+- runtime v1.6.0: https://github.com/RandomGenericUsername/dotfiles-runtime/releases/tag/v1.6.0
+- assets v0.21.8: https://github.com/RandomGenericUsername/dotfiles-assets/releases/tag/v0.21.8
+- engine v0.1.92: https://github.com/RandomGenericUsername/dotfiles-provision/releases/tag/v0.1.92
+- composition v0.2.0: https://github.com/RandomGenericUsername/dotfiles-v3/releases/tag/v0.2.0
