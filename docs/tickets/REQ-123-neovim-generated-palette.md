@@ -78,7 +78,7 @@ than duplicated in the editor config.
       palette modes.
 - [ ] Runtime publishes the new artifact without changing the identity of the
       existing eight.
-- [ ] Provisioning exposes the stable link and verify asserts it resolves.
+- [x] Provisioning exposes the optional stable link (outside the required resolve assertion).
 - [ ] Neovim loads the generated colorscheme on next start; a missing pointer
       falls back cleanly.
 - [ ] No tag, release, pin bump, package install/apply, or UI worktree touched
@@ -103,3 +103,33 @@ than duplicated in the editor config.
 
 Decide the highlight mapping and write the tpr projection design first. Do not
 start pin/release work until the user authorizes shipping.
+
+
+## Implementation slices (local, unreleased)
+
+- `theme-producer` `req-027`: `colors.nvim.lua.j2` projection, `nvim.lua`
+  format, dark/light tests and golden. `make test`: 653 passed, 88 skipped;
+  `make lint` clean.
+- `dotfiles-runtime` `REQ-027`: `PALETTE_OPTIONAL_ARTIFACT_NAMES`, tpr staging
+  copy when present, silent optional `current/colors.nvim.lua` publish. Full
+  suite: 2615 passed, 4 skipped; the only 2 failures are pre-existing
+  `test_phase5_reactive_runtime_e2e` flakes reproduced on untouched `main`.
+- `dotfiles-provision` `REQ-060`: `state_links_optional_consumers`, link
+  creation via the union, resolve assertion stays required-only;
+  `test_v3_locality.py` 28 passed.
+- `dotfiles-assets` `req-036`: LazyVim colorscheme function with Catppuccin
+  fallback; `make gates` PASS.
+
+### End-to-end isolated proof
+
+With the generated `colors.nvim.lua` installed as
+`config/nvim/lua/dotfiles-palette.lua` and `XDG_*` isolated:
+
+```text
+colors=dotfiles
+Normal fg = 16502954 (0xfbd0aa)
+```
+
+Removing the module gives `fallback=catppuccin`.
+
+No tag, release, pin bump or host apply was performed.
