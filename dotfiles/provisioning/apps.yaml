@@ -107,7 +107,7 @@ apps:
     installDir: icme
     owner: standalone
     repo: https://github.com/RandomGenericUsername/ags-icme.git
-    tag: v0.5.2
+    tag: v0.6.0
     instance: icon-color-mapping-editor
     configDir: ags-icme
     configLink: ags-icme

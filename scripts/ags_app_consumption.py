@@ -114,7 +114,7 @@ FINAL_APP_RELEASES = {
     ),
     "icme": (
         "https://github.com/RandomGenericUsername/ags-icme.git",
-        "v0.5.2",
+        "v0.6.0",
     ),
     "btop-theme-studio": (
         "https://github.com/RandomGenericUsername/ags-btop-theme-studio.git",
