@@ -91,3 +91,17 @@ The ticket was filed against a base that pinned assets `v0.20.0` and engine
 branch has since been rebased on the current `master`, which pins assets
 `v0.21.5` and engine `v0.1.88`; the eventual release will need a new assets tag
 and a new engine tag after the Neovim package map and the LazyVim config land.
+
+
+## Release evidence
+
+- `dotfiles-assets v0.21.6` released (LazyVim nvim config + committed
+  `lazy-lock.json`).
+- `dotfiles-provision v0.1.89` released (neovim package mapping, `nvim` PATH
+  verify, assets `v0.21.6` mirrors).
+- `assets.tag` and `program-tuple.yaml` pin `v0.21.6`; `installer.pin` pins
+  `v0.1.89`.
+- `make deploy-coverage` PASS (engine v0.1.89, assets v0.21.6, platform v1.2.0).
+- `make gates-ci` PASS (deploy-coverage, GloView ABI tests,
+  ansible-embedded-template-lint, per-app drift, CI parity).
+- No host apply/install was run.
