@@ -2,7 +2,7 @@
 id: REQ-133
 title: "Pin ags-icme v0.6.0 (edit-target dropdown)"
 kind: requirement
-status: in-progress
+status: done
 lane: 2 — bounded implementation
 links:
   openspec: none
@@ -20,4 +20,29 @@ branch: ticket/REQ-133-icme-v060
 
 ## Evidence
 
-- Pending: gate results, v0.2.6 release, deploy verification.
+Closed 2026-11-19.
+
+- Pin commit `ad07f1ea` (`chore(REQ-133): pin ags-icme v0.6.0`):
+  `dotfiles/provisioning/apps.yaml` `tag: v0.5.2` -> `v0.6.0`, and
+  `scripts/ags_app_consumption.py` `FINAL_APP_RELEASES["icme"]` ->
+  `v0.6.0`.
+- deploy-coverage and gates-ci **passed** on that commit.
+- Provision/apply installed ags-icme `v0.6.0` into the spine:
+  `~/.local/share/dotfiles/apps/icme/pinned` contains `v0.6.0`, and the
+  spine links resolve to `apps/icme/v0.6.0`.
+- `dotfiles-provision verify --expected-engine-tag v0.1.95` — **exit 0**:
+  `ok=343 changed=2 unreachable=0 failed=0 skipped=46`.
+- `dotfiles-runtime doctor` — **exit 0**: desktop clean (28 items), watch
+  health ok, palette v1 conforming, supervision ok.
+- The editor runs live; `ags list` includes `icon-color-mapping-editor`.
+- Note on the deploy run: apply's own final summary was not captured because
+  the 900s harness cutoff ended the run while it was already in the trailing
+  verify role. Apply printed no final summary; the standalone verify above is
+  authoritative and passed.
+- Release: composition `v0.2.6` is tagged on the commit that closes this
+  ticket (`v0.2.6: pin ags-icme v0.6.0 (edit-target dropdown)`).
+
+## Status
+
+Done. ags-icme `v0.6.0` is pinned, deployed and verified; composition
+`v0.2.6` released.
