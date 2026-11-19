@@ -2,7 +2,7 @@
 id: REQ-123
 title: "Neovim consumes the generated palette (tpr nvim projection)"
 kind: requirement
-status: in-progress
+status: done
 lane: design
 links:
   openspec: none
@@ -133,3 +133,12 @@ Normal fg = 16502954 (0xfbd0aa)
 Removing the module gives `fallback=catppuccin`.
 
 No tag, release, pin bump or host apply was performed.
+
+
+## Released
+
+- `theme-producer v0.7.0`
+- `dotfiles-runtime v1.6.0`
+- `dotfiles-assets v0.21.8`
+- `dotfiles-provision v0.1.92`
+- `dotfiles-v3 v0.2.0`
