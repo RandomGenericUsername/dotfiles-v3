@@ -2,13 +2,14 @@
 id: REQ-123
 title: "Neovim consumes the generated palette (tpr nvim projection)"
 kind: requirement
-status: proposed
+status: in-progress
 lane: design
 links:
   openspec: none
   bmad: none
-worktree: none
-branch: none
+  design: docs/115-neovim-palette-projection.md
+worktree: .worktrees/REQ-123/
+branch: ticket/REQ-123-neovim-generated-palette
 ---
 
 # Neovim consumes the generated palette (tpr nvim projection)
@@ -71,7 +72,7 @@ than duplicated in the editor config.
 
 ## Acceptance
 
-- [ ] A design/implementation record names the exact highlight mapping and the
+- [x] A design/implementation record names the exact highlight mapping and the
       tpr/runtime/provisioning/assets slices.
 - [ ] The tpr projection renders a valid Lua module for both dark and light
       palette modes.
