@@ -2,7 +2,7 @@
 id: REQ-124
 title: "Neovim follows the active skin appearance (follow-up)"
 kind: requirement
-status: in-progress
+status: done
 lane: design
 links:
   openspec: none
@@ -135,3 +135,12 @@ design §9) are: provisioning stable link → tpr full palette role map → asse
 loader + headless three-skin fixtures → runtime skin-only reload confirmation →
 composition pin cutover. Do not tag, release, or bump pins until the user
 authorizes shipping.
+
+
+## Released
+
+- tpr v0.7.1 — full palette role map
+- runtime v1.6.4 — format-set cache identity
+- assets v0.22.0 — appearance loader + SIGUSR1 reload
+- engine v0.1.94 — appearance tokens link + assets mirror
+- composition v0.2.4 — pins
