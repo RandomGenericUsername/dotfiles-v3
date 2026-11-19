@@ -40,6 +40,11 @@ Closed 2026-11-19.
 - The editor runs live; `ags list` includes `icon-color-mapping-editor`.
 - Release: composition `v0.2.7` is tagged on this close commit
   (`v0.2.7: ags-icme v0.6.1 (dev-pin parity)`).
+- GitHub Release **published** (not just the tag) for the existing tag
+  `v0.2.7` — title `v0.2.7 — ags-icme v0.6.1 dev-pin parity`:
+  https://github.com/RandomGenericUsername/dotfiles-v3/releases/tag/v0.2.7
+  Created with `gh release create --verify-tag`, not draft/prerelease, no
+  assets. Tag `v0.2.7` still points at `128ca285` and was not moved.
 
 ## Status
 
