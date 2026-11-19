@@ -2,7 +2,7 @@
 id: REQ-122
 title: "Composition: request the Neovim package"
 kind: requirement
-status: in-progress
+status: done
 lane: 2 — bounded implementation
 links:
   openspec: none
@@ -104,4 +104,5 @@ and a new engine tag after the Neovim package map and the LazyVim config land.
 - `make deploy-coverage` PASS (engine v0.1.89, assets v0.21.6, platform v1.2.0).
 - `make gates-ci` PASS (deploy-coverage, GloView ABI tests,
   ansible-embedded-template-lint, per-app drift, CI parity).
+- Composition `v0.1.97` tagged, pushed and released: https://github.com/RandomGenericUsername/dotfiles-v3/releases/tag/v0.1.97
 - No host apply/install was run.
