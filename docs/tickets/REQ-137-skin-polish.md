@@ -28,3 +28,8 @@ settings panel is now the mock's in-page `.settings-pop` with a full-window
 catcher; a `Gtk.Popover` is a separate compositor popup whose grab/pointer
 focus swallowed the next same-spot gear click. The app-owned popover shell
 clipping fix remains for the old path.
+
+## Batch record
+
+Canonical architecture, live state and the pending design index:
+`docs/117-redesign-batch.md`.
