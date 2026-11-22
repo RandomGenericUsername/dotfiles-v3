@@ -9,10 +9,12 @@ symlink to this file; this repo copy is the source of truth.
 | --- | --- |
 | `ags-wallpaper-selector` | **v0.6.29** (in-page settings; owner-confirmed) |
 | `dotfiles-assets` | **v0.22.3** installed (look-frame radius) |
-| `dotfiles-provision` | **v0.1.97** tool installed; release gate running |
-| `dotfiles-v3` composition | v0.2.9 live; **v0.2.10** pending (app v0.6.29 + assets v0.22.3 + engine v0.1.97) |
+| `dotfiles-provision` | **v0.1.97** released/installed (tag `f9a0fdb`) |
+| `dotfiles-v3` composition | **v0.2.10** live (app v0.6.29 + assets v0.22.3 + engine v0.1.97) |
 | `ags-bar` | v0.6.34 (sound panel reference) |
 | `ags-platform` / contracts | v1.2.0 / v0.13.0 |
+
+Live link: `~/.config/ags-wallpaper-selector` -> `apps/wallpaper-selector/v0.6.29`.
 
 Rollback: composition v0.2.9 + assets v0.22.2 + engine v0.1.96 (app v0.6.24).
 

@@ -2,7 +2,7 @@
 id: REQ-137
 title: "Wallpaper skin polish: app v0.6.29 + assets v0.22.3"
 kind: requirement
-status: in-progress
+status: done
 lane: 2 — bounded implementation
 links:
   openspec: none
@@ -33,3 +33,20 @@ clipping fix remains for the old path.
 
 Canonical architecture, live state and the pending design index:
 `docs/117-redesign-batch.md`.
+
+## Closure (2026-11-21)
+
+- Engine `v0.1.97` (`f9a0fdb`) pins assets `v0.22.3`; tag pushed. Full engine
+  `make gates` RC 0: 1145 passed / 3 skipped; hermetic 1110 passed / 38
+  skipped; ruff and `uv lock --check` clean.
+- Composition pin commit `686c6716` (engine v0.1.97, assets v0.22.3) and app
+  bump `f1c2c2a4` (v0.6.29) merged at `572ea2fa`.
+- `make deploy-coverage` PASS; `make gates-ci` PASS (5/5 gates, parity green).
+- Live apply: `ok=1163 changed=25 failed=0`; verify in the apply exit 0;
+  `dotfiles-runtime doctor` clean (28 items, watch/supervision ok).
+- Live links: `~/.config/ags-wallpaper-selector` ->
+  `apps/wallpaper-selector/v0.6.29`; assets `v0.22.3` installed.
+- Generated `appearance/ags-wallpaper-selector.css`: `.ws-control-bar`
+  `@surface`, 1 px, radius 0 (Hyprland `rounding 0` / `border 1`);
+  `.ws-look-frame` radius 0 from `surface.control.radius`.
+- Composition `v0.2.10` tags this close.
