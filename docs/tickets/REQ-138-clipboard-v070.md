@@ -38,4 +38,7 @@ branch: ticket/REQ-138-clipboard-v070-assets-v0224
   seven standalone apps).
 - `make gates-ci` PASS (5/5 gates, parity green).
 - Composition **v0.2.11** tags this close.
-- Live apply/verify/doctor recorded below.
+- Live apply: `dotfiles-provision apply` exit 0 — `ok=1163 changed=21 failed=0`; verify exit 0; `dotfiles-runtime doctor` clean (28 items, watch/supervision ok).
+- Live links: `~/.config/ags-clipboard` -> `apps/clipboard/v0.7.0`;
+  assets `v0.22.4` installed; engine `v0.1.98` installed.
+- Composition **v0.2.11** tags this close.
