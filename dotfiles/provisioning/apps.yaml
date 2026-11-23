@@ -78,7 +78,7 @@ apps:
     installDir: clipboard
     owner: standalone
     repo: https://github.com/RandomGenericUsername/ags-clipboard.git
-    tag: v0.6.2
+    tag: v0.7.0
     instance: clipboard
     configDir: ags-clipboard
     configLink: ags-clipboard
