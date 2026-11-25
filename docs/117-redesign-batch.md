@@ -9,15 +9,17 @@ symlink to this file; this repo copy is the source of truth.
 | --- | --- |
 | `ags-wallpaper-selector` | **v0.6.29** (in-page settings; owner-confirmed) |
 | `ags-clipboard` | **v0.7.0** (card-stage full/compact; owner-confirmed) |
-| `dotfiles-assets` | **v0.22.4** installed (clipboard paint-only skin) |
-| `dotfiles-provision` | **v0.1.98** released/installed (assets v0.22.4 mirror) |
-| `dotfiles-v3` composition | **v0.2.11** live (clipboard v0.7.0 + assets v0.22.4 + engine v0.1.98) |
-| `ags-bar` | v0.6.34 (sound panel reference) |
-| `ags-platform` / contracts | v1.2.0 / v0.13.0 |
+| `dotfiles-assets` | **v0.22.5** installed (Wi-Fi + Bluetooth overlay skins) |
+| `dotfiles-provision` | **v0.1.99** released/installed (assets v0.22.5 mirror) |
+| `dotfiles-v3` composition | **v0.2.12** live (bar v0.6.35 + assets v0.22.5 + engine v0.1.99) |
+| `ags-bar` | **v0.6.35** (Wi-Fi + Bluetooth panels live) |
+| `ags-platform` / contracts | v1.2.0 / v0.12.0 |
 
 Live link: `~/.config/ags-wallpaper-selector` -> `apps/wallpaper-selector/v0.6.29`.
 
-Rollback: composition v0.2.9 + assets v0.22.2 + engine v0.1.96 (app v0.6.24).
+Live link: `~/.config/ags` -> `apps/bar/v0.6.35`.
+
+Rollback: composition v0.2.11 + assets v0.22.4 + engine v0.1.98 (bar v0.6.34).
 
 ## Appearance/skin architecture (binding)
 
@@ -61,9 +63,9 @@ frozen mock sha256.
 | Wallpaper selector | `ags-wallpaper-selector/tickets/REQ-005-overlay-redesign/ticket.md` | `…/mock.html` `60410943d66b326b7384cdb5949ed68f384d14404eea7df83d77dfc4e6d0db74` | **live v0.6.29** |
 | Sound panel (reference) | `ags-bar/tickets/REQ-005-sound-panel-design/ticket.md` | `…/mock.html` `b4a731c39eba08c1e3c75d6283fa27f1f3f1d788c6c349daf7a126d7050310c3` | implemented in v0.6.34 |
 | Clipboard | `ags-clipboard/tickets/REQ-009-clipboard-card-modes/ticket.md` | `…/mock.html` `9e3f6ecaa396837194697b1d6922d7946677ea18440e4d7b5bb9c2e1fd278d19` | **live v0.7.0** |
-| Wi-Fi | `ags-bar/tickets/REQ-007-wifi-panel-design/ticket.md` | `…/mock.html` `0f32f515a2081a9fa94baf9ae7d8f80ad80c19dc99f092a61d7477bcbcfba715` | pending |
+| Wi-Fi | `ags-bar/tickets/REQ-007-wifi-panel-design/ticket.md` | `…/mock.html` `0f32f515a2081a9fa94baf9ae7d8f80ad80c19dc99f092a61d7477bcbcfba715` | **live v0.6.35** |
 | Battery | `ags-bar/tickets/REQ-008-battery-panel-design/ticket.md` | `…/mock.html` `2944b329d2e69a73b4c6e1fe8a59efdace2336e53ab83613e2051362872ef3f1` | pending |
-| Bluetooth | `ags-bar/tickets/REQ-009-bluetooth-panel-design/ticket.md` | `…/mock.html` `0df4939a4c02b1df38f8f966d0539b9569ad27c17aa1c55532fb8807d3d57eed` | pending |
+| Bluetooth | `ags-bar/tickets/REQ-009-bluetooth-panel-design/ticket.md` | `…/mock.html` `0df4939a4c02b1df38f8f966d0539b9569ad27c17aa1c55532fb8807d3d57eed` | **live v0.6.35** |
 
 Supporting documents:
 
