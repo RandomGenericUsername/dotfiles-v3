@@ -17,7 +17,7 @@ symlink to this file; this repo copy is the source of truth.
 
 Live link: `~/.config/ags-wallpaper-selector` -> `apps/wallpaper-selector/v0.6.29`.
 
-Live link: `~/.config/ags` -> `apps/bar/v0.6.36`.
+Live link: `~/.config/ags` -> `apps/bar/v0.6.37`.
 
 Rollback: composition v0.2.12 + assets v0.22.5 + engine v0.1.99 (bar v0.6.35).
 
