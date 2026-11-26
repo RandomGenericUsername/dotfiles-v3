@@ -10,14 +10,14 @@ symlink to this file; this repo copy is the source of truth.
 | `ags-wallpaper-selector` | **v0.6.29** (in-page settings; owner-confirmed) |
 | `ags-clipboard` | **v0.7.0** (card-stage full/compact; owner-confirmed) |
 | `dotfiles-assets` | **v0.22.6** installed (Wi-Fi + Bluetooth skins; neutral BT full-signal badge) |
-| `dotfiles-provision` | **v0.1.100** released/installed (assets v0.22.6 mirror) |
-| `dotfiles-v3` composition | **v0.2.13** live (bar v0.6.35 + assets v0.22.6 + engine v0.1.100) |
-| `ags-bar` | **v0.6.35** (Wi-Fi + Bluetooth panels live) |
+| `dotfiles-provision` | **v0.1.101** released/installed (bar v0.6.36 fixture) |
+| `dotfiles-v3` composition | **v0.2.14** live (bar v0.6.36 + assets v0.22.6 + engine v0.1.101) |
+| `ags-bar` | **v0.6.36** (Wi-Fi + Bluetooth panels live; bare BT header glyph) |
 | `ags-platform` / contracts | v1.2.0 / v0.12.0 |
 
 Live link: `~/.config/ags-wallpaper-selector` -> `apps/wallpaper-selector/v0.6.29`.
 
-Live link: `~/.config/ags` -> `apps/bar/v0.6.35`.
+Live link: `~/.config/ags` -> `apps/bar/v0.6.36`.
 
 Rollback: composition v0.2.12 + assets v0.22.5 + engine v0.1.99 (bar v0.6.35).
 
