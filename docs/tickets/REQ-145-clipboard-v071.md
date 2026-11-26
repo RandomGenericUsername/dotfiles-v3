@@ -31,4 +31,6 @@ and engine (v0.1.102) are unchanged.
 - `make deploy-coverage` PASS.
 - `make gates-ci` PASS (5/5 gates, parity green).
 - Composition **v0.2.16** tags this close.
-- Live apply/verify/doctor recorded in the close commit.
+- Live apply: exit 0 — `ok=1164 changed=25 failed=0`; verify exit 0; doctor clean (28 items, watch/supervision ok).
+- Live link: `~/.config/ags-clipboard` -> `apps/clipboard/v0.7.1`.
+- Composition **v0.2.16** tags this close.
