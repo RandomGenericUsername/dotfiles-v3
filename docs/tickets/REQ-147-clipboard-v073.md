@@ -14,4 +14,6 @@ Pin the code-card clamp fix on composition v0.2.17; release v0.2.18.
 
 ## Closure
 
-Gates-ci PASS; composition v0.2.18; apply/verify recorded.
+Gates-ci PASS; composition v0.2.18.
+Live apply exit 0 — `ok=1164 changed=25 failed=0`; verify exit 0; doctor
+clean. `~/.config/ags-clipboard` -> `apps/clipboard/v0.7.3`.
