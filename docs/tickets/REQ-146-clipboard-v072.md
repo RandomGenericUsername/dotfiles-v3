@@ -15,4 +15,6 @@ v0.2.16; run gates, apply/verify, release v0.2.17.
 
 ## Closure (2026-11-26)
 
-Pinned v0.7.2; gates-ci PASS; composition v0.2.17; apply/verify recorded.
+Pinned v0.7.2; gates-ci PASS; composition v0.2.17.
+Live apply exit 0 — `ok=1163 changed=21 failed=0`; verify exit 0; doctor
+clean. `~/.config/ags-clipboard` -> `apps/clipboard/v0.7.2`.
