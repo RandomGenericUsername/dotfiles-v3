@@ -8,7 +8,7 @@ symlink to this file; this repo copy is the source of truth.
 | Item | Value |
 | --- | --- |
 | `ags-wallpaper-selector` | **v0.6.29** (in-page settings; owner-confirmed) |
-| `ags-clipboard` | **v0.7.2** (card-stage full/compact; key-focus fix) |
+| `ags-clipboard` | **v0.7.3** (card-stage full/compact; code clamp) |
 | `dotfiles-assets` | **v0.22.6** installed (Wi-Fi + Bluetooth skins; neutral BT full-signal badge) |
 | `dotfiles-provision` | **v0.1.101** released/installed (bar v0.6.36 fixture) |
 | `dotfiles-v3` composition | **v0.2.14** live (bar v0.6.36 + assets v0.22.6 + engine v0.1.101) |

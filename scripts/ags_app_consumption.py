@@ -106,7 +106,7 @@ FINAL_APP_RELEASES = {
     ),
     "clipboard": (
         "https://github.com/RandomGenericUsername/ags-clipboard.git",
-        "v0.7.2"
+        "v0.7.3"
     ),
     "wallpaper-selector": (
         "https://github.com/RandomGenericUsername/ags-wallpaper-selector.git",
